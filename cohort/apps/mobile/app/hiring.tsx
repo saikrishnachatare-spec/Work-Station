@@ -30,6 +30,7 @@ export default function HiringScreen() {
 
   const updateStatus = useUpdateApplicationStatus();
   const nameOf = (id: string) => (profiles.data ?? []).find((p) => p.id === id)?.full_name || 'Member';
+  const profileOf = (id: string) => (profiles.data ?? []).find((p) => p.id === id);
 
   const closeOpening = async (jobId: string, role: string) => {
     setClosing(jobId);
@@ -100,6 +101,11 @@ export default function HiringScreen() {
                       <Text style={styles.body}>
                         {nameOf(a.user_id)} <Text style={styles.meta}>· applied {timeAgo(a.created_at ?? new Date().toISOString())}</Text>
                       </Text>
+                      {(() => {
+                        const ap = profileOf(a.user_id);
+                        const cred = [ap?.course, ap?.level].filter(Boolean).join(' · ');
+                        return cred ? <Text style={styles.meta}>{cred}</Text> : null;
+                      })()}
                       <Text style={[styles.meta, a.status === 'shortlisted' && { color: colors.brandDeep }, a.status === 'rejected' && { color: colors.danger }]}>
                         {statusLabel}
                       </Text>
