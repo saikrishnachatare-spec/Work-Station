@@ -53,7 +53,6 @@ export default function CreateModal() {
       router.push('/messages');
       return;
     }
-    if (id === 'resource') { toast.show('File uploads are being set up. Not available yet.', 'info'); return; }
     setAction(id);
   };
 
