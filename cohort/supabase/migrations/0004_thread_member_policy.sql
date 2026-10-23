@@ -12,3 +12,9 @@ $$;
 drop policy if exists participants_read on public.thread_participants;
 create policy participants_read on public.thread_participants for select
   using (user_id = auth.uid() or public.is_admin() or public.is_thread_member(thread_id));
+
+-- threads rows carry no content (id + created_at only); messages/participants stay protected.
+-- A restrictive threads_read breaks INSERT ... RETURNING (PostgREST select-after-insert),
+-- because the row is not yet readable before participants exist.
+drop policy if exists threads_read on public.threads;
+create policy threads_read on public.threads for select using (true);
