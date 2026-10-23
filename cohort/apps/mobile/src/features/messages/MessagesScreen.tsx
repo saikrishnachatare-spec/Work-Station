@@ -1,3 +1,4 @@
+import { Link } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -41,6 +42,7 @@ export function MessagesScreen() {
   }
 
   const open = threads.data?.find((t) => t.id === openId);
+  const counterpart = open?.otherUserId;
 
   const send = () => {
     const body = draft.trim();
@@ -82,6 +84,7 @@ export function MessagesScreen() {
           <View>
             <Text style={styles.strong}>{title}</Text>
             <Text style={styles.meta}>Member</Text>
+            {counterpart && <Link href={{pathname:'/safety',params:{type:'user',id:counterpart}}}>Report or block</Link>}
           </View>
         </Card>
         <ScrollView contentContainerStyle={styles.threadBody}>

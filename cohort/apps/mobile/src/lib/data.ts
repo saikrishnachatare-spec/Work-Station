@@ -327,6 +327,7 @@ export function useCreateResource() {
 }
 
 export type ThreadSummary = {
+  otherUserId?: string;
   id: string;
   otherName: string;
   lastMessage: string;
@@ -367,6 +368,7 @@ export function useThreads(userId: string | undefined) {
       }
       return (others as { thread_id: string; user_id: string }[]).map((o) => ({
         id: o.thread_id,
+        otherUserId: o.user_id,
         otherName: nameOf.get(o.user_id) || 'Member',
         lastMessage: lastOf.get(o.thread_id)?.body ?? '',
         lastAt: lastOf.get(o.thread_id)?.created_at ?? '',

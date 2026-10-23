@@ -47,7 +47,7 @@ function useErrorLogs(enabled: boolean) {
   });
 }
 
-const SECTIONS = ['Overview', 'Users', 'Posts', 'Announcements', 'Resources', 'Groups', 'Jobs', 'Errors'] as const;
+const SECTIONS = ['Overview', 'Users', 'Posts', 'Announcements', 'Resources', 'Groups', 'Jobs', 'Reports', 'Errors'] as const;
 
 function ActionBtn({ label, onPress }: { label: string; onPress: () => void }) {
   return (
@@ -99,6 +99,7 @@ export default function AdminScreen() {
   const resources = useResources();
   const isAdmin = profile.data?.role === 'admin';
   const errorLogs = useErrorLogs(!!isAdmin);
+  const reports = useQuery({queryKey:['reports'],enabled:!!isAdmin,queryFn:async()=>{const{data,error}=await supabase.from('content_reports').select('*').order('created_at',{ascending:false});if(error)throw error;return data||[];}});
 
   const refresh = () => {
     for (const key of ['profiles', 'posts', 'groups', 'jobs', 'resources', 'error_logs']) {
@@ -307,6 +308,7 @@ export default function AdminScreen() {
         </View>
       )}
 
+      {section === 'Reports' && <View style={{gap:12}}>{reports.isError?<Text>Could not load reports.</Text>:reports.data?.length===0?<Text>No reports.</Text>:reports.data?.map(r=><Card key={r.id}><Text>{r.target_type}: {r.target_id}</Text><Text>{r.reason}</Text><Text>{r.status}</Text>{r.status==='open'&&<ActionBtn label="Mark reviewed" onPress={async()=>{const{error}=await supabase.from('content_reports').update({status:'reviewed'}).eq('id',r.id);if(!error)qc.invalidateQueries({queryKey:['reports']});}}/>}</Card>)}</View>}
       {section === 'Errors' && (
         <View style={{ gap: spacing.sm }}>
           <Text style={styles.meta}>
