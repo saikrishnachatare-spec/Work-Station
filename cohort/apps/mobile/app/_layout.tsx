@@ -6,7 +6,11 @@ import { useFonts } from 'expo-font';
 import { useEffect } from 'react';
 import { Platform, Text, View } from 'react-native';
 
+import { ConsentBanner } from '@/components/ConsentBanner';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/Toast';
+import { initAnalytics } from '@/lib/analytics';
+import { installErrorLogging } from '@/lib/errors';
 import { queryClient } from '@/lib/queryClient';
 import { useAuth } from '@/store/session';
 import { colors } from '@/theme';
@@ -43,11 +47,17 @@ export default function RootLayout() {
   // Vector-icon fonts don't load by default on web; without this, tab icons are invisible.
   const [fontsLoaded] = useFonts({ ...Ionicons.font });
 
+  useEffect(() => {
+    installErrorLogging();
+    initAnalytics();
+  }, []);
+
   if (!fontsLoaded) {
     return <View style={{ backgroundColor: colors.cream, flex: 1 }} />;
   }
 
   return (
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
       <StatusBar style="dark" />
@@ -80,7 +90,9 @@ export default function RootLayout() {
           />
         </Stack>
       </AuthGate>
+      <ConsentBanner />
       </ToastProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

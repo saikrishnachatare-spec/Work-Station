@@ -7,7 +7,7 @@
  */
 import { SeoHead } from '@/components/SeoHead';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -22,7 +22,32 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
-const SECTIONS = ['Overview', 'Users', 'Posts', 'Announcements', 'Resources', 'Groups', 'Jobs'] as const;
+type ErrorLog = {
+  id: string;
+  created_at: string;
+  message: string;
+  stack: string | null;
+  url: string | null;
+  user_agent: string | null;
+};
+
+function useErrorLogs(enabled: boolean) {
+  return useQuery({
+    enabled,
+    queryFn: async (): Promise<ErrorLog[]> => {
+      const { data, error } = await supabase
+        .from('error_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data as ErrorLog[];
+    },
+    queryKey: ['error_logs'],
+  });
+}
+
+const SECTIONS = ['Overview', 'Users', 'Posts', 'Announcements', 'Resources', 'Groups', 'Jobs', 'Errors'] as const;
 
 function ActionBtn({ label, onPress }: { label: string; onPress: () => void }) {
   return (
@@ -72,9 +97,11 @@ export default function AdminScreen() {
   const groups = useGroups();
   const jobs = useJobs();
   const resources = useResources();
+  const isAdmin = profile.data?.role === 'admin';
+  const errorLogs = useErrorLogs(!!isAdmin);
 
   const refresh = () => {
-    for (const key of ['profiles', 'posts', 'groups', 'jobs', 'resources']) {
+    for (const key of ['profiles', 'posts', 'groups', 'jobs', 'resources', 'error_logs']) {
       qc.invalidateQueries({ queryKey: [key] });
     }
   };
@@ -280,6 +307,32 @@ export default function AdminScreen() {
         </View>
       )}
 
+      {section === 'Errors' && (
+        <View style={{ gap: spacing.sm }}>
+          <Text style={styles.meta}>
+            Uncaught errors and failed promises from the app land here automatically, newest first.
+          </Text>
+          {(errorLogs.data ?? []).length === 0 && (
+            <Card><Text style={styles.meta}>No errors logged. That is the goal.</Text></Card>
+          )}
+          {(errorLogs.data ?? []).map((e) => (
+            <Card key={e.id} style={{ gap: 4 }}>
+              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong} numberOfLines={2}>{e.message}</Text>
+                  <Text style={styles.meta}>{e.url} · {timeAgo(e.created_at)}</Text>
+                </View>
+                <ActionBtn label="Clear" onPress={async () => {
+                  await supabase.from('error_logs').delete().eq('id', e.id);
+                  refresh();
+                }} />
+              </View>
+              {e.stack ? <Text numberOfLines={3} style={styles.stack}>{e.stack}</Text> : null}
+            </Card>
+          ))}
+        </View>
+      )}
+
       {section === 'Jobs' && (
         <View style={{ gap: spacing.sm }}>
           {(jobs.data ?? []).map((j) => (
@@ -338,4 +391,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6,
   },
   removeText: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },
+  stack: { ...typeScale.caption, color: colors.ink3, fontFamily: 'Courier' },
 });
