@@ -69,7 +69,19 @@ def jsonld_for(path, title, desc):
     return ''.join(f'<script type="application/ld+json">{json.dumps(b, separators=(",", ":"))}</script>' for b in blocks)
 
 
-def tags_for(path, title, desc, noindex):
+def perf_tags(dist):
+    # Preload the icon font (otherwise icons wait for JS + useFonts) and
+    # preconnect to the API origin so first data fetches skip setup cost.
+    tags = [f'<link rel="preconnect" href="https://ghjerdyubgjtfihumzhb.supabase.co"/>']
+    fonts_dir = os.path.join(dist, 'fonts')
+    if os.path.isdir(fonts_dir):
+        for f in sorted(os.listdir(fonts_dir)):
+            if f.endswith('.ttf'):
+                tags.append(f'<link rel="preload" href="/fonts/{f}" as="font" type="font/ttf" crossorigin="anonymous"/>')
+    return ''.join(tags)
+
+
+def tags_for(path, title, desc, noindex, dist):
     canonical = f'{SITE}{path}'
     robots = f'<meta name="robots" content="noindex, nofollow"/>' if noindex else ''
     return (
@@ -90,6 +102,7 @@ def tags_for(path, title, desc, noindex):
       f'<meta name="twitter:description" content="{desc}"/>'
       f'<meta name="twitter:image" content="{OG_IMG}"/>'
       f'{jsonld_for(path, title, desc)}'
+      f'{perf_tags(dist)}'
     )
 
 dist = sys.argv[1] if len(sys.argv) > 1 else 'dist'
@@ -102,7 +115,7 @@ for fname, (path, title, desc, noindex) in ROUTES.items():
     if '<title>' in html:
         continue  # already injected
     html = html.replace('<meta http-equiv="X-UA-Compatible" content="IE=edge"/>',
-                        '<meta http-equiv="X-UA-Compatible" content="IE=edge"/>' + tags_for(path, title, desc, noindex))
+                        '<meta http-equiv="X-UA-Compatible" content="IE=edge"/>' + tags_for(path, title, desc, noindex, dist))
     open(fpath, 'w').write(html)
     done.append(fname)
 print(f'seo-inject: tagged {len(done)} pages: {", ".join(done)}')
