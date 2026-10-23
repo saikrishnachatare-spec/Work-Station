@@ -13,4 +13,6 @@ cp web-static/* dist/
 cp "dist/+not-found.html" dist/404.html
 # Per-route SEO head tags (title/meta/OG/canonical).
 python3 scripts/seo-inject.py dist
-npx vercel deploy --prod --yes --token "$VERCEL_TOKEN" --name cohort dist
+URL=$(npx vercel deploy --prod --yes --token "$VERCEL_TOKEN" --name cohort dist | grep -o 'https://[^ ]*vercel.app' | head -1)
+# --prod does not always move the existing alias; pin it explicitly.
+npx vercel alias set "${URL#https://}" cohort-pi-eight.vercel.app --token "$VERCEL_TOKEN"
