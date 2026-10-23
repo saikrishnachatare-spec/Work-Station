@@ -56,7 +56,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "test:e2e": "node scripts/e2e-smoke.mjs"
   },
   "private": true
 }
