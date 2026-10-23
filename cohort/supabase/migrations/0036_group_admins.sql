@@ -153,3 +153,52 @@ $$;
 
 revoke all on function public.delete_my_account() from public;
 grant execute on function public.delete_my_account() to authenticated;
+
+-- fix: the combined elsif condition 'applications UPDATE and new.status ...'
+-- touched new.status for tables without that field and broke group member
+-- inserts; nested if guards the field access
+create or replace function public.log_content_activity()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $function$
+begin
+  if tg_table_name = 'posts' and tg_op = 'INSERT' then
+    insert into public.activity_log(actor_id, actor_name, action, entity_type, entity_id)
+    values (new.author_id, coalesce(new.author_name,''), 'post_created', 'posts', new.id::text);
+  elsif tg_table_name = 'jobs' and tg_op = 'INSERT' then
+    insert into public.activity_log(actor_id, actor_name, action, entity_type, entity_id, detail)
+    values (new.posted_by, public.actor_display_name(new.posted_by), 'opening_posted', 'jobs', new.id::text,
+            jsonb_build_object('role', new.role, 'firm', new.firm, 'cat', new.cat));
+  elsif tg_table_name = 'resources' and tg_op = 'INSERT' then
+    insert into public.activity_log(actor_id, actor_name, action, entity_type, entity_id, detail)
+    values (new.owner_id, coalesce(new.uploaded_by,''), 'resource_shared', 'resources', new.id::text, jsonb_build_object('title', new.title));
+  elsif tg_table_name = 'groups' and tg_op = 'INSERT' then
+    insert into public.activity_log(actor_id, actor_name, action, entity_type, entity_id, detail)
+    values (new.created_by, public.actor_display_name(new.created_by), 'group_created', 'groups', new.id::text, jsonb_build_object('name', new.name));
+  elsif tg_table_name = 'groups' and tg_op = 'DELETE' then
+    insert into public.activity_log(actor_id, actor_name, action, entity_type, entity_id, detail)
+    values (auth.uid(), public.actor_display_name(auth.uid()), 'group_removed', 'groups', old.id::text, jsonb_build_object('name', old.name));
+    return old;
+  elsif tg_table_name = 'applications' and tg_op = 'INSERT' then
+    insert into public.activity_log(actor_id, actor_name, action, entity_type, entity_id)
+    values (new.user_id, public.actor_display_name(new.user_id), 'application_sent', 'applications', new.id::text);
+  elsif tg_table_name = 'applications' and tg_op = 'UPDATE' then
+    if new.status is distinct from old.status then
+      insert into public.activity_log(actor_id, actor_name, action, entity_type, entity_id)
+      values (auth.uid(), public.actor_display_name(auth.uid()), 'application_'||new.status, 'applications', new.id::text);
+    end if;
+  elsif tg_table_name = 'group_members' and tg_op = 'INSERT' then
+    insert into public.activity_log(actor_id, actor_name, action, entity_type, entity_id)
+    values (new.user_id, public.actor_display_name(new.user_id), 'member_added', 'group_members', new.group_id::text);
+  elsif tg_table_name = 'group_members' and tg_op = 'DELETE' then
+    insert into public.activity_log(actor_id, actor_name, action, entity_type, entity_id, detail)
+    values (coalesce(auth.uid(), old.user_id), public.actor_display_name(coalesce(auth.uid(), old.user_id)),
+            case when auth.uid() = old.user_id or auth.uid() is null then 'member_left' else 'member_removed' end,
+            'group_members', old.group_id::text, jsonb_build_object('member', public.actor_display_name(old.user_id)));
+    return old;
+  end if;
+  return new;
+end
+$function$;
