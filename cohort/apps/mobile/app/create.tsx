@@ -1,8 +1,8 @@
 import * as DocumentPicker from 'expo-document-picker';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { createElement, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useToast } from '@/components/Toast';
 import { useCreateGroup, useCreateJob, useCreatePost, useCreateResource, useMyProfile } from '@/lib/data';
@@ -65,7 +65,7 @@ export default function CreateModal() {
       return;
     }
     const authorName = profile.data?.full_name || session?.user?.email?.split('@')[0] || 'You';
-    const onError = () => toast.show('Could not save. Try again.', 'error');
+    const onError = (error: Error) => toast.show(error.message || 'Could not save. Try again.', 'error');
     if (action === 'post') {
       createPost.mutate(
         { authorId: userId, authorName, body: a },
@@ -146,10 +146,17 @@ export default function CreateModal() {
             )}
             {action === 'resource' && <>
               <Text style={styles.meta}>PDF, PNG, JPEG or WebP, up to 10 MB. Shared with signed-in members.</Text>
-              <Pressable accessibilityRole="button" onPress={async () => {
+              {Platform.OS === 'web' ? createElement('input', {
+                type: 'file', accept: 'application/pdf,image/png,image/jpeg,image/webp',
+                'aria-label': 'Choose PDF or image',
+                onChange: (event: { target: { files: FileList | null } }) => {
+                  const file = event.target.files?.[0];
+                  if (file) setResourceFile({ uri: URL.createObjectURL(file), name: file.name, size: file.size, mimeType: file.type });
+                }, style: { padding: 12, backgroundColor: '#fff', borderRadius: 12 },
+              }) : <Pressable accessibilityRole="button" onPress={async () => {
                 const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'], copyToCacheDirectory: true });
                 if (!result.canceled) setResourceFile(result.assets[0]);
-              }} style={styles.cta}><Text style={styles.ctaText}>{resourceFile ? resourceFile.name : 'Choose PDF or image'}</Text></Pressable>
+              }} style={styles.cta}><Text style={styles.ctaText}>{resourceFile ? resourceFile.name : 'Choose PDF or image'}</Text></Pressable>}
             </>}
             {action === 'job' && (
               <>
