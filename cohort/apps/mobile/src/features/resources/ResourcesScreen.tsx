@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, Linking } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, Linking } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { Chip } from '@/components/Chip';
@@ -82,7 +82,8 @@ export function ResourcesScreen() {
               {r.file_path && <Pressable accessibilityRole="button" accessibilityLabel={`Open ${r.title}`} onPress={async () => {
                 const { data, error } = await supabase.storage.from('resources').createSignedUrl(r.file_path!, 300);
                 if (error || !data) { toast.show('Sign in to open this file, or try again.', 'error'); return; }
-                await Linking.openURL(data.signedUrl);
+                if (Platform.OS === 'web') window.location.assign(data.signedUrl);
+                else await Linking.openURL(data.signedUrl);
               }}><Ionicons color={colors.brand} name="download-outline" size={22} /></Pressable>}
             </Card>
           ))}
