@@ -2,6 +2,7 @@
  * Live data layer: every screen reads from and writes to Supabase.
  * Reads are public (RLS); writes need a signed-in user.
  */
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
@@ -358,6 +359,16 @@ export function useThreads(userId: string | undefined) {
 }
 
 export function useThreadMessages(threadId: string | null) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!threadId) return;
+    const channel = supabase.channel(`messages:${threadId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `thread_id=eq.${threadId}` }, () => {
+        qc.invalidateQueries({ queryKey: ['messages', threadId] });
+        qc.invalidateQueries({ queryKey: ['threads'] });
+      }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [threadId, qc]);
   return useQuery({
     enabled: !!threadId,
     queryKey: ['messages', threadId],
@@ -575,5 +586,30 @@ export function useAddComment(userId: string | undefined) {
       qc.invalidateQueries({ queryKey: ['post', v.postId] });
       qc.invalidateQueries({ queryKey: ['posts'] });
     },
+  });
+}
+
+/** Own-content writes return a row so RLS no-ops cannot look successful. */
+export function useEditOwnContent(table: 'posts' | 'comments', userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: string }) => {
+      if (!userId || !body.trim()) throw new Error('Sign in and enter text');
+      const { data, error } = await supabase.from(table).update({ body: body.trim() })
+        .eq('id', id).eq('author_id', userId).select('id').single();
+      if (error || !data) throw error || new Error('Nothing updated');
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['posts'] }); qc.invalidateQueries({ queryKey: ['post'] }); qc.invalidateQueries({ queryKey: ['comments'] }); },
+  });
+}
+export function useDeleteOwnContent(table: 'posts' | 'comments', userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      if (!userId) throw new Error('Sign in first');
+      const { data, error } = await supabase.from(table).delete().eq('id', id).eq('author_id', userId).select('id').single();
+      if (error || !data) throw error || new Error('Nothing deleted');
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['posts'] }); qc.invalidateQueries({ queryKey: ['post'] }); qc.invalidateQueries({ queryKey: ['comments'] }); },
   });
 }

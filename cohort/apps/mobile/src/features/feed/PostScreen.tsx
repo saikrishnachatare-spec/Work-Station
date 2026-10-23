@@ -8,7 +8,7 @@ import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { Pill } from '@/components/ScreenBits';
-import { timeAgo, useAddComment, useComments, usePost, useProfiles } from '@/lib/data';
+import { timeAgo, useAddComment, useComments, usePost, useProfiles, useEditOwnContent, useDeleteOwnContent } from '@/lib/data';
 import { useAuth } from '@/store/session';
 import { useToast } from '@/components/Toast';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -24,6 +24,29 @@ export function PostScreen({ id }: { id: string }) {
   const addComment = useAddComment(userId);
   const profiles = useProfiles();
   const [draft, setDraft] = useState('');
+  const [editing, setEditing] = useState<{ table: 'posts' | 'comments'; id: string } | null>(null);
+  const [editText, setEditText] = useState('');
+  const [deleting, setDeleting] = useState<{ table: 'posts' | 'comments'; id: string } | null>(null);
+  const editPost = useEditOwnContent('posts', userId);
+  const editComment = useEditOwnContent('comments', userId);
+  const deletePost = useDeleteOwnContent('posts', userId);
+  const deleteComment = useDeleteOwnContent('comments', userId);
+  const startEdit = (table: 'posts' | 'comments', id: string, body: string) => { setEditing({ table, id }); setEditText(body); };
+  const saveEdit = () => {
+    if (!editing || !editText.trim()) return;
+    (editing.table === 'posts' ? editPost : editComment).mutate({ id: editing.id, body: editText }, {
+      onSuccess: () => { setEditing(null); toast.show('Saved', 'success'); },
+      onError: () => toast.show('Could not save. Try again.', 'error'),
+    });
+  };
+  const confirmDelete = () => {
+    if (!deleting) return;
+    const table = deleting.table;
+    (table === 'posts' ? deletePost : deleteComment).mutate(deleting.id, {
+      onSuccess: () => { setDeleting(null); toast.show('Deleted', 'success'); if (table === 'posts') router.back(); },
+      onError: () => toast.show('Could not delete. Try again.', 'error'),
+    });
+  };
 
   const nameOf = (authorId: string) =>
     (profiles.data ?? []).find((pr) => pr.id === authorId)?.full_name || 'Member';
@@ -71,6 +94,10 @@ export function PostScreen({ id }: { id: string }) {
         </View>
         {p.kind === 'announcement' && <Text style={styles.announcement}>Official announcement</Text>}
         <Text style={styles.body}>{p.body}</Text>
+        {p.author_id === userId && <View style={styles.footRow}>
+          <Pressable accessibilityRole="button" onPress={() => startEdit('posts', p.id, p.body)}><Text style={styles.backText}>Edit post</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => setDeleting({ table: 'posts', id: p.id })}><Text style={styles.backText}>Delete post</Text></Pressable>
+        </View>}
         <View style={styles.footRow}>
           <Ionicons color={colors.ink3} name="heart-outline" size={14} />
           <Text style={styles.meta}>{p.like_count}</Text>
@@ -78,6 +105,21 @@ export function PostScreen({ id }: { id: string }) {
           <Text style={styles.meta}>{p.comment_count}</Text>
         </View>
       </Card>
+      {editing && <Card style={{ gap: spacing.sm }}>
+        <Text style={styles.strong}>Edit {editing.table === 'posts' ? 'post' : 'comment'}</Text>
+        <TextInput accessibilityLabel="Edit text" multiline style={styles.input} value={editText} onChangeText={setEditText} />
+        <View style={styles.footRow}>
+          <Pressable accessibilityRole="button" onPress={saveEdit}><Text style={styles.backText}>Save changes</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => setEditing(null)}><Text style={styles.backText}>Cancel edit</Text></Pressable>
+        </View>
+      </Card>}
+      {deleting && <Card style={{ gap: spacing.sm }}>
+        <Text style={styles.body}>Delete this {deleting.table === 'posts' ? 'post and its comments' : 'comment'}? This cannot be undone.</Text>
+        <View style={styles.footRow}>
+          <Pressable accessibilityRole="button" onPress={confirmDelete}><Text style={styles.backText}>Confirm delete</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => setDeleting(null)}><Text style={styles.backText}>Keep it</Text></Pressable>
+        </View>
+      </Card>}
       <Text style={styles.sectionHead}>Comments</Text>
       {comments.isLoading && <ListSkeleton count={1} />}
       {!comments.isLoading && (comments.data ?? []).length === 0 && (
@@ -92,6 +134,10 @@ export function PostScreen({ id }: { id: string }) {
               <Text style={styles.meta}>{timeAgo(c.created_at)}</Text>
             </View>
             <Text style={styles.body}>{c.body}</Text>
+            {c.author_id === userId && <View style={styles.footRow}>
+              <Pressable accessibilityRole="button" onPress={() => startEdit('comments', c.id, c.body)}><Text style={styles.backText}>Edit comment</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => setDeleting({ table: 'comments', id: c.id })}><Text style={styles.backText}>Delete comment</Text></Pressable>
+            </View>}
           </View>
         </Card>
       ))}

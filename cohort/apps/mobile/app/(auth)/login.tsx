@@ -35,7 +35,7 @@ export default function LoginScreen() {
   const validate = (): string => {
     if (!EMAIL_RE.test(email.trim())) return 'Enter a valid email address.';
     if (mode !== 'reset') {
-      if (password.length < 8) return 'Password must be at least 8 characters.';
+      if (mode === 'signup' && password.length < 8) return 'Password must be at least 8 characters.';
       if (mode === 'signup' && !name.trim()) return 'Tell us your name so people know you.';
     }
     return '';

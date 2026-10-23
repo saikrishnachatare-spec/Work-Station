@@ -16,7 +16,6 @@ export default function AccountScreen() {
   const router = useRouter();
   const { guest, session } = useAuth();
   const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [savingName, setSavingName] = useState(false);
@@ -66,11 +65,8 @@ export default function AccountScreen() {
   };
 
   const doDelete = async () => {
-    setBusy(true);
-    // Phase 2: server-side deletion function. For now: sign out and forget.
-    await supabase.auth.signOut();
-    setBusy(false);
-    router.replace('/(auth)/login');
+    toast.show('Account deletion is not available yet. Your account has not been deleted.', 'info');
+    setConfirming(false);
   };
 
   return (
@@ -117,19 +113,19 @@ export default function AccountScreen() {
 
       {!confirming ? (
         <Pressable onPress={() => setConfirming(true)}>
-          <Text style={styles.danger}>Delete my account</Text>
+          <Text style={styles.danger}>Account deletion unavailable</Text>
         </Pressable>
       ) : (
         <Card style={{ gap: spacing.sm }}>
           <Text style={styles.body}>
-            Delete your account permanently? Your profile and personal data will be removed. This cannot be undone.
+            Self-service account deletion is not ready. This action will not delete your account or personal data.
           </Text>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Pressable onPress={() => setConfirming(false)} style={styles.ghostBtn}>
               <Text style={styles.ghostText}>Keep my account</Text>
             </Pressable>
-            <Pressable disabled={busy} onPress={doDelete} style={styles.dangerBtn}>
-              <Text style={styles.ctaText}>{busy ? 'Deleting…' : 'Yes, delete'}</Text>
+            <Pressable onPress={doDelete} style={styles.dangerBtn}>
+              <Text style={styles.ctaText}>Understood</Text>
             </Pressable>
           </View>
         </Card>
