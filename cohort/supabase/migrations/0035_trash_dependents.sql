@@ -166,6 +166,11 @@ begin
    where entity_table = 'posts' and payload->>'author_id' = uid::text;
   update trash set payload = jsonb_set(payload, '{uploaded_by}', '"Former member"')
    where entity_table = 'resources' and payload->>'owner_id' = uid::text;
+  -- the member's own trashed content is permanently removed with the account
+  delete from trash
+   where (entity_table = 'posts' and payload->>'author_id' = uid::text)
+      or (entity_table = 'jobs' and payload->>'posted_by' = uid::text)
+      or (entity_table = 'resources' and payload->>'owner_id' = uid::text);
 
   delete from jobs where posted_by = uid;
 
