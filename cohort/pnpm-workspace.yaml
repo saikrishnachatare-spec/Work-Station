@@ -3,3 +3,5 @@ packages:
   - 'packages/*'
 allowBuilds:
   unrs-resolver: true
+  dtrace-provider: true
+  protobufjs: true
