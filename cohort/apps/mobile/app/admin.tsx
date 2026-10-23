@@ -183,9 +183,15 @@ export default function AdminScreen() {
     toast.show('Restored.', 'success');
     refresh();
   };
-  const purgeItem = async (trashId: string) => {
-    const { error } = await supabase.rpc('admin_purge', { p_trash_id: trashId });
-    if (error) { toast.show('Could not delete permanently. Try again.', 'error'); return; }
+  const purgeItem = async (t: TrashRow) => {
+    if (t.entity_table === 'resources' && t.payload?.file_path) {
+      await supabase.storage.from('resources').remove([t.payload.file_path]);
+    }
+    const { error } = await supabase.rpc('admin_purge', { p_trash_id: t.id });
+    if (error) {
+      toast.show(error.message === 'storage_cleanup_required' ? 'Remove the stored file first, then purge.' : 'Could not delete permanently. Try again.', 'error');
+      return;
+    }
     toast.show('Deleted permanently.', 'success');
     refresh();
   };
@@ -424,7 +430,7 @@ export default function AdminScreen() {
                 </Text>
               </View>
               <ActionBtn label="Restore" onPress={() => restoreItem(t.id)} />
-              <ActionBtn label="Purge" onPress={() => purgeItem(t.id)} />
+              <ActionBtn label="Purge" onPress={() => purgeItem(t)} />
             </Card>
           ))}
           {trash.data && trash.data.length === 0 && <Text style={styles.meta}>Trash is empty.</Text>}

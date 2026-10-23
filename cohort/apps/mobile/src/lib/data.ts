@@ -356,7 +356,7 @@ export function useActivityLog(enabled: boolean) {
     enabled,
     queryKey: ['activity-log'],
     queryFn: async (): Promise<ActivityRow[]> => {
-      const { data, error } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(50);
+      const { data, error } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).order('id', { ascending: false }).limit(50);
       if (error) throw error;
       return data as ActivityRow[];
     },
