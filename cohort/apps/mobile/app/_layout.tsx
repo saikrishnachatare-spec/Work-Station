@@ -1,34 +1,80 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
+import { useEffect } from 'react';
+import { Text, View } from 'react-native';
 
 import { queryClient } from '@/lib/queryClient';
+import { useAuth } from '@/store/session';
 import { colors } from '@/theme';
 
+/** Sends unauthenticated, non-guest users to the login screen. */
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { guest, loading, session } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+    const first = segments[0] as string | undefined;
+    const publicRoutes = ['(auth)', 'terms', 'privacy', 'reset-password'];
+    const isPublic = first === undefined || publicRoutes.includes(first);
+    if (!session && !guest && !isPublic) {
+      router.replace('/(auth)/login');
+    }
+  }, [guest, loading, router, segments, session]);
+
+  if (loading) {
+    return (
+      <View style={{ alignItems: 'center', backgroundColor: colors.cream, flex: 1, justifyContent: 'center' }}>
+        <Text style={{ color: colors.brand, fontFamily: 'Georgia', fontSize: 28 }}>Cohort</Text>
+      </View>
+    );
+  }
+  return <>{children}</>;
+}
+
 export default function RootLayout() {
+  // Vector-icon fonts don't load by default on web; without this, tab icons are invisible.
+  const [fontsLoaded] = useFonts({ ...Ionicons.font });
+
+  if (!fontsLoaded) {
+    return <View style={{ backgroundColor: colors.cream, flex: 1 }} />;
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <StatusBar style="dark" />
-      <Stack
-        screenOptions={{
-          contentStyle: { backgroundColor: colors.cream },
-          headerTintColor: colors.ink,
-          headerStyle: { backgroundColor: colors.cream },
-          headerTitleStyle: { fontFamily: 'Georgia' },
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="messages" options={{ title: 'Messages' }} />
-        <Stack.Screen name="admin" options={{ title: 'Cohort admin' }} />
-        <Stack.Screen
-          name="create"
-          options={{
-            animation: 'slide_from_bottom',
-            headerShown: false,
-            presentation: 'transparentModal',
+      <AuthGate>
+        <Stack
+          screenOptions={{
+            contentStyle: { backgroundColor: colors.cream },
+            headerTintColor: colors.ink,
+            headerStyle: { backgroundColor: colors.cream },
+            headerTitleStyle: { fontFamily: 'Georgia' },
           }}
-        />
-      </Stack>
+        >
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+          <Stack.Screen name="messages" options={{ title: 'Messages' }} />
+          <Stack.Screen name="search" options={{ title: 'Search' }} />
+          <Stack.Screen name="account" options={{ title: 'Account' }} />
+          <Stack.Screen name="admin" options={{ title: 'Cohort admin' }} />
+          <Stack.Screen name="terms" options={{ title: 'Terms of use' }} />
+          <Stack.Screen name="privacy" options={{ title: 'Privacy policy' }} />
+          <Stack.Screen name="reset-password" options={{ title: 'Reset password' }} />
+          <Stack.Screen
+            name="create"
+            options={{
+              animation: 'slide_from_bottom',
+              headerShown: false,
+              presentation: 'transparentModal',
+            }}
+          />
+        </Stack>
+      </AuthGate>
     </QueryClientProvider>
   );
 }

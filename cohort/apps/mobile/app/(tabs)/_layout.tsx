@@ -28,13 +28,29 @@ export default function TabsLayout() {
       <Tabs
         screenOptions={({ route }) => ({
           headerRight: () => (
-            <Pressable
-              accessibilityLabel="Messages"
-              onPress={() => router.push('/messages')}
-              style={styles.messagesButton}
-            >
-              <Ionicons color={colors.ink} name="chatbubble-ellipses-outline" size={22} />
-            </Pressable>
+            <View style={styles.headerButtons}>
+              <Pressable
+                accessibilityLabel="Search"
+                onPress={() => router.push('/search')}
+                style={styles.headerButton}
+              >
+                <Ionicons color={colors.ink} name="search" size={21} />
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Messages"
+                onPress={() => router.push('/messages')}
+                style={styles.headerButton}
+              >
+                <Ionicons color={colors.ink} name="chatbubble-ellipses-outline" size={21} />
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Account"
+                onPress={() => router.push('/account')}
+                style={styles.headerButton}
+              >
+                <Ionicons color={colors.ink} name="person-circle-outline" size={23} />
+              </Pressable>
+            </View>
           ),
           headerStyle: { backgroundColor: colors.cream },
           headerTitleStyle: { color: colors.brand, fontFamily: 'Georgia', fontSize: 22 },
@@ -70,8 +86,14 @@ const styles = StyleSheet.create({
   wrap: {
     flex: 1,
   },
-  messagesButton: {
-    paddingHorizontal: spacing.lg,
+  headerButton: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  headerButtons: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    paddingRight: spacing.sm,
   },
   fab: {
     alignItems: 'center',
