@@ -8,3 +8,6 @@ set member_count = (select count(*) from public.group_members m where m.group_id
 
 update public.posts p
 set comment_count = (select count(*) from public.comments c where c.post_id = p.id);
+
+update public.posts p
+set like_count = (select count(*) from public.post_likes l where l.post_id = p.id);

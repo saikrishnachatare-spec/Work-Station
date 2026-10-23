@@ -31,6 +31,10 @@ export default function CreateModal() {
   const [done, setDone] = useState('');
   const [text, setText] = useState('');
   const [text2, setText2] = useState('');
+  const [jobDesc, setJobDesc] = useState('');
+  const [jobDeadline, setJobDeadline] = useState('');
+  const [jobLoc, setJobLoc] = useState('');
+  const [jobPay, setJobPay] = useState('');
   const form = action ? FORMS[action] : null;
   const toast = useToast();
   const { session } = useAuth();
@@ -71,8 +75,15 @@ export default function CreateModal() {
         { onError, onSuccess: () => setDone(`Circle "${a}" created. Find it under My groups.`) },
       );
     } else if (action === 'job') {
+      if (jobDeadline && !/^\d{4}-\d{2}-\d{2}$/.test(jobDeadline.trim())) {
+        toast.show('Deadline must be YYYY-MM-DD (or leave it empty)', 'error');
+        return;
+      }
       createJob.mutate(
-        { firm: b || 'Your firm', role: a, userId },
+        {
+          deadline: jobDeadline.trim(), description: jobDesc.trim(), firm: b || 'Your firm',
+          loc: jobLoc.trim(), pay: jobPay.trim(), role: a, userId,
+        },
         { onError, onSuccess: () => setDone(`"${a}"${b ? ' at ' + b : ''} is live under Work & hiring.`) },
       );
     } else if (action === 'resource') {
@@ -130,6 +141,40 @@ export default function CreateModal() {
                 style={styles.input}
                 value={text2}
               />
+            )}
+            {action === 'job' && (
+              <>
+                <TextInput
+                  multiline
+                  numberOfLines={3}
+                  onChangeText={setJobDesc}
+                  placeholder="About this opening (what the person will do)"
+                  placeholderTextColor={colors.ink3}
+                  style={[styles.input, { minHeight: 72 }]}
+                  value={jobDesc}
+                />
+                <TextInput
+                  onChangeText={setJobDeadline}
+                  placeholder="Apply by (YYYY-MM-DD, optional)"
+                  placeholderTextColor={colors.ink3}
+                  style={styles.input}
+                  value={jobDeadline}
+                />
+                <TextInput
+                  onChangeText={setJobLoc}
+                  placeholder="Location (optional)"
+                  placeholderTextColor={colors.ink3}
+                  style={styles.input}
+                  value={jobLoc}
+                />
+                <TextInput
+                  onChangeText={setJobPay}
+                  placeholder="Pay (optional)"
+                  placeholderTextColor={colors.ink3}
+                  style={styles.input}
+                  value={jobPay}
+                />
+              </>
             )}
             <Pressable disabled={busy} onPress={submit} style={[styles.cta, busy && { opacity: 0.6 }]}><Text style={styles.ctaText}>{busy ? 'Saving…' : form.cta}</Text></Pressable>
           </View>

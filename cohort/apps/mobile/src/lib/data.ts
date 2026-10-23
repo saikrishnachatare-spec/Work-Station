@@ -279,10 +279,16 @@ export function useCreateGroup() {
 export function useCreateJob() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ firm, role, userId }: { firm: string; role: string; userId: string }) => {
-      const { error } = await supabase
-        .from('jobs')
-        .insert({ cat: 'Jobs', firm, loc: '', pay: '', posted_by: userId, role, tags: [] });
+    mutationFn: async ({
+      deadline = '', description = '', firm, loc = '', pay = '', role, userId,
+    }: {
+      deadline?: string; description?: string; firm: string; loc?: string; pay?: string; role: string; userId: string;
+    }) => {
+      const row: Record<string, unknown> = {
+        cat: 'Jobs', description, firm, loc, pay, posted_by: userId, role, tags: [],
+      };
+      if (deadline) row.deadline = deadline;
+      const { error } = await supabase.from('jobs').insert(row);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
