@@ -63,12 +63,12 @@ export function WorkScreen() {
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <ScreenHeader sub="Articleship, jobs, gig work and industrial training." title="Work & hiring" />
-      {(profile.data?.account_type === 'firm' || profile.data?.account_type === 'enterprise') && (
+      {userId && (
         <Pressable onPress={() => router.push('/hiring')}>
           <Card style={styles.banner}>
             <Ionicons color={colors.brandDeep} name="briefcase-outline" size={18} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.strong}>{profile.data?.org_name || 'Your organisation'}</Text>
+              <Text style={styles.strong}>{profile.data?.org_name || 'Your openings'}</Text>
               <Text style={styles.meta}>Manage your openings and applicants.</Text>
             </View>
             <Ionicons color={colors.ink3} name="chevron-forward" size={15} />
@@ -164,7 +164,7 @@ export function WorkScreen() {
             <Text style={styles.meta}>{j.cat}</Text>
             <Pressable onPress={() => apply(j.id)} style={[styles.btn, applied && styles.btnDone]}>
               <Text style={[styles.btnText, applied && styles.btnTextDone]}>
-                {applied ? '✓ Applied' : 'Apply'}
+                {applied ? `✓ ${({ reviewed: 'Under review', shortlisted: 'Shortlisted', rejected: 'Not selected' } as Record<string, string>)[applications.data?.get(j.id) ?? ''] ?? 'Applied'}` : 'Apply'}
               </Text>
             </Pressable>
           </View>

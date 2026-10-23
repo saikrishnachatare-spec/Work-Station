@@ -2,6 +2,7 @@
  * Sign in, create account (email verification) and password reset.
  * Validation, loading and error states are handled inline.
  */
+import { COURSES, LEVELS } from '@/lib/demo-data';
 import { SeoHead } from '@/components/SeoHead';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -21,6 +22,8 @@ export default function LoginScreen() {
   const [mode, setMode] = useState<Mode>('signin');
   const [acctType, setAcctType] = useState<'individual' | 'firm' | 'enterprise'>('individual');
   const [orgName, setOrgName] = useState('');
+  const [course, setCourse] = useState<'CA' | 'CMA' | 'CS'>('CA');
+  const [level, setLevel] = useState('Inter');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -40,6 +43,7 @@ export default function LoginScreen() {
       if (mode === 'signup' && password.length < 8) return 'Password must be at least 8 characters.';
       if (mode === 'signup' && !name.trim()) return 'Tell us your name so people know you.';
       if (mode === 'signup' && acctType !== 'individual' && !orgName.trim()) return 'Tell us your firm or company name.';
+      if (mode === 'signup' && acctType === 'individual' && !level) return 'Pick your level, or Member if you are qualified.';
     }
     return '';
   };
@@ -69,6 +73,8 @@ export default function LoginScreen() {
               full_name: name.trim(),
               account_type: acctType,
               org_name: acctType === 'individual' ? '' : orgName.trim(),
+              course,
+              level: acctType === 'individual' ? level : '',
             },
             emailRedirectTo: 'https://cohort-pi-eight.vercel.app',
           },
@@ -135,6 +141,24 @@ export default function LoginScreen() {
                 </Pressable>
               ))}
             </View>
+            <View style={styles.typeRow}>
+              {((acctType === 'enterprise' ? [] : COURSES) as ('CA' | 'CMA' | 'CS')[]).map((c) => (
+                <Pressable key={c} onPress={() => { setCourse(c); setLevel(c === 'CS' ? 'Executive' : 'Inter'); }} style={[styles.typeChip, course === c && styles.typeChipOn]}>
+                  <Text style={[styles.typeChipText, course === c && styles.typeChipTextOn]}>
+                    {acctType === 'firm' ? `${c} firm` : c}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {acctType === 'individual' && (
+              <View style={[styles.typeRow, { flexWrap: 'wrap' }]}>
+                {[...(LEVELS[course] ?? []), 'Member'].map((l) => (
+                  <Pressable key={l} onPress={() => setLevel(l)} style={[styles.typeChip, level === l && styles.typeChipOn]}>
+                    <Text style={[styles.typeChipText, level === l && styles.typeChipTextOn]}>{l}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
             {acctType !== 'individual' && (
               <TextInput
                 onChangeText={setOrgName}
@@ -196,7 +220,7 @@ export default function LoginScreen() {
           router.replace('/');
         }}
       >
-        <Text style={styles.link}>Browse the demo without an account</Text>
+        <Text style={styles.link}>Browse without an account</Text>
       </Pressable>
 
       <Text style={styles.legal}>

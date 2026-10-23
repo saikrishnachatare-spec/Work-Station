@@ -12,7 +12,7 @@ import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
 import { timeAgo } from '@/lib/data';
 import { supabase } from '@/lib/supabase';
-import { useApplicationsForJobs, useMyPostedJobs, useMyProfile, useProfiles } from '@/lib/data';
+import { useApplicationsForJobs, useMyPostedJobs, useMyProfile, useProfiles, useUpdateApplicationStatus } from '@/lib/data';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
@@ -28,7 +28,7 @@ export default function HiringScreen() {
   const toast = useToast();
   const [closing, setClosing] = useState('');
 
-  const isOrg = profile.data?.account_type === 'firm' || profile.data?.account_type === 'enterprise';
+  const updateStatus = useUpdateApplicationStatus();
   const nameOf = (id: string) => (profiles.data ?? []).find((p) => p.id === id)?.full_name || 'Member';
 
   const closeOpening = async (jobId: string, role: string) => {
@@ -55,27 +55,14 @@ export default function HiringScreen() {
     );
   }
 
-  if (profile.data && !isOrg) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.body}>
-          Hiring dashboards are for firm and company accounts. Your account is registered as an individual account.
-        </Text>
-        <Pressable onPress={() => router.back()} style={styles.cta}>
-          <Text style={styles.ctaText}>Go back</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <SeoHead noindex description="Manage your openings and applicants." path="/hiring" title="Hiring" />
-      <ScreenHeader sub={profile.data?.org_name || 'Your organisation'} title="Hiring dashboard" />
+      <ScreenHeader sub={profile.data?.org_name || 'Your openings and applicants'} title="Hiring dashboard" />
       {!profile.data?.verified_at && (
         <Card>
           <Text style={styles.body}>
-            Your organisation is not verified yet, so you can post gig work only. Job openings need a verified
+            Your account is not verified yet, so you can post gig work only. Job openings need a verified
             professional profile - the Cohort team reviews and marks verified accounts.
           </Text>
         </Card>
@@ -103,14 +90,41 @@ export default function HiringScreen() {
               </Pressable>
             </View>
             <Text style={styles.section}>{apps.length} applicant{apps.length === 1 ? '' : 's'}</Text>
-            {apps.map((a) => (
-              <View key={a.id} style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
-                <Avatar name={nameOf(a.user_id)} size={28} />
-                <Text style={styles.body}>
-                  {nameOf(a.user_id)} <Text style={styles.meta}>· applied {timeAgo(a.created_at ?? new Date().toISOString())}</Text>
-                </Text>
-              </View>
-            ))}
+            {apps.map((a) => {
+              const statusLabel = ({ new: 'New', reviewed: 'Under review', shortlisted: 'Shortlisted', rejected: 'Not selected' } as Record<string, string>)[a.status] ?? 'New';
+              return (
+                <View key={a.id} style={{ gap: spacing.xs }}>
+                  <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
+                    <Avatar name={nameOf(a.user_id)} size={28} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.body}>
+                        {nameOf(a.user_id)} <Text style={styles.meta}>· applied {timeAgo(a.created_at ?? new Date().toISOString())}</Text>
+                      </Text>
+                      <Text style={[styles.meta, a.status === 'shortlisted' && { color: colors.brandDeep }, a.status === 'rejected' && { color: colors.danger }]}>
+                        {statusLabel}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+                    {a.status !== 'shortlisted' && (
+                      <Pressable disabled={updateStatus.isPending} onPress={() => updateStatus.mutate({ applicationId: a.id, status: 'shortlisted' })} style={styles.actionChip}>
+                        <Text style={styles.actionChipText}>Shortlist</Text>
+                      </Pressable>
+                    )}
+                    {a.status !== 'reviewed' && a.status !== 'shortlisted' && (
+                      <Pressable disabled={updateStatus.isPending} onPress={() => updateStatus.mutate({ applicationId: a.id, status: 'reviewed' })} style={styles.actionChip}>
+                        <Text style={styles.actionChipText}>Mark reviewed</Text>
+                      </Pressable>
+                    )}
+                    {a.status !== 'rejected' && (
+                      <Pressable disabled={updateStatus.isPending} onPress={() => updateStatus.mutate({ applicationId: a.id, status: 'rejected' })} style={styles.actionChip}>
+                        <Text style={styles.actionChipText}>Decline</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
           </Card>
         );
       })}
@@ -129,4 +143,6 @@ const styles = StyleSheet.create({
   ctaText: { color: '#fff', fontWeight: '700' },
   closeBtn: { borderColor: colors.hairline, borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6 },
   closeText: { ...typeScale.caption, color: colors.ink2 },
+  actionChip: { backgroundColor: colors.card, borderColor: colors.hairline, borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 5 },
+  actionChipText: { ...typeScale.caption, color: colors.ink2, fontWeight: '600' },
 });

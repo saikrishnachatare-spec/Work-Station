@@ -243,10 +243,10 @@ export function useMyApplications(userId: string | undefined) {
   return useQuery({
     enabled: !!userId,
     queryKey: ['applications', userId],
-    queryFn: async (): Promise<Set<string>> => {
-      const { data, error } = await supabase.from('applications').select('job_id').eq('user_id', userId!);
+    queryFn: async (): Promise<Map<string, string>> => {
+      const { data, error } = await supabase.from('applications').select('job_id, status').eq('user_id', userId!);
       if (error) throw error;
-      return new Set((data as { job_id: string }[]).map((r) => r.job_id));
+      return new Map((data as { job_id: string; status: string }[]).map((r) => [r.job_id, r.status]));
     },
   });
 }
@@ -319,7 +319,18 @@ export function useMyPostedJobs(userId?: string) {
   });
 }
 
-export type Application = { id: string; job_id: string; user_id: string; created_at: string };
+export type Application = { id: string; job_id: string; user_id: string; created_at: string; status: 'new' | 'reviewed' | 'shortlisted' | 'rejected' };
+
+export function useUpdateApplicationStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ applicationId, status }: { applicationId: string; status: string }) => {
+      const { error } = await supabase.from('applications').update({ status }).eq('id', applicationId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['job-applications'] }),
+  });
+}
 
 export function useApplicationsForJobs(jobIds: string[]) {
   const key = jobIds.slice().sort().join(',');

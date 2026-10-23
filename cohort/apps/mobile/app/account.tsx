@@ -34,7 +34,7 @@ export default function AccountScreen() {
   if (guest || !session) {
     return (
       <View style={styles.center}>
-        <Text style={styles.body}>You are browsing the demo as a guest.</Text>
+        <Text style={styles.body}>You are browsing Cohort as a guest. Sign in to post, message and save your work.</Text>
         <Pressable onPress={() => router.replace('/(auth)/login')} style={styles.cta}>
           <Text style={styles.ctaText}>Sign in or create an account</Text>
         </Pressable>
