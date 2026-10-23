@@ -74,7 +74,7 @@ export function ResourcesScreen() {
         ))}
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={Platform.OS === 'web'} contentContainerStyle={styles.chips}>
         {RESOURCE_FILTERS.map((f) => <Chip key={f} label={f} active={f === kind} onPress={() => setKind(f)} />)}
       </ScrollView>
 
