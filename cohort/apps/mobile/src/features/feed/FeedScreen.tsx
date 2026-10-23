@@ -9,9 +9,9 @@ import { Card } from '@/components/Card';
 import { Chip } from '@/components/Chip';
 import { Pill, SectionTitle } from '@/components/ScreenBits';
 import { ListSkeleton } from '@/components/Skeleton';
-import { timeAgo, useMyLikes, usePosts, useToggleLike } from '@/lib/data';
+import { timeAgo, useMyLikes, useMyProfile, usePosts, useToggleLike } from '@/lib/data';
 import { useAuth } from '@/store/session';
-import { FEED_FILTERS, GREETING_NAME, READS, TODAY_LABEL } from '@/lib/demo-data';
+import { FEED_FILTERS, READS } from '@/lib/demo-data';
 import { colors, spacing, type as typeScale } from '@/theme';
 
 function TopReads() {
@@ -27,7 +27,7 @@ function TopReads() {
           <View style={styles.pdfBadge}><Text style={styles.pdfText}>PDF</Text></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.strong}>Top 10 reads for today</Text>
-            <Text style={styles.meta}>{TODAY_LABEL} · Cohort Daily</Text>
+            <Text style={styles.meta}>{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })} · Cohort Daily</Text>
           </View>
         </View>
         {READS.map((r, i) => (
@@ -53,7 +53,7 @@ function TopReads() {
         <View style={styles.pdfBadge}><Text style={styles.pdfText}>PDF</Text></View>
         <View style={{ flex: 1 }}>
           <Text style={styles.strong}>Top 10 reads for today</Text>
-          <Text style={styles.meta}>{TODAY_LABEL} · Cohort Daily</Text>
+          <Text style={styles.meta}>{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })} · Cohort Daily</Text>
         </View>
         <Text style={styles.meta}>{idx + 1} / {READS.length}</Text>
       </View>
@@ -82,6 +82,12 @@ export function FeedScreen() {
   const toast = useToast();
   const { session } = useAuth();
   const userId = session?.user?.id;
+  const profile = useMyProfile(userId);
+  const firstName = (profile.data?.full_name ?? '').trim().split(' ')[0];
+  const hour = new Date().getHours();
+  const dayPart = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+  const greeting = firstName ? `Good ${dayPart}, ${firstName}` : `Good ${dayPart}`;
+  const todayLabel = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
   const posts = usePosts();
   const myLikes = useMyLikes(userId);
   const toggleLike = useToggleLike(userId);
@@ -94,7 +100,7 @@ export function FeedScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <Text style={styles.greet}><Text style={styles.strong}>Good morning, {GREETING_NAME}</Text> · {TODAY_LABEL}</Text>
+      <Text style={styles.greet}><Text style={styles.strong}>{greeting}</Text> · {todayLabel}</Text>
       <TopReads />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
         {FEED_FILTERS.map((f) => <Chip key={f} label={f} active={f === filter} onPress={() => setFilter(f)} />)}

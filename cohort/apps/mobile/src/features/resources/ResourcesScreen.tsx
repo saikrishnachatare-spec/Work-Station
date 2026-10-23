@@ -76,7 +76,6 @@ export function ResourcesScreen() {
                 <Text style={styles.strong}>{r.title}</Text>
                 <Text style={styles.meta}>{r.meta} · by {r.uploaded_by} · {r.course}</Text>
               </View>
-              <Ionicons color={colors.ink3} name="download-outline" size={18} />
             </Card>
           ))}
         </View>
@@ -107,7 +106,6 @@ export function ResourcesScreen() {
                           <Text style={styles.strong}>{sub}: {k.cat}</Text>
                           <Text style={styles.meta}>{k.meta} · by {k.by}</Text>
                         </View>
-                        <Ionicons color={colors.ink3} name="download-outline" size={16} />
                       </View>
                     ))}
                     {SAMPLE_KINDS.filter((k) => kind === 'All' || k.cat === kind).length === 0 && (

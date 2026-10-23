@@ -184,5 +184,3 @@ export const USERS: DemoUser[] = [
   { id: 'u7', name: 'Vikram Krishnan', detail: 'Partner, Sen & Rao LLP', role: 'user', status: 'active' },
 ];
 
-export const GREETING_NAME = 'Aarav';
-export const TODAY_LABEL = 'Friday, 23 October';
