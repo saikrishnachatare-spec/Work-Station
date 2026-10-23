@@ -81,7 +81,8 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
         onError: (err) => toast.show(err instanceof Error ? err.message : 'Could not leave the group. Try again.', 'error'),
         onSuccess: () => {
           toast.show(`You left ${groupName}`, 'success');
-          router.back();
+          if (router.canGoBack()) router.back();
+          else router.replace('/(tabs)/community');
         },
       });
     if (Platform.OS === 'web') {
