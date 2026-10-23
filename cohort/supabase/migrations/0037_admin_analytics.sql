@@ -84,7 +84,7 @@ begin
     from groups g order by g.member_count desc limit 20
   ),
   active_members as (
-    select actor_id, max(actor_name) as name, count(*) as events, max(created_at) as last_active
+    select actor_id, coalesce(nullif(max(actor_name), ''), 'Former member') as name, count(*) as events, max(created_at) as last_active
     from activity_log where actor_id is not null and created_at >= now() - interval '30 days'
       and actor_name <> 'Former member'
     group by actor_id order by events desc limit 20
