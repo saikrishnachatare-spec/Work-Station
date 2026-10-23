@@ -81,9 +81,20 @@ export default function AccountScreen() {
     router.replace('/(auth)/login');
   };
 
+  const [deleting, setDeleting] = useState(false);
   const doDelete = async () => {
-    toast.show('Account deletion is not available yet. Your account has not been deleted.', 'info');
-    setConfirming(false);
+    setDeleting(true);
+    try {
+      const { error } = await supabase.rpc('delete_my_account');
+      if (error) throw error;
+      toast.show('Your account is deleted. Shared posts and messages stay as Former member.', 'success');
+      await signOut();
+      router.replace('/(auth)/login');
+    } catch (error) {
+      toast.show(error instanceof Error ? error.message : 'Could not delete the account. Try again.', 'error');
+      setDeleting(false);
+      setConfirming(false);
+    }
   };
 
   return (
@@ -138,19 +149,21 @@ export default function AccountScreen() {
 
       {!confirming ? (
         <Pressable onPress={() => setConfirming(true)}>
-          <Text style={styles.danger}>Account deletion unavailable</Text>
+          <Text style={styles.danger}>Delete account</Text>
         </Pressable>
       ) : (
         <Card style={{ gap: spacing.sm }}>
           <Text style={styles.body}>
-            Self-service account deletion is not ready. This action will not delete your account or personal data.
+            This permanently deletes your account and profile. Posts, messages and shared files stay visible to
+            others under "Former member" - personal details you wrote inside that content remain part of it.
+            This cannot be undone.
           </Text>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Pressable onPress={() => setConfirming(false)} style={styles.ghostBtn}>
               <Text style={styles.ghostText}>Keep my account</Text>
             </Pressable>
-            <Pressable onPress={doDelete} style={styles.dangerBtn}>
-              <Text style={styles.ctaText}>Understood</Text>
+            <Pressable disabled={deleting} onPress={doDelete} style={styles.dangerBtn}>
+              <Text style={styles.ctaText}>{deleting ? 'Deleting…' : 'Delete permanently'}</Text>
             </Pressable>
           </View>
         </Card>
