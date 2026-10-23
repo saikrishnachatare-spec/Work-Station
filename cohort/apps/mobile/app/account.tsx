@@ -18,6 +18,7 @@ export default function AccountScreen() {
   const router = useRouter();
   const { guest, session } = useAuth();
   const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [savingName, setSavingName] = useState(false);
@@ -81,7 +82,6 @@ export default function AccountScreen() {
     router.replace('/(auth)/login');
   };
 
-  const [deleting, setDeleting] = useState(false);
   const doDelete = async () => {
     setDeleting(true);
     try {
