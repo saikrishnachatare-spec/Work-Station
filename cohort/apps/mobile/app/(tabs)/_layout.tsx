@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Tabs, useRouter } from 'expo-router';
+import { Link, Tabs, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { colors, radius, spacing } from '@/theme';
@@ -71,13 +71,14 @@ export default function TabsLayout() {
         <Tabs.Screen name="icai" />
       </Tabs>
 
-      <Pressable
+      <Link href="/create" asChild><Pressable
         accessibilityLabel="Create"
-        onPress={() => router.push('/create')}
+        accessibilityRole="button"
+        hitSlop={10}
         style={styles.fab}
       >
         <Ionicons color="#ffffff" name="add" size={18} />
-      </Pressable>
+      </Pressable></Link>
     </View>
   );
 }
@@ -100,7 +101,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand,
     borderRadius: radius.pill,
     bottom: 68,
-    elevation: 2,
+    elevation: 6,
+    zIndex: 100,
     height: 38,
     justifyContent: 'center',
     opacity: 0.9,
