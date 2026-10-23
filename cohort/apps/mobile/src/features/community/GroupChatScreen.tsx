@@ -61,8 +61,9 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
       } else {
         await Share.share({ message: `Join my Cohort group "${groupName}": ${link}` });
       }
-    } catch {
-      toast.show('Could not create the invite link. Try again.', 'error');
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : '';
+      toast.show(`Could not create the invite link.${detail ? ` ${detail}` : ''}`, 'error');
     }
   };
 
