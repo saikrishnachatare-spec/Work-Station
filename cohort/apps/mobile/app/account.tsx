@@ -85,6 +85,9 @@ export default function AccountScreen() {
   const doDelete = async () => {
     setDeleting(true);
     try {
+      if (profile.data?.avatar_path) {
+        await supabase.storage.from('resources').remove([profile.data.avatar_path]).catch(() => {});
+      }
       const { error } = await supabase.rpc('delete_my_account');
       if (error) throw error;
       toast.show('Your account is deleted. Shared posts and messages stay as Former member.', 'success');
@@ -154,9 +157,10 @@ export default function AccountScreen() {
       ) : (
         <Card style={{ gap: spacing.sm }}>
           <Text style={styles.body}>
-            This permanently deletes your account and profile. Posts, messages and shared files stay visible to
-            others under "Former member" - personal details you wrote inside that content remain part of it.
-            This cannot be undone.
+            This permanently removes your account and your profile details. Posts, messages and shared files stay
+            visible to others under "Former member" - personal details you wrote inside that content remain part
+            of it. Job openings you posted close, and groups you created pass to another member or are removed if
+            empty. This cannot be undone.
           </Text>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Pressable onPress={() => setConfirming(false)} style={styles.ghostBtn}>
