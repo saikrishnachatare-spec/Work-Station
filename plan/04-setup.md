@@ -1,10 +1,10 @@
-# Sprint 1 (week 1): setup and shell
+# Setup and shell
 
 Goal: one command boots the app on Android, iOS simulator and web, with CI green and the Supabase project connected.
 
 ## Tasks
 1. [ ] **YOU** Create Supabase and Expo accounts; share access (see requirements).
-2. [ ] **YOU** Start Apple Developer enrolment (it can take days).
+2. [ ] **YOU** Enrol in the Apple Developer Program for iOS distribution.
 3. [ ] Create `cohort/` monorepo with pnpm workspaces and shared config.
 4. [ ] Scaffold Expo app with Expo Router, TypeScript strict, React Native Web.
 5. [ ] Port design tokens (colours, type, spacing, radii) from the prototype into `theme/`.
@@ -22,6 +22,3 @@ Goal: one command boots the app on Android, iOS simulator and web, with CI green
 - Tabs navigate; theme matches the prototype.
 - CI passes on a pull request.
 - Founder can open the Android build and the web preview and click through the shell.
-
-## Sprint 2 preview (weeks 2-3)
-Phone OTP auth, onboarding, profile, schema v1 with RLS, feed read-only.

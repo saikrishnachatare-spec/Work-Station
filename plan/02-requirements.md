@@ -4,16 +4,16 @@ Legend: **YOU** = needs the founder's input, action or money. **ME** = Instinct 
 
 ## 1. Accounts (founder creates and owns)
 
-| Item | Why | Who | Needed by | Cost |
+| Item | Why | Who | Related phase | Cost |
 | --- | --- | --- | --- | --- |
-| Google Play Developer account | Publish Android app | **YOU** (identity verification in your name) | Phase 6 (start by week 10) | One-time fee, about USD 25 |
-| Apple Developer Program | Publish iOS app, TestFlight, push | **YOU** (identity verification; can take days) | Start week 1, needed Phase 5-6 | About USD 99 per year |
-| Supabase account | Database, auth, storage, realtime, functions | **YOU** create the account and invite me, or share an access token via the secure vault | Week 1 | Free tier to start; Pro about USD 25 per month before launch |
-| Expo (EAS) account | Builds, OTA updates, push | **YOU** create, add me as collaborator | Week 1 | Free tier to start; paid plan later if build queue matters |
-| LLM provider API key (Anthropic, OpenAI or similar) | AI assistant, MCQ help | **YOU** create the account, set a monthly spend cap, enter key via vault | Phase 4 (week 9) | Usage based; budget USD 20-50 per month in beta |
+| Google Play Developer account | Publish Android app | **YOU** (identity verification in your name) | Phase 6 | One-time fee, about USD 25 |
+| Apple Developer Program | Publish iOS app, TestFlight, push | **YOU** (identity verification in your name) | Needed for Phases 5-6 | About USD 99 per year |
+| Supabase account | Database, auth, storage, realtime, functions | **YOU** create the account and invite me, or share an access token via the secure vault | Phase 0 | Free tier to start; Pro about USD 25 per month before launch |
+| Expo (EAS) account | Builds, OTA updates, push | **YOU** create, add me as collaborator | Phase 0 | Free tier to start; paid plan later if build queue matters |
+| LLM provider API key (Anthropic, OpenAI or similar) | AI assistant, MCQ help | **YOU** create the account, set a monthly spend cap, enter key via vault | Phase 4 | Usage based; budget USD 20-50 per month in beta |
 | Domain name | Web app, email, links | **YOU** buy (or approve a name) | Phase 5 | About INR 800-1,500 per year |
 | Hosting for web build (Vercel, Netlify or Cloudflare Pages) | Serve the web app | **YOU** create, or approve me using GitHub sign-in | Phase 2 | Free tier |
-| GitHub repo access | Code, CI | Already done (Work-Station). Token expires; renew when asked | Ongoing | Free |
+| GitHub repo access | Code, CI | Already done (Work-Station). Renew when access expires | Required | Free |
 | Apple/Google test devices | Real-device testing | **YOU** have an Android phone (Redmi). iPhone testing via TestFlight testers | Phase 5 | none |
 
 ## 2. Services (software)
@@ -47,10 +47,10 @@ Node 20+, pnpm, Expo CLI and EAS CLI, TypeScript, ESLint, Prettier, Jest and Rea
 
 ## 6. Budget view (rough)
 
-| When | Item | Estimate |
+| Stage | Item | Estimate |
 | --- | --- | --- |
-| Week 1 | Apple Developer | USD 99 per year |
-| By week 10 | Google Play | USD 25 once |
+| Phase 0 | Apple Developer | USD 99 per year |
+| Phase 6 | Google Play | USD 25 once |
 | Phase 5 | Domain | about INR 1,000 per year |
 | Beta | Supabase Pro | USD 25 per month |
 | Beta | LLM usage | USD 20-50 per month, capped |
