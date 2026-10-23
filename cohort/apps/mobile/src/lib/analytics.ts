@@ -12,18 +12,19 @@ export type Consent = 'accepted' | 'declined' | null;
 
 export function getConsent(): Consent {
   if (Platform.OS !== 'web') return 'accepted'; // native app: no web tracker exists
+  if (typeof window === 'undefined') return null; // static export render pass
   const v = window.localStorage.getItem(KEY);
   return v === 'accepted' || v === 'declined' ? v : null;
 }
 
 export function setConsent(choice: Exclude<Consent, null>) {
-  if (Platform.OS !== 'web') return;
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   window.localStorage.setItem(KEY, choice);
   if (choice === 'accepted') injectAnalytics();
 }
 
 export function injectAnalytics() {
-  if (Platform.OS !== 'web') return;
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   if (document.querySelector('script[data-cohort-analytics]')) return;
   const script = document.createElement('script');
   script.defer = true;

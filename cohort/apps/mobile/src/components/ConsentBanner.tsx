@@ -3,14 +3,18 @@
  * cookie-less, but nothing loads until the visitor accepts; declining stores
  * the choice and loads nothing. Native builds never see this.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { getConsent, setConsent } from '@/lib/analytics';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 export function ConsentBanner() {
-  const [visible, setVisible] = useState(() => Platform.OS === 'web' && getConsent() === null);
+  // Decide on the client only: the static export pass has no window.
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (Platform.OS === 'web' && getConsent() === null) setVisible(true);
+  }, []);
   if (!visible) return null;
 
   const choose = (choice: 'accepted' | 'declined') => {
