@@ -5,6 +5,7 @@ import { createElement, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useToast } from '@/components/Toast';
+import { COURSES } from '@/lib/demo-data';
 import { useCreateGroup, useCreateJob, useCreatePost, useCreateResource, useMyProfile } from '@/lib/data';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -23,7 +24,7 @@ const FORMS: Record<string, { title: string; ph1: string; ph2?: string; cta: str
   post: { title: 'Create a post', ph1: 'What do you want to share?', cta: 'Post' },
   group: { title: 'Create a group', ph1: 'Group name', ph2: 'What is it for?', cta: 'Create group' },
   job: { title: 'Post a job opening', ph1: 'Role, e.g. Articleship, statutory audit', ph2: 'Firm or company', cta: 'Post opening' },
-  resource: { title: 'Share a resource', ph1: 'Title, e.g. FR revision notes', ph2: 'Subject or course', cta: 'Share' },
+  resource: { title: 'Share a resource', ph1: 'Title, e.g. FR revision notes', ph2: 'Subject, e.g. Financial Reporting', cta: 'Share' },
 };
 
 export default function CreateModal() {
@@ -33,6 +34,7 @@ export default function CreateModal() {
   const [text, setText] = useState('');
   const [text2, setText2] = useState('');
   const [resourceFile, setResourceFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [resourceCourse, setResourceCourse] = useState('CA');
   const [jobDesc, setJobDesc] = useState('');
   const [jobDeadline, setJobDeadline] = useState('');
   const [jobLoc, setJobLoc] = useState('');
@@ -90,8 +92,8 @@ export default function CreateModal() {
       );
     } else if (action === 'resource') {
       createResource.mutate(
-        { course: b || 'General', title: a, uploadedBy: authorName, userId, file: resourceFile },
-        { onError, onSuccess: () => setDone(`"${a}" shared under Resources.`) },
+        { course: resourceCourse, subject: b, title: a, uploadedBy: authorName, userId, file: resourceFile },
+        { onError, onSuccess: () => setDone(`"${a}" shared under Resources${b ? ` in ${b}` : ''}.`) },
       );
     }
   };
@@ -145,6 +147,13 @@ export default function CreateModal() {
               />
             )}
             {action === 'resource' && <>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {COURSES.map((c) => (
+                  <Pressable accessibilityRole="button" key={c} onPress={() => setResourceCourse(c)} style={[styles.courseChip, c === resourceCourse && styles.courseChipOn]}>
+                    <Text style={[styles.courseChipText, c === resourceCourse && styles.courseChipTextOn]}>{c}</Text>
+                  </Pressable>
+                ))}
+              </View>
               <Text style={styles.meta}>PDF, PNG, JPEG or WebP, up to 10 MB. Shared with signed-in members.</Text>
               {Platform.OS === 'web' ? createElement('input', {
                 type: 'file', accept: 'application/pdf,image/png,image/jpeg,image/webp',
@@ -236,6 +245,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.input, borderWidth: 1, color: colors.ink,
     paddingHorizontal: 12, paddingVertical: 10,
   },
+  courseChip: {
+    backgroundColor: colors.card, borderColor: colors.lineWarm, borderRadius: 999,
+    borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7,
+  },
+  courseChipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
+  courseChipText: { color: colors.ink2, fontSize: 13 },
+  courseChipTextOn: { color: colors.brandDeep, fontWeight: '600' as const },
   cta: {
     alignItems: 'center', alignSelf: 'stretch', backgroundColor: colors.brand,
     borderRadius: radius.pill, paddingVertical: 12,

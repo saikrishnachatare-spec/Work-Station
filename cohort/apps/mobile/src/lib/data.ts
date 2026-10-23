@@ -59,6 +59,7 @@ export type Resource = {
   file_name?: string | null;
   mime_type?: string | null;
   meta: string;
+  subject?: string;
 };
 
 export type Profile = {
@@ -305,8 +306,8 @@ export function useCreateJob() {
 export function useCreateResource() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ course, title, uploadedBy, userId, file }: {
-      course: string; title: string; uploadedBy: string; userId: string;
+    mutationFn: async ({ course, subject = '', title, uploadedBy, userId, file }: {
+      course: string; subject?: string; title: string; uploadedBy: string; userId: string;
       file?: { uri: string; name: string; mimeType?: string; size?: number } | null;
     }) => {
       if (!file) throw new Error('Choose a PDF or image');
@@ -317,7 +318,7 @@ export function useCreateResource() {
       const bytes = await (await fetch(file.uri)).arrayBuffer();
       const { error: uploadError } = await supabase.storage.from('resources').upload(path, bytes, { contentType: mime });
       if (uploadError) throw uploadError;
-      const { error } = await supabase.from('resources').insert({ cat: 'Notes', course,
+      const { error } = await supabase.from('resources').insert({ cat: 'Notes', course, subject,
         meta: `${Math.ceil(bytes.byteLength / 1024)} KB`, owner_id: userId, title, uploaded_by: uploadedBy,
         file_path: path, file_name: file.name, mime_type: mime });
       if (error) { await supabase.storage.from('resources').remove([path]); throw error; }

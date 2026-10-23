@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, Linking } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Linking } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { Chip } from '@/components/Chip';
@@ -19,8 +19,28 @@ export function ResourcesScreen() {
   const [lvl, setLvl] = useState(0);
   const [open, setOpen] = useState<string | null>(null);
   const [kind, setKind] = useState('All');
+  const [query, setQuery] = useState('');
   const resources = useResources();
-  const shared = resources.data ?? [];
+  const q = query.trim().toLowerCase();
+  const matches = (r: { title: string; course: string; subject?: string }) =>
+    !q || r.title.toLowerCase().includes(q) || r.course.toLowerCase().includes(q) || (r.subject ?? '').toLowerCase().includes(q);
+  const shared = (resources.data ?? []).filter(matches);
+  const openResource = async (filePath: string) => {
+    const { data, error } = await supabase.storage.from('resources').createSignedUrl(filePath, 300);
+    if (error || !data) { toast.show('Sign in to open this file, or try again.', 'error'); return; }
+    if (Platform.OS === 'web') window.location.assign(data.signedUrl);
+    else await Linking.openURL(data.signedUrl);
+  };
+  const ResourceRow = ({ r }: { r: (typeof shared)[number] }) => (
+    <Card style={styles.resCard}>
+      <View style={styles.resIcon}><Ionicons color={colors.brand} name="book-outline" size={17} /></View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.strong}>{r.title}</Text>
+        <Text style={styles.meta}>{[r.meta, r.subject, r.course].filter(Boolean).join(' \u00b7 ')} · by {r.uploaded_by}</Text>
+      </View>
+      {r.file_path && <Pressable accessibilityRole="button" accessibilityLabel={`Open ${r.title}`} onPress={() => openResource(r.file_path!)}><Ionicons color={colors.brand} name="download-outline" size={22} /></Pressable>}
+    </Card>
+  );
   const groups = SUBJECTS[course][lvl];
 
   return (
@@ -28,7 +48,13 @@ export function ResourcesScreen() {
       <ScreenHeader sub="Pick a course, a level, then a subject." title="Resources" />
       <View style={styles.searchbar}>
         <Ionicons color={colors.ink3} name="search" size={16} />
-        <Text style={styles.searchText}>Search FR, Audit, Company Law…</Text>
+        <TextInput
+          onChangeText={setQuery}
+          placeholder="Search FR, Audit, Company Law…"
+          placeholderTextColor={colors.ink3}
+          style={[styles.searchText, { flex: 1 }]}
+          value={query}
+        />
       </View>
 
       <View style={styles.seg}>
@@ -72,21 +98,7 @@ export function ResourcesScreen() {
       {shared.filter((r) => kind === 'All' || r.cat === kind).length > 0 && (
         <View style={{ gap: spacing.sm }}>
           <Text style={styles.crumbs}>Shared by the community</Text>
-          {shared.filter((r) => kind === 'All' || r.cat === kind).map((r) => (
-            <Card key={r.id} style={styles.resCard}>
-              <View style={styles.resIcon}><Ionicons color={colors.brand} name="book-outline" size={17} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.strong}>{r.title}</Text>
-                <Text style={styles.meta}>{r.meta} · by {r.uploaded_by} · {r.course}</Text>
-              </View>
-              {r.file_path && <Pressable accessibilityRole="button" accessibilityLabel={`Open ${r.title}`} onPress={async () => {
-                const { data, error } = await supabase.storage.from('resources').createSignedUrl(r.file_path!, 300);
-                if (error || !data) { toast.show('Sign in to open this file, or try again.', 'error'); return; }
-                if (Platform.OS === 'web') window.location.assign(data.signedUrl);
-                else await Linking.openURL(data.signedUrl);
-              }}><Ionicons color={colors.brand} name="download-outline" size={22} /></Pressable>}
-            </Card>
-          ))}
+          {shared.filter((r) => kind === 'All' || r.cat === kind).map((r) => <ResourceRow key={r.id} r={r} />)}
         </View>
       )}
 
@@ -109,7 +121,10 @@ export function ResourcesScreen() {
                 </Pressable>
                 {isOpen && (
                   <View style={styles.subjBody}>
-                    <Text style={styles.meta}>No files have been tagged to this subject yet. Community files are listed above.</Text>
+                    {shared.filter((r) => (r.subject ?? '').trim().toLowerCase() === sub.trim().toLowerCase()).length === 0 && (
+                      <Text style={styles.meta}>No files have been tagged to this subject yet. Share one from the + button.</Text>
+                    )}
+                    {shared.filter((r) => (r.subject ?? '').trim().toLowerCase() === sub.trim().toLowerCase()).map((r) => <ResourceRow key={r.id} r={r} />)}
                   </View>
                 )}
               </Card>
