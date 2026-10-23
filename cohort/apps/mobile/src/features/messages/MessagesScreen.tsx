@@ -4,6 +4,8 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 
 import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
+import { EmptyState } from '@/components/EmptyState';
+import { useToast } from '@/components/Toast';
 import { ScreenHeader } from '@/components/ScreenBits';
 import { THREADS, type ThreadMsg } from '@/lib/demo-data';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -12,6 +14,7 @@ export function MessagesScreen() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [extra, setExtra] = useState<Record<string, ThreadMsg[]>>({});
   const [draft, setDraft] = useState('');
+  const toast = useToast();
   const open = THREADS.find((t) => t.id === openId);
 
   if (open) {
@@ -21,6 +24,7 @@ export function MessagesScreen() {
       if (!t) return;
       setExtra((e) => ({ ...e, [open.id]: [...(e[open.id] || []), { from: 'you', text: t }] }));
       setDraft('');
+      toast.show('Message sent', 'success');
     };
     return (
       <View style={styles.threadPage}>
@@ -61,6 +65,13 @@ export function MessagesScreen() {
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <ScreenHeader sub="Students, mentors and firms, one tap away." title="Messages" />
+      {THREADS.length === 0 && (
+        <EmptyState
+          body="When a student, mentor or firm reaches out, the conversation appears here."
+          icon="chatbubbles-outline"
+          title="No conversations yet"
+        />
+      )}
       {THREADS.map((t) => (
         <Pressable key={t.id} onPress={() => setOpenId(t.id)}>
           <Card style={styles.convo}>

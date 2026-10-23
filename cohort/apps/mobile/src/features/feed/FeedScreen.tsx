@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
+import { EmptyState } from '@/components/EmptyState';
+import { useToast } from '@/components/Toast';
 import { Card } from '@/components/Card';
 import { Chip } from '@/components/Chip';
 import { Pill, SectionTitle } from '@/components/ScreenBits';
@@ -74,6 +76,7 @@ function TopReads() {
 export function FeedScreen() {
   const [filter, setFilter] = useState('All');
   const [liked, setLiked] = useState<Record<string, boolean>>({});
+  const toast = useToast();
   const feed = useDemo((s) => s.feed);
   const items = feed.filter((f) =>
     filter === 'All' ||
@@ -89,6 +92,13 @@ export function FeedScreen() {
         {FEED_FILTERS.map((f) => <Chip key={f} label={f} active={f === filter} onPress={() => setFilter(f)} />)}
       </ScrollView>
       <SectionTitle first title={filter === 'All' ? 'Latest' : filter} />
+      {items.length === 0 && (
+        <EmptyState
+          body={`Nothing under ${filter} yet. Posts will show up here as your cohort shares them.`}
+          icon="newspaper-outline"
+          title="Nothing here yet"
+        />
+      )}
       {items.map((f) => (
         <Card key={f.id}>
           {f.pinned ? <Text style={styles.pinned}>📌 Pinned announcement</Text> : null}
@@ -102,7 +112,13 @@ export function FeedScreen() {
           </View>
           <Text style={styles.body}>{f.text}</Text>
           <View style={styles.actions}>
-            <Pressable onPress={() => setLiked((l) => ({ ...l, [f.id]: !l[f.id] }))}>
+            <Pressable
+              onPress={() => {
+                const next = !liked[f.id];
+                setLiked((l) => ({ ...l, [f.id]: next }));
+                toast.show(next ? 'Added to your likes' : 'Removed from your likes', 'success');
+              }}
+            >
               <Text style={[styles.meta, liked[f.id] && styles.liked]}>
                 {liked[f.id] ? '♥' : '♡'} {f.likes + (liked[f.id] ? 1 : 0)}
               </Text>

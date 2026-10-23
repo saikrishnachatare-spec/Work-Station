@@ -1,9 +1,11 @@
 /** Global search across the app's content: posts, resources, groups, jobs, people. */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
+import { EmptyState } from '@/components/EmptyState';
+import { ListSkeleton } from '@/components/Skeleton';
 import { Card } from '@/components/Card';
 import { Pill, SectionTitle } from '@/components/ScreenBits';
 import { PEOPLE } from '@/lib/demo-data';
@@ -14,6 +16,8 @@ const match = (hay: string, q: string) => hay.toLowerCase().includes(q);
 
 export default function SearchScreen() {
   const [q, setQ] = useState('');
+  const [searching, setSearching] = useState(false);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const demo = useDemo((s) => s);
   const query = q.trim().toLowerCase();
 
@@ -28,6 +32,18 @@ export default function SearchScreen() {
     };
   }, [demo, query]);
 
+  useEffect(() => {
+    if (!searching) return;
+    if (debounce.current) clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => setSearching(false), 250);
+    return () => { if (debounce.current) clearTimeout(debounce.current); };
+  }, [q, searching]);
+
+  const handleQueryChange = (text: string) => {
+    setQ(text);
+    setSearching(text.trim().length >= 2);
+  };
+
   const total = results
     ? results.posts.length + results.resources.length + results.groups.length + results.jobs.length + results.people.length
     : 0;
@@ -38,7 +54,7 @@ export default function SearchScreen() {
         <Ionicons color={colors.ink3} name="search" size={16} />
         <TextInput
           autoFocus
-          onChangeText={setQ}
+          onChangeText={handleQueryChange}
           placeholder="Search posts, resources, groups, jobs, people…"
           placeholderTextColor={colors.ink3}
           style={styles.input}
@@ -49,11 +65,16 @@ export default function SearchScreen() {
       {!results && (
         <Text style={styles.meta}>Type at least 2 characters to search everything in Cohort.</Text>
       )}
-      {results && total === 0 && (
-        <Card><Text style={styles.meta}>Nothing found for &ldquo;{q}&rdquo;. Try a subject, a name or a firm.</Text></Card>
+      {searching && <ListSkeleton count={2} />}
+      {!searching && results && total === 0 && (
+        <EmptyState
+          body={`Nothing in Cohort matches "${q.trim()}". Try a subject, a course code, a name or a firm.`}
+          icon="search-outline"
+          title="No results"
+        />
       )}
 
-      {results && results.posts.length > 0 && (
+      {!searching && results && results.posts.length > 0 && (
         <View style={{ gap: spacing.sm }}>
           <SectionTitle first title={`Posts (${results.posts.length})`} />
           {results.posts.map((f) => (
@@ -68,7 +89,7 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {results && results.resources.length > 0 && (
+      {!searching && results && results.resources.length > 0 && (
         <View style={{ gap: spacing.sm }}>
           <SectionTitle first title={`Resources (${results.resources.length})`} />
           {results.resources.map((r) => (
@@ -82,7 +103,7 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {results && results.groups.length > 0 && (
+      {!searching && results && results.groups.length > 0 && (
         <View style={{ gap: spacing.sm }}>
           <SectionTitle first title={`Groups (${results.groups.length})`} />
           {results.groups.map((g) => (
@@ -96,7 +117,7 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {results && results.jobs.length > 0 && (
+      {!searching && results && results.jobs.length > 0 && (
         <View style={{ gap: spacing.sm }}>
           <SectionTitle first title={`Work (${results.jobs.length})`} />
           {results.jobs.map((j) => (
@@ -111,7 +132,7 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {results && results.people.length > 0 && (
+      {!searching && results && results.people.length > 0 && (
         <View style={{ gap: spacing.sm }}>
           <SectionTitle first title={`People (${results.people.length})`} />
           {results.people.map((p) => (

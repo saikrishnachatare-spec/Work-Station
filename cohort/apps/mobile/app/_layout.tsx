@@ -6,6 +6,7 @@ import { useFonts } from 'expo-font';
 import { useEffect } from 'react';
 import { Text, View } from 'react-native';
 
+import { ToastProvider } from '@/components/Toast';
 import { queryClient } from '@/lib/queryClient';
 import { useAuth } from '@/store/session';
 import { colors } from '@/theme';
@@ -46,6 +47,7 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <ToastProvider>
       <StatusBar style="dark" />
       <AuthGate>
         <Stack
@@ -57,6 +59,7 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="+not-found" options={{ title: 'Not found' }} />
           <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
           <Stack.Screen name="messages" options={{ title: 'Messages' }} />
           <Stack.Screen name="search" options={{ title: 'Search' }} />
@@ -75,6 +78,7 @@ export default function RootLayout() {
           />
         </Stack>
       </AuthGate>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }
