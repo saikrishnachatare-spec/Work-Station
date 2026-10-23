@@ -85,9 +85,11 @@ export default function AccountScreen() {
   const doDelete = async () => {
     setDeleting(true);
     const removeAvatar = async () => {
-      const path = profile.data?.avatar_path;
-      if (!path) return true;
-      const { error } = await supabase.storage.from('resources').remove([path]);
+      const { data: files, error: listError } = await supabase.storage.from('resources').list(user.id);
+      if (listError) return false;
+      const avatars = (files ?? []).filter((f) => f.name.startsWith('avatar-')).map((f) => `${user.id}/${f.name}`);
+      if (!avatars.length) return true;
+      const { error } = await supabase.storage.from('resources').remove(avatars);
       return !error;
     };
     try {
