@@ -351,12 +351,12 @@ export type ActivityRow = {
   detail: Record<string, unknown>; created_at: string;
 };
 
-export function useActivityLog(enabled: boolean) {
+export function useActivityLog(enabled: boolean, limit = 200) {
   return useQuery({
     enabled,
-    queryKey: ['activity-log'],
+    queryKey: ['activity-log', limit],
     queryFn: async (): Promise<ActivityRow[]> => {
-      const { data, error } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).order('id', { ascending: false }).limit(200);
+      const { data, error } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).order('id', { ascending: false }).limit(limit);
       if (error) throw error;
       return data as ActivityRow[];
     },

@@ -202,3 +202,20 @@ begin
   return new;
 end
 $function$;
+
+-- close self-promotion: joining or adding members always lands as 'member'
+-- (promotion happens only through the admin update path); only the creator
+-- may join their own group directly as admin
+drop policy if exists members_insert on public.group_members;
+create policy members_insert on public.group_members for insert to public
+  with check (auth.uid() = user_id and is_active_member()
+    and (role = 'member' or (select created_by from groups where id = group_id) = auth.uid()));
+drop policy if exists members_insert_by_member on public.group_members;
+create policy members_insert_by_member on public.group_members for insert to public
+  with check (is_group_member(group_id) and role = 'member');
+
+-- member lists and chat history are for current members (+app admins) only;
+-- removed or former members lose access
+drop policy if exists members_read on public.group_members;
+create policy members_read on public.group_members for select to public
+  using (is_group_member(group_id) or is_admin());

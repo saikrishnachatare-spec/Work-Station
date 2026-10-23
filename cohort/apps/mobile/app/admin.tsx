@@ -105,7 +105,8 @@ export default function AdminScreen() {
   const resources = useResources();
   const isAdmin = profile.data?.role === 'admin';
   const errorLogs = useErrorLogs(!!isAdmin);
-  const activity = useActivityLog(!!isAdmin);
+  const [activityLimit, setActivityLimit] = useState(200);
+  const activity = useActivityLog(!!isAdmin, activityLimit);
   const trash = useTrash(!!isAdmin);
   const reports = useQuery({queryKey:['reports'],enabled:!!isAdmin,queryFn:async()=>{const{data,error}=await supabase.from('content_reports').select('*').order('created_at',{ascending:false});if(error)throw error;return data||[];}});
 
@@ -458,6 +459,12 @@ export default function AdminScreen() {
               </Card>
             ))}
             {!activity.isLoading && rows.length === 0 && <Text style={styles.meta}>No matching events.</Text>}
+            <Text style={styles.meta}>
+              Showing the latest {activityLimit} recorded events{(activity.data ?? []).length >= activityLimit ? ' (more history exists)' : ''}. Filters above narrow this window.
+            </Text>
+            {(activity.data ?? []).length >= activityLimit && (
+              <ActionBtn label="Load older events" onPress={() => setActivityLimit((n) => n + 200)} />
+            )}
           </View>
         );
       })()}
