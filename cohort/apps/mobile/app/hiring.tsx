@@ -32,14 +32,15 @@ export default function HiringScreen() {
   const nameOf = (id: string) => (profiles.data ?? []).find((p) => p.id === id)?.full_name || 'Member';
   const profileOf = (id: string) => (profiles.data ?? []).find((p) => p.id === id);
 
-  const closeOpening = async (jobId: string, role: string) => {
+  const toggleOpen = async (jobId: string, role: string, current: string) => {
+    const next = current === 'open' ? 'closed' : 'open';
     setClosing(jobId);
-    const { error } = await supabase.from('jobs').delete().eq('id', jobId);
+    const { error } = await supabase.from('jobs').update({ status: next }).eq('id', jobId);
     setClosing('');
     if (error) {
-      toast.show('Could not close the opening. Try again.', 'error');
+      toast.show('Could not update the opening. Try again.', 'error');
     } else {
-      toast.show(`"${role}" closed.`, 'success');
+      toast.show(next === 'closed' ? `"${role}" closed. Applicants keep their application history.` : `"${role}" reopened.`, 'success');
       jobs.refetch();
       applications.refetch();
     }
@@ -84,10 +85,11 @@ export default function HiringScreen() {
                 <Text style={styles.strong}>{j.role}</Text>
                 <Text style={styles.meta}>
                   {j.cat}{j.loc ? ` · ${j.loc}` : ''}{j.pay ? ` · ${j.pay}` : ''} · posted {timeAgo(j.created_at ?? new Date().toISOString())}
+                  {j.status === 'closed' ? ' · CLOSED' : ''}
                 </Text>
               </View>
-              <Pressable disabled={closing === j.id} onPress={() => closeOpening(j.id, j.role)} style={styles.closeBtn}>
-                <Text style={styles.closeText}>{closing === j.id ? 'Closing…' : 'Close'}</Text>
+              <Pressable disabled={closing === j.id} onPress={() => toggleOpen(j.id, j.role, j.status ?? 'open')} style={styles.closeBtn}>
+                <Text style={styles.closeText}>{closing === j.id ? 'Saving…' : j.status === 'closed' ? 'Reopen' : 'Close'}</Text>
               </Pressable>
             </View>
             <Text style={styles.section}>{apps.length} applicant{apps.length === 1 ? '' : 's'}</Text>

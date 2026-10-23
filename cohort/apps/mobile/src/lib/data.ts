@@ -31,6 +31,7 @@ export type Group = {
 
 export type Job = {
   id: string;
+  status?: 'open' | 'closed';
   cat: string;
   firm: string;
   role: string;
@@ -341,6 +342,40 @@ export function useApplicationsForJobs(jobIds: string[]) {
       const { data, error } = await supabase.from('applications').select('*').in('job_id', jobIds).order('created_at', { ascending: false });
       if (error) throw error;
       return data as Application[];
+    },
+  });
+}
+
+export type ActivityRow = {
+  id: string; actor_name: string; action: string; entity_type: string; entity_id: string;
+  detail: Record<string, unknown>; created_at: string;
+};
+
+export function useActivityLog(enabled: boolean) {
+  return useQuery({
+    enabled,
+    queryKey: ['activity-log'],
+    queryFn: async (): Promise<ActivityRow[]> => {
+      const { data, error } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(50);
+      if (error) throw error;
+      return data as ActivityRow[];
+    },
+  });
+}
+
+export type TrashRow = {
+  id: string; entity_table: string; entity_id: string;
+  payload: Record<string, string>; trashed_by_name: string; trashed_at: string;
+};
+
+export function useTrash(enabled: boolean) {
+  return useQuery({
+    enabled,
+    queryKey: ['trash'],
+    queryFn: async (): Promise<TrashRow[]> => {
+      const { data, error } = await supabase.from('trash').select('*').is('restored_at', null).order('trashed_at', { ascending: false });
+      if (error) throw error;
+      return data as TrashRow[];
     },
   });
 }

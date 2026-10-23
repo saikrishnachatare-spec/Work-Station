@@ -6,6 +6,7 @@
  * normal user; admins are made here, one admin to another.
  */
 import { SeoHead } from '@/components/SeoHead';
+import { useToast } from '@/components/Toast';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'expo-router';
@@ -16,7 +17,8 @@ import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
 import { Pill, SectionTitle } from '@/components/ScreenBits';
 import {
-  timeAgo, useGroups, useJobs, useMyProfile, usePosts, useProfiles, useResources,
+  timeAgo, useActivityLog, useGroups, useJobs, useMyProfile, usePosts, useProfiles, useResources, useTrash,
+  type ActivityRow, type TrashRow,
 } from '@/lib/data';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/session';
@@ -47,7 +49,7 @@ function useErrorLogs(enabled: boolean) {
   });
 }
 
-const SECTIONS = ['Overview', 'Users', 'Posts', 'Announcements', 'Resources', 'Groups', 'Jobs', 'Reports', 'Errors'] as const;
+const SECTIONS = ['Overview', 'Users', 'Posts', 'Announcements', 'Resources', 'Groups', 'Jobs', 'Reports', 'Errors', 'Activity', 'Trash'] as const;
 
 function ActionBtn({ label, onPress }: { label: string; onPress: () => void }) {
   return (
@@ -91,6 +93,7 @@ export default function AdminScreen() {
   const profile = useMyProfile(userId);
   const qc = useQueryClient();
   const [section, setSection] = useState<(typeof SECTIONS)[number]>('Overview');
+  const toast = useToast();
 
   const profiles = useProfiles();
   const posts = usePosts();
@@ -99,10 +102,12 @@ export default function AdminScreen() {
   const resources = useResources();
   const isAdmin = profile.data?.role === 'admin';
   const errorLogs = useErrorLogs(!!isAdmin);
+  const activity = useActivityLog(!!isAdmin);
+  const trash = useTrash(!!isAdmin);
   const reports = useQuery({queryKey:['reports'],enabled:!!isAdmin,queryFn:async()=>{const{data,error}=await supabase.from('content_reports').select('*').order('created_at',{ascending:false});if(error)throw error;return data||[];}});
 
   const refresh = () => {
-    for (const key of ['profiles', 'posts', 'groups', 'jobs', 'resources', 'error_logs']) {
+    for (const key of ['profiles', 'posts', 'groups', 'jobs', 'resources', 'error_logs', 'activity-log', 'trash']) {
       qc.invalidateQueries({ queryKey: [key] });
     }
   };
@@ -161,8 +166,40 @@ export default function AdminScreen() {
     refresh();
   };
   const remove = async (table: 'posts' | 'groups' | 'jobs' | 'resources', id: string) => {
-    await supabase.from(table).delete().eq('id', id);
+    if (table === 'groups') {
+      await supabase.from('groups').delete().eq('id', id);
+    } else {
+      const { error } = await supabase.rpc('admin_trash', { p_table: table, p_id: id });
+      if (error) {
+        toast.show(error.message === 'admin_only' ? 'Admin access required.' : 'Could not move to trash. Try again.', 'error');
+        return;
+      }
+    }
     refresh();
+  };
+  const restoreItem = async (trashId: string) => {
+    const { error } = await supabase.rpc('admin_restore', { p_trash_id: trashId });
+    if (error) { toast.show('Could not restore. Try again.', 'error'); return; }
+    toast.show('Restored.', 'success');
+    refresh();
+  };
+  const purgeItem = async (trashId: string) => {
+    const { error } = await supabase.rpc('admin_purge', { p_trash_id: trashId });
+    if (error) { toast.show('Could not delete permanently. Try again.', 'error'); return; }
+    toast.show('Deleted permanently.', 'success');
+    refresh();
+  };
+  const ACTION_LABELS: Record<string, string> = {
+    signup: 'signed up', sign_in: 'signed in', post_created: 'created a post', opening_posted: 'posted an opening',
+    resource_shared: 'shared a resource', group_created: 'created a group', group_removed: 'removed a group',
+    application_sent: 'applied to an opening', application_reviewed: 'marked an applicant reviewed',
+    application_shortlisted: 'shortlisted an applicant', application_rejected: 'declined an applicant',
+    member_added: 'was added to a group', member_left: 'left a group', member_removed: 'was removed from a group',
+    account_deleted: 'deleted an account', account_suspended: 'suspended an account', account_active: 'reinstated an account',
+    verified: 'verified a member', unverified: 'removed verification', admin_role_admin: 'granted admin', admin_role_user: 'revoked admin',
+    posts_trashed: 'trashed a post', jobs_trashed: 'trashed an opening', resources_trashed: 'trashed a resource',
+    posts_restored: 'restored a post', jobs_restored: 'restored an opening', resources_restored: 'restored a resource',
+    posts_purged: 'permanently deleted a post', jobs_purged: 'permanently deleted an opening', resources_purged: 'permanently deleted a resource',
   };
   const publishAnnouncement = async (text: string) => {
     await supabase.from('posts').insert({
@@ -200,6 +237,8 @@ export default function AdminScreen() {
               ['Feed posts', regularPosts.length], ['Announcements', announcements.length],
               ['Resources', resources.data?.length ?? 0], ['Groups', groups.data?.length ?? 0],
               ['Job listings', jobs.data?.length ?? 0],
+              ['Sign-ins (7d)', (activity.data ?? []).filter((a: ActivityRow) => a.action === 'sign_in' && Date.now() - new Date(a.created_at).getTime() < 7 * 864e5).length],
+              ['New members (7d)', (activity.data ?? []).filter((a: ActivityRow) => a.action === 'signup' && Date.now() - new Date(a.created_at).getTime() < 7 * 864e5).length],
             ].map(([label, n]) => (
               <Card key={label as string} style={styles.stat}>
                 <Text style={styles.statNum}>{n}</Text>
@@ -343,6 +382,54 @@ export default function AdminScreen() {
         </View>
       )}
 
+      {section === 'Activity' && (
+        <View style={{ gap: spacing.sm }}>
+          <Text style={styles.meta}>
+            Real events only: signups, sign-ins (from auth timestamps, at most one per member per 15 min), content created,
+            moderation and hiring actions. Message contents are never logged.
+          </Text>
+          {activity.isLoading && <Text style={styles.meta}>Loading…</Text>}
+          {activity.isError && <Text style={styles.meta}>Could not load the activity log.</Text>}
+          {(activity.data ?? []).map((a: ActivityRow) => (
+            <Card key={a.id} style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.strong}>{a.actor_name || (a.action === 'account_deleted' ? 'A member' : 'Someone')} {ACTION_LABELS[a.action] ?? a.action}</Text>
+                <Text style={styles.meta}>
+                  {typeof a.detail?.title === 'string' && a.detail.title ? `${a.detail.title} · ` : ''}
+                  {typeof a.detail?.role === 'string' && a.detail.role ? `${a.detail.role} · ` : ''}
+                  {typeof a.detail?.name === 'string' && a.detail.name ? `${a.detail.name} · ` : ''}
+                  {typeof a.detail?.member === 'string' && a.detail.member ? `${a.detail.member} · ` : ''}
+                  {timeAgo(a.created_at)}
+                </Text>
+              </View>
+            </Card>
+          ))}
+          {activity.data && activity.data.length === 0 && <Text style={styles.meta}>No activity recorded yet.</Text>}
+        </View>
+      )}
+      {section === 'Trash' && (
+        <View style={{ gap: spacing.sm }}>
+          <Text style={styles.meta}>
+            Moderated content waits here. Restore brings it back; Purge deletes it forever. Account deletion by members
+            themselves is always permanent and never lands here.
+          </Text>
+          {trash.isLoading && <Text style={styles.meta}>Loading…</Text>}
+          {trash.isError && <Text style={styles.meta}>Could not load trash.</Text>}
+          {(trash.data ?? []).map((t: TrashRow) => (
+            <Card key={t.id} style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.strong}>{t.payload?.title || t.payload?.role || (t.payload?.body || '').slice(0, 60) || t.entity_table}</Text>
+                <Text style={styles.meta}>
+                  {t.entity_table} · trashed by {t.trashed_by_name || 'admin'} · {timeAgo(t.trashed_at)}
+                </Text>
+              </View>
+              <ActionBtn label="Restore" onPress={() => restoreItem(t.id)} />
+              <ActionBtn label="Purge" onPress={() => purgeItem(t.id)} />
+            </Card>
+          ))}
+          {trash.data && trash.data.length === 0 && <Text style={styles.meta}>Trash is empty.</Text>}
+        </View>
+      )}
       {section === 'Jobs' && (
         <View style={{ gap: spacing.sm }}>
           {(jobs.data ?? []).map((j) => (
