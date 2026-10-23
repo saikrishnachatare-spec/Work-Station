@@ -427,20 +427,20 @@ export default function AdminScreen() {
               value={actorFilter}
               onChangeText={setActorFilter}
             />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
               {Object.keys(CATEGORIES).map((c) => (
                 <Pressable key={c} onPress={() => setActionFilter(c)} style={[styles.segBtn, c === actionFilter && styles.segOn]}>
                   <Text style={[styles.segText, c === actionFilter && styles.segTextOn]}>{c}</Text>
                 </Pressable>
               ))}
-            </ScrollView>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
               {(['24h', '7d', 'All'] as const).map((w) => (
                 <Pressable key={w} onPress={() => setActivityWindow(w)} style={[styles.segBtn, w === activityWindow && styles.segOn]}>
                   <Text style={[styles.segText, w === activityWindow && styles.segTextOn]}>{w === 'All' ? 'All time' : `Last ${w}`}</Text>
                 </Pressable>
               ))}
-            </ScrollView>
+            </View>
             {activity.isLoading && <Text style={styles.meta}>Loading…</Text>}
             {activity.isError && <Text style={styles.meta}>Could not load the activity log.</Text>}
             {rows.map((a: ActivityRow) => (
