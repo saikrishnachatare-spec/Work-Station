@@ -151,7 +151,7 @@ export default function CreateModal() {
                 'aria-label': 'Choose PDF or image',
                 onChange: (event: { target: { files: FileList | null } }) => {
                   const file = event.target.files?.[0];
-                  if (file) setResourceFile({ uri: URL.createObjectURL(file), name: file.name, size: file.size, mimeType: file.type });
+                  if (file) setResourceFile({ uri: URL.createObjectURL(file), name: file.name, lastModified: file.lastModified, size: file.size, mimeType: file.type });
                 }, style: { padding: 12, backgroundColor: '#fff', borderRadius: 12 },
               }) : <Pressable accessibilityRole="button" onPress={async () => {
                 const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'], copyToCacheDirectory: true });
