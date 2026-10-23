@@ -84,11 +84,19 @@ export default function AccountScreen() {
 
   const doDelete = async () => {
     setDeleting(true);
+    const removeAvatar = async () => {
+      const path = profile.data?.avatar_path;
+      if (!path) return true;
+      const { error } = await supabase.storage.from('resources').remove([path]);
+      return !error;
+    };
     try {
-      if (profile.data?.avatar_path) {
-        await supabase.storage.from('resources').remove([profile.data.avatar_path]).catch(() => {});
+      if (!(await removeAvatar())) throw new Error('Could not remove your files. Check your connection and try again.');
+      let { error } = await supabase.rpc('delete_my_account');
+      if (error && /avatar_cleanup_required/i.test(error.message)) {
+        if (!(await removeAvatar())) throw new Error('Could not remove your files. Check your connection and try again.');
+        ({ error } = await supabase.rpc('delete_my_account'));
       }
-      const { error } = await supabase.rpc('delete_my_account');
       if (error) throw error;
       toast.show('Your account is deleted. Shared posts and messages stay as Former member.', 'success');
       await signOut();
@@ -111,6 +119,9 @@ export default function AccountScreen() {
         <Text style={[styles.badge, verified ? styles.badgeOk : styles.badgeWarn]}>
           {verified ? 'Email verified' : 'Email not verified yet - check your inbox'}
         </Text>
+        {profile.data?.verified_at ? (
+          <Text style={[styles.badge, styles.badgeOk]}>Verified professional - can post job openings</Text>
+        ) : null}
       </Card>
 
       {editingName ? (

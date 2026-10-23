@@ -71,6 +71,7 @@ export type Profile = {
   full_name: string;
   role: 'user' | 'admin';
   status: 'active' | 'suspended';
+  verified_at?: string | null;
   created_at: string;
 };
 
@@ -289,12 +290,12 @@ export function useCreateJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
-      deadline = '', description = '', firm, loc = '', pay = '', role, userId,
+      cat = 'Jobs', deadline = '', description = '', firm, loc = '', pay = '', role, userId,
     }: {
-      deadline?: string; description?: string; firm: string; loc?: string; pay?: string; role: string; userId: string;
+      cat?: string; deadline?: string; description?: string; firm: string; loc?: string; pay?: string; role: string; userId: string;
     }) => {
       const row: Record<string, unknown> = {
-        cat: 'Jobs', description, firm, loc, pay, posted_by: userId, role, tags: [],
+        cat, description, firm, loc, pay, posted_by: userId, role, tags: [],
       };
       if (deadline) row.deadline = deadline;
       const { error } = await supabase.from('jobs').insert(row);

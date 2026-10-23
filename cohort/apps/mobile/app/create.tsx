@@ -35,6 +35,7 @@ export default function CreateModal() {
   const [text2, setText2] = useState('');
   const [resourceFile, setResourceFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [resourceCourse, setResourceCourse] = useState('CA');
+  const [jobCat, setJobCat] = useState('Gig work');
   const [jobDesc, setJobDesc] = useState('');
   const [jobDeadline, setJobDeadline] = useState('');
   const [jobLoc, setJobLoc] = useState('');
@@ -83,9 +84,13 @@ export default function CreateModal() {
         toast.show('Deadline must be YYYY-MM-DD (or leave it empty)', 'error');
         return;
       }
+      if (jobCat !== 'Gig work' && !profile.data?.verified_at) {
+        toast.show('Job openings need a verified professional profile. Gig work is open to everyone.', 'info');
+        return;
+      }
       createJob.mutate(
         {
-          deadline: jobDeadline.trim(), description: jobDesc.trim(), firm: b || 'Your firm',
+          cat: jobCat, deadline: jobDeadline.trim(), description: jobDesc.trim(), firm: b || 'Your firm',
           loc: jobLoc.trim(), pay: jobPay.trim(), role: a, userId,
         },
         { onError, onSuccess: () => setDone(`"${a}"${b ? ' at ' + b : ''} is live under Work & hiring.`) },
@@ -169,6 +174,22 @@ export default function CreateModal() {
             </>}
             {action === 'job' && (
               <>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+                  {['Gig work', 'Articleship', 'Jobs', 'Industrial training'].map((c) => {
+                    const locked = c !== 'Gig work' && !profile.data?.verified_at;
+                    return (
+                      <Pressable
+                        key={c}
+                        onPress={() => setJobCat(c)}
+                        style={[styles.catChip, jobCat === c && styles.catChipActive, locked && { opacity: 0.55 }]}
+                      >
+                        <Text style={[styles.catChipText, jobCat === c && styles.catChipTextActive]}>
+                          {c}{locked ? ' (verified)' : ''}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
                 <TextInput
                   multiline
                   numberOfLines={3}
@@ -217,6 +238,10 @@ export default function CreateModal() {
 }
 
 const styles = StyleSheet.create({
+  catChip: { backgroundColor: colors.card, borderColor: colors.hairline, borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 7 },
+  catChipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
+  catChipText: { ...typeScale.caption, color: colors.ink2 },
+  catChipTextActive: { color: '#fff' },
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(37,31,33,0.4)' },
   sheet: {

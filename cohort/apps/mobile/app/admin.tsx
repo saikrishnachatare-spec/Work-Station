@@ -156,6 +156,10 @@ export default function AdminScreen() {
     await supabase.from('profiles').update({ status }).eq('id', id);
     refresh();
   };
+  const setVerified = async (id: string, verified: boolean) => {
+    await supabase.from('profiles').update({ verified_at: verified ? new Date().toISOString() : null }).eq('id', id);
+    refresh();
+  };
   const remove = async (table: 'posts' | 'groups' | 'jobs' | 'resources', id: string) => {
     await supabase.from(table).delete().eq('id', id);
     refresh();
@@ -229,7 +233,7 @@ export default function AdminScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.strong}>{u.full_name || 'Unnamed'}</Text>
                 <Text style={styles.meta}>
-                  {u.role}{u.status === 'suspended' ? ' · suspended' : ''} · joined {timeAgo(u.created_at)}
+                  {u.role}{u.status === 'suspended' ? ' · suspended' : ''}{u.verified_at ? ' · verified professional' : ''} · joined {timeAgo(u.created_at)}
                 </Text>
               </View>
               {u.role === 'admin' ? (
@@ -239,6 +243,10 @@ export default function AdminScreen() {
               ) : (
                 <>
                   <ActionBtn label="Make admin" onPress={() => setRole(u.id, 'admin')} />
+                  <ActionBtn
+                    label={u.verified_at ? 'Unverify' : 'Verify'}
+                    onPress={() => setVerified(u.id, !u.verified_at)}
+                  />
                   <ActionBtn
                     label={u.status === 'active' ? 'Suspend' : 'Reinstate'}
                     onPress={() => setStatus(u.id, u.status === 'active' ? 'suspended' : 'active')}
