@@ -1,4 +1,4 @@
-name: e2e-smoke
+name: live-site-smoke
 on:
   push:
     branches: [main]
@@ -11,5 +11,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # Regression check of the CURRENTLY DEPLOYED alias. This runs after a
+      # push but tests the previous deployment (deploys are manual via
+      # scripts/deploy-web.sh), so it catches live-site breakage - it does NOT
+      # gate the new commit. Run scripts/e2e-smoke.mjs against a new deployment
+      # URL after deploying to gate it.
       - name: Route and backend smoke test against the live site
         run: node apps/mobile/scripts/e2e-smoke.mjs https://cohort-pi-eight.vercel.app

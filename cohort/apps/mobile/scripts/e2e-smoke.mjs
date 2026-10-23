@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /**
- * E2E smoke test: verifies every app route serves the shell and the JS bundle
- * loads, and that the backend answers. Runs against the deployed site (or a
- * local export) with zero browser dependencies, so CI can gate every deploy.
+ * HTTP smoke test: verifies every app route serves the shell and the JS bundle
+ * loads, and that the backend answers. Zero browser dependencies. This is NOT
+ * a browser E2E test - it does not click, type, or verify rendered behavior.
+ * Pass a deployment URL to gate that deployment; the CI workflow runs it
+ * against the current live alias as a regression check.
  *
  * Usage: node scripts/e2e-smoke.mjs [baseUrl]
  */
