@@ -11,7 +11,7 @@ cp vercel.dist.json dist/vercel.json
 # vector-icon fonts - copy them to /fonts and rewrite every reference.
 mkdir -p dist/fonts
 find dist/assets -path '*Fonts/*.ttf' -exec cp {} dist/fonts/ \;
-for f in $(grep -rl '/assets/__node_modules/[^"]*/Fonts/' dist/_expo/static/js/web/ dist/*.html 2>/dev/null); do
+for f in $(grep -rl '/assets/__node_modules/[^"]*/Fonts/' dist --include='*.html' --include='*.js' 2>/dev/null); do
   sed -i 's#/assets/__node_modules/[^"'"'"']*/Fonts/#/fonts/#g' "$f"
 done
 # Static web files (OG image, robots.txt, sitemap.xml).
