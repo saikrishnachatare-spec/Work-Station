@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
@@ -11,7 +11,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
 import { JOB_FILTERS } from '@/lib/demo-data';
-import { useJobs, useMyApplications, useToggleApplication } from '@/lib/data';
+import { useJobAlertPref, useJobs, useMyApplications, useSaveJobAlert, useToggleApplication } from '@/lib/data';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
@@ -24,9 +24,25 @@ export function WorkScreen() {
   const jobs = useJobs();
   const applications = useMyApplications(userId);
   const toggleApplication = useToggleApplication(userId);
+  const alertPref = useJobAlertPref(userId);
+  const saveAlert = useSaveJobAlert(userId);
+  const [alertText, setAlertText] = useState('');
+  useEffect(() => {
+    if (alertPref.data && !alertText) setAlertText(alertPref.data.keywords);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alertPref.data]);
 
   const items = (jobs.data ?? []).filter((j) => filter === 'All' || j.cat === filter);
   const total = (jobs.data ?? []).length;
+
+  const keywords = (alertPref.data?.keywords ?? '').split(',').map((k) => k.trim().toLowerCase()).filter(Boolean);
+  const lastSeen = alertPref.data?.last_seen_at ?? '';
+  const newMatches = (jobs.data ?? []).filter((j) => {
+    if (keywords.length === 0 || !lastSeen) return false;
+    const hay = [j.role, j.firm, j.cat, j.description, j.loc, (j.tags ?? []).join(' ')].filter(Boolean).join(' ').toLowerCase();
+    const isNew = (j as { created_at?: string }).created_at ? (j as { created_at?: string }).created_at! > lastSeen : false;
+    return isNew && keywords.some((k) => hay.includes(k));
+  });
 
   const apply = (jobId: string) => {
     if (!userId) {
@@ -53,6 +69,48 @@ export function WorkScreen() {
           <Text style={styles.meta}>{total} opening{total === 1 ? '' : 's'} listed right now.</Text>
         </View>
       </Card>
+      {userId && (
+        <Card style={{ gap: spacing.sm }}>
+          <Text style={styles.strong}>Vacancy alerts</Text>
+          <Text style={styles.meta}>
+            Get a note here when a new opening matches your keywords. Alerts appear when you open Cohort - no emails or push yet.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <TextInput
+              onChangeText={setAlertText}
+              placeholder="Keywords, e.g. articleship, audit"
+              placeholderTextColor={colors.ink3}
+              style={[styles.alertInput, { flex: 1 }]}
+              value={alertText}
+            />
+            <Pressable
+              accessibilityRole="button"
+              disabled={saveAlert.isPending}
+              onPress={() => saveAlert.mutate(
+                { keywords: alertText.trim() },
+                { onError: (e) => toast.show(e instanceof Error ? e.message : 'Could not save', 'error'),
+                  onSuccess: () => toast.show('Alert saved', 'success') },
+              )}
+              style={styles.alertBtn}
+            >
+              <Text style={styles.alertBtnText}>{saveAlert.isPending ? 'Saving…' : 'Save'}</Text>
+            </Pressable>
+          </View>
+          {keywords.length > 0 && newMatches.length > 0 && (
+            <View style={styles.alertHit}>
+              <Text style={styles.alertHitText}>
+                {newMatches.length} new opening{newMatches.length === 1 ? '' : 's'} match{newMatches.length === 1 ? 'es' : ''} your alert: {newMatches.map((j) => j.role).slice(0, 3).join(', ')}
+              </Text>
+              <Pressable accessibilityRole="button" onPress={() => saveAlert.mutate({ keywords: alertPref.data!.keywords, markSeen: true })}>
+                <Text style={styles.alertDismiss}>Mark seen</Text>
+              </Pressable>
+            </View>
+          )}
+          {keywords.length > 0 && newMatches.length === 0 && (
+            <Text style={styles.meta}>No new matches since your last visit.</Text>
+          )}
+        </Card>
+      )}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
         {JOB_FILTERS.map((f) => <Chip key={f} label={f} active={f === filter} onPress={() => setFilter(f)} />)}
       </ScrollView>
@@ -110,6 +168,20 @@ const styles = StyleSheet.create({
   banner: {
     alignItems: 'center', backgroundColor: colors.brandSoft,
     borderColor: '#eed5c4', flexDirection: 'row', gap: spacing.sm,
+  },
+  alertBtn: {
+    backgroundColor: colors.brand, borderRadius: radius.input, justifyContent: 'center', paddingHorizontal: 14,
+  },
+  alertBtnText: { ...typeScale.caption, color: '#fff', fontWeight: '600' },
+  alertDismiss: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },
+  alertHit: {
+    alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: radius.tile,
+    flexDirection: 'row', gap: spacing.sm, justifyContent: 'space-between', padding: 10,
+  },
+  alertHitText: { ...typeScale.caption, color: colors.brandDeep, flex: 1 },
+  alertInput: {
+    ...typeScale.body, backgroundColor: colors.cream, borderColor: colors.lineWarm,
+    borderRadius: radius.input, borderWidth: 1, color: colors.ink, padding: 10,
   },
   chips: { gap: spacing.sm },
   jobTop: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },

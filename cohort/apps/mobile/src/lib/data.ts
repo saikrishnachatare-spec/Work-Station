@@ -39,6 +39,7 @@ export type Job = {
   tags: string[];
   description: string;
   deadline: string | null;
+  created_at?: string;
 };
 
 export type Comment = {
@@ -324,6 +325,34 @@ export function useCreateResource() {
       if (error) { await supabase.storage.from('resources').remove([path]); throw error; }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['resources'] }),
+  });
+}
+
+export type JobAlertPref = { user_id: string; keywords: string; last_seen_at: string };
+
+export function useJobAlertPref(userId: string | undefined) {
+  return useQuery({
+    enabled: !!userId,
+    queryKey: ['job-alert', userId],
+    queryFn: async (): Promise<JobAlertPref | null> => {
+      const { data, error } = await supabase.from('job_alert_prefs').select('*').eq('user_id', userId!).maybeSingle();
+      if (error) throw error;
+      return (data as JobAlertPref) ?? null;
+    },
+  });
+}
+
+export function useSaveJobAlert(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ keywords, markSeen }: { keywords: string; markSeen?: boolean }) => {
+      if (!userId) throw new Error('Sign in to set alerts');
+      const row: Record<string, unknown> = { keywords, updated_at: new Date().toISOString(), user_id: userId };
+      if (markSeen) row.last_seen_at = new Date().toISOString();
+      const { error } = await supabase.from('job_alert_prefs').upsert(row, { onConflict: 'user_id' });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['job-alert', userId] }),
   });
 }
 
