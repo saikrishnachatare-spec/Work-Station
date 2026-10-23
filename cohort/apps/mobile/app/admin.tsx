@@ -288,7 +288,7 @@ export default function AdminScreen() {
               Real recorded activity only - nothing estimated or backfilled. Sign-ins and content counts come from the
               activity log (recording since {a.log_since ? new Date(a.log_since).toLocaleDateString() : 'no events yet'}).
               Screen views are counted only since {a.screen_tracking_since ? new Date(a.screen_tracking_since).toLocaleString() : 'not yet recorded'},
-              for signed-in members, screen names only. Message contents are never tracked.
+              only for signed-in members who accepted analytics in the consent note, screen names only. Message contents are never tracked.
             </Text>
             <View style={styles.statGrid}>
               {[
