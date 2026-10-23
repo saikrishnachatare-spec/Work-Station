@@ -11,7 +11,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
 import { JOB_FILTERS } from '@/lib/demo-data';
-import { useJobAlertPref, useJobs, useMyApplications, useSaveJobAlert, useToggleApplication } from '@/lib/data';
+import { useJobAlertPref, useJobs, useMyApplications, useSaveJobAlert, useToggleApplication , useMyProfile } from '@/lib/data';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
@@ -20,6 +20,7 @@ export function WorkScreen() {
   const [filter, setFilter] = useState('All');
   const toast = useToast();
   const { session } = useAuth();
+  const profile = useMyProfile(session?.user?.id);
   const userId = session?.user?.id;
   const jobs = useJobs();
   const applications = useMyApplications(userId);
@@ -62,6 +63,18 @@ export function WorkScreen() {
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <ScreenHeader sub="Articleship, jobs, gig work and industrial training." title="Work & hiring" />
+      {(profile.data?.account_type === 'firm' || profile.data?.account_type === 'enterprise') && (
+        <Pressable onPress={() => router.push('/hiring')}>
+          <Card style={styles.banner}>
+            <Ionicons color={colors.brandDeep} name="briefcase-outline" size={18} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.strong}>{profile.data?.org_name || 'Your organisation'}</Text>
+              <Text style={styles.meta}>Manage your openings and applicants.</Text>
+            </View>
+            <Ionicons color={colors.ink3} name="chevron-forward" size={15} />
+          </Card>
+        </Pressable>
+      )}
       <Card style={styles.banner}>
         <Ionicons color={colors.brandDeep} name="notifications-outline" size={18} />
         <View style={{ flex: 1 }}>

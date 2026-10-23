@@ -72,6 +72,8 @@ export type Profile = {
   role: 'user' | 'admin';
   status: 'active' | 'suspended';
   verified_at?: string | null;
+  account_type?: 'individual' | 'firm' | 'enterprise';
+  org_name?: string;
   created_at: string;
 };
 
@@ -302,6 +304,33 @@ export function useCreateJob() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
+  });
+}
+
+export function useMyPostedJobs(userId?: string) {
+  return useQuery({
+    enabled: !!userId,
+    queryKey: ['my-jobs', userId],
+    queryFn: async (): Promise<Job[]> => {
+      const { data, error } = await supabase.from('jobs').select('*').eq('posted_by', userId!).order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as Job[];
+    },
+  });
+}
+
+export type Application = { id: string; job_id: string; user_id: string; created_at: string };
+
+export function useApplicationsForJobs(jobIds: string[]) {
+  const key = jobIds.slice().sort().join(',');
+  return useQuery({
+    enabled: jobIds.length > 0,
+    queryKey: ['job-applications', key],
+    queryFn: async (): Promise<Application[]> => {
+      const { data, error } = await supabase.from('applications').select('*').in('job_id', jobIds).order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as Application[];
+    },
   });
 }
 

@@ -19,6 +19,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default function LoginScreen() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>('signin');
+  const [acctType, setAcctType] = useState<'individual' | 'firm' | 'enterprise'>('individual');
+  const [orgName, setOrgName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -37,6 +39,7 @@ export default function LoginScreen() {
     if (mode !== 'reset') {
       if (mode === 'signup' && password.length < 8) return 'Password must be at least 8 characters.';
       if (mode === 'signup' && !name.trim()) return 'Tell us your name so people know you.';
+      if (mode === 'signup' && acctType !== 'individual' && !orgName.trim()) return 'Tell us your firm or company name.';
     }
     return '';
   };
@@ -62,7 +65,11 @@ export default function LoginScreen() {
         const { data, error: err } = await supabase.auth.signUp({
           email: email.trim(),
           options: {
-            data: { full_name: name.trim() },
+            data: {
+              full_name: name.trim(),
+              account_type: acctType,
+              org_name: acctType === 'individual' ? '' : orgName.trim(),
+            },
             emailRedirectTo: 'https://cohort-pi-eight.vercel.app',
           },
           password,
@@ -112,14 +119,32 @@ export default function LoginScreen() {
         </View>
 
         {mode === 'signup' && (
-          <TextInput
-            autoComplete="name"
-            onChangeText={setName}
-            placeholder="Full name"
-            placeholderTextColor={colors.ink3}
-            style={styles.input}
-            value={name}
-          />
+          <>
+            <TextInput
+              autoComplete="name"
+              onChangeText={setName}
+              placeholder="Full name"
+              placeholderTextColor={colors.ink3}
+              style={styles.input}
+              value={name}
+            />
+            <View style={styles.typeRow}>
+              {([['individual', 'Individual'], ['firm', 'Firm'], ['enterprise', 'Company']] as const).map(([v, label]) => (
+                <Pressable key={v} onPress={() => setAcctType(v)} style={[styles.typeChip, acctType === v && styles.typeChipOn]}>
+                  <Text style={[styles.typeChipText, acctType === v && styles.typeChipTextOn]}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {acctType !== 'individual' && (
+              <TextInput
+                onChangeText={setOrgName}
+                placeholder={acctType === 'firm' ? 'Firm name' : 'Company name'}
+                placeholderTextColor={colors.ink3}
+                style={styles.input}
+                value={orgName}
+              />
+            )}
+          </>
         )}
         <TextInput
           autoCapitalize="none"
@@ -183,6 +208,11 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  typeRow: { flexDirection: 'row', gap: 8 },
+  typeChip: { backgroundColor: colors.card, borderColor: colors.hairline, borderRadius: 999, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 7 },
+  typeChipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
+  typeChipText: { color: colors.ink2, fontSize: 12, fontWeight: '600' as const },
+  typeChipTextOn: { color: '#fff' },
   page: {
     alignItems: 'center', backgroundColor: colors.cream, flexGrow: 1,
     gap: spacing.md, justifyContent: 'center', padding: spacing.lg,
