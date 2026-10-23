@@ -5,7 +5,7 @@ Expo Router's <Head> gates on screen focus, so nothing reaches the static
 HTML during export. Until that changes, we inject title/description/
 canonical/OG tags directly into each exported page.
 """
-import os, re, sys
+import json, os, re, sys
 
 SITE = 'https://cohort-pi-eight.vercel.app'
 NAME = 'Cohort'
@@ -32,6 +32,43 @@ ROUTES = {
   '+not-found.html':      ('/404', f'Not found - {NAME}', 'This page could not be found.', True),
 }
 
+def jsonld_for(path, title, desc):
+    base = {
+      '@context': 'https://schema.org',
+      '@type': 'WebPage',
+      'name': title,
+      'description': desc,
+      'url': f'{SITE}{path}',
+      'isPartOf': {'@type': 'WebSite', 'name': NAME, 'url': SITE},
+    }
+    blocks = [base]
+    if path == '/':
+        blocks.append({
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          'name': NAME,
+          'url': SITE,
+          'logo': f'{SITE}/og-image.png',
+          'description': desc,
+        })
+        blocks.append({
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          'name': NAME,
+          'url': SITE,
+          'potentialAction': {
+            '@type': 'SearchAction',
+            'target': f'{SITE}/search?q={{search_term_string}}',
+            'query-input': 'required name=search_term_string',
+          },
+        })
+    if path not in ('/', '/404'):
+        crumbs = [{'@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': SITE}]
+        crumbs.append({'@type': 'ListItem', 'position': 2, 'name': title.split(' - ')[0], 'item': f'{SITE}{path}'})
+        blocks.append({'@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': crumbs})
+    return ''.join(f'<script type="application/ld+json">{json.dumps(b, separators=(",", ":"))}</script>' for b in blocks)
+
+
 def tags_for(path, title, desc, noindex):
     canonical = f'{SITE}{path}'
     robots = f'<meta name="robots" content="noindex, nofollow"/>' if noindex else ''
@@ -52,6 +89,7 @@ def tags_for(path, title, desc, noindex):
       f'<meta name="twitter:title" content="{title}"/>'
       f'<meta name="twitter:description" content="{desc}"/>'
       f'<meta name="twitter:image" content="{OG_IMG}"/>'
+      f'{jsonld_for(path, title, desc)}'
     )
 
 dist = sys.argv[1] if len(sys.argv) > 1 else 'dist'
