@@ -26,8 +26,8 @@ export const FEED_FILTERS = ['All', 'Posts', 'Announcements', 'Messages'];
 
 export type Read = { kind: string; title: string; sum: string; mins: number };
 export const READS: Read[] = [
-  { kind: 'ICAI announcement', title: 'Nov 2026 exam forms close 26 Oct', sum: 'Board of Studies: last date for CA Final and Inter exam forms without late fee. The direct link sits in the ICAI module under Exam form.', mins: 2 },
-  { kind: 'Tax update', title: 'GST advisory on GSTR-3B late fee', sum: 'The new advisory explains the late-fee waiver window and how to file pending returns. Worth a read before the 20th.', mins: 3 },
+  { kind: 'Study plan', title: 'Nov 2026 attempt: a 12-week study plan', sum: 'A week-by-week split for CA Final and Inter that balances classes, revision and mock tests. Adjust the weeks to your own dates.', mins: 2 },
+  { kind: 'Tax basics', title: 'GSTR-3B late fees, explained', sum: 'How the late fee is computed, when the waiver windows usually open, and the checklist for filing pending returns.', mins: 3 },
   { kind: 'Quick revision', title: 'Ind AS 115 in five steps', sum: 'The revenue model on one page: contract, obligations, price, allocation, recognition. Perfect for a pre-class refresh.', mins: 3 },
   { kind: 'Exam tip', title: 'Case-study MCQs in Direct Tax', sum: 'Read the requirement first, then the facts. A 4-minute guide on how examiners hide the one detail that changes the answer.', mins: 4 },
   { kind: 'Amendment', title: 'Company Law: CSR thresholds updated', sum: 'What changed, who it applies to, and three likely exam questions. For CS Executive and CA Final Law.', mins: 3 },
