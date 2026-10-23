@@ -11,69 +11,22 @@ import { Pill, SectionTitle } from '@/components/ScreenBits';
 import { ListSkeleton } from '@/components/Skeleton';
 import { timeAgo, useMyLikes, useMyProfile, usePosts, useToggleLike } from '@/lib/data';
 import { useAuth } from '@/store/session';
-import { FEED_FILTERS, READS } from '@/lib/demo-data';
+import { FEED_FILTERS } from '@/lib/demo-data';
 import { colors, spacing, type as typeScale } from '@/theme';
 
 function TopReads() {
-  const [idx, setIdx] = useState(0);
-  const [open, setOpen] = useState(false);
-  const item = READS[idx];
-  const go = (d: number) => setIdx((i) => (i + d + READS.length) % READS.length);
-
-  if (open) {
-    return (
-      <Card>
-        <View style={styles.readsHead}>
-          <View style={styles.pdfBadge}><Text style={styles.pdfText}>PDF</Text></View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.strong}>Top 10 reads for today</Text>
-            <Text style={styles.meta}>{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })} · Cohort Daily</Text>
-          </View>
-        </View>
-        {READS.map((r, i) => (
-          <View key={i} style={styles.readRow}>
-            <Text style={styles.readNum}>{i + 1}</Text>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={styles.strong}>{r.title}</Text>
-              <Text style={styles.meta}>{r.kind} · {r.mins} min read</Text>
-              <Text style={styles.body}>{r.sum}</Text>
-            </View>
-          </View>
-        ))}
-        <Pressable onPress={() => setOpen(false)} style={styles.closeBtn}>
-          <Text style={styles.closeText}>Close</Text>
-        </Pressable>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <View style={styles.readsHead}>
-        <View style={styles.pdfBadge}><Text style={styles.pdfText}>PDF</Text></View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.strong}>Top 10 reads for today</Text>
-          <Text style={styles.meta}>{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })} · Cohort Daily</Text>
-        </View>
-        <Text style={styles.meta}>{idx + 1} / {READS.length}</Text>
-      </View>
-      <Pressable onPress={() => setOpen(true)} style={{ gap: 4 }}>
-        <Pill label={item.kind} />
-        <Text style={styles.strong}>{item.title}</Text>
-        <Text style={styles.body}>{item.sum}</Text>
-        <Text style={styles.meta}>{item.mins} min read · tap to open the full document</Text>
-      </Pressable>
-      <View style={styles.readsNav}>
-        <Pressable accessibilityLabel="Previous read" onPress={() => go(-1)} style={styles.navBtn}><Text style={styles.navText}>‹</Text></Pressable>
-        <View style={styles.dots}>
-          {READS.map((_, i) => (
-            <Pressable key={i} accessibilityLabel={`Read ${i + 1}`} onPress={() => setIdx(i)} style={[styles.dot, i === idx && styles.dotOn]} />
-          ))}
-        </View>
-        <Pressable accessibilityLabel="Next read" onPress={() => go(1)} style={styles.navBtn}><Text style={styles.navText}>›</Text></Pressable>
-      </View>
-    </Card>
-  );
+  const posts = usePosts();
+  const router = useRouter();
+  const reads = (posts.data ?? []).filter(p => p.kind === 'post').slice(0, 10);
+  if (!reads.length) return null;
+  return <Card style={{ gap: spacing.sm }}>
+    <Text style={styles.strong}>Recent community reads</Text>
+    {reads.map(p => <Pressable accessibilityRole="button" key={p.id} onPress={() => router.push({ pathname: '/post', params: { id: p.id } })}>
+      <Text style={styles.strong}>{p.author_name}</Text>
+      <Text numberOfLines={2} style={styles.body}>{p.body}</Text>
+      <Text style={styles.meta}>{timeAgo(p.created_at)} · Open post</Text>
+    </Pressable>)}
+  </Card>;
 }
 
 export function FeedScreen() {

@@ -1,7 +1,8 @@
+import * as DocumentPicker from 'expo-document-picker';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useToast } from '@/components/Toast';
 import { useCreateGroup, useCreateJob, useCreatePost, useCreateResource, useMyProfile } from '@/lib/data';
@@ -31,6 +32,7 @@ export default function CreateModal() {
   const [done, setDone] = useState('');
   const [text, setText] = useState('');
   const [text2, setText2] = useState('');
+  const [resourceFile, setResourceFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [jobDesc, setJobDesc] = useState('');
   const [jobDeadline, setJobDeadline] = useState('');
   const [jobLoc, setJobLoc] = useState('');
@@ -88,7 +90,7 @@ export default function CreateModal() {
       );
     } else if (action === 'resource') {
       createResource.mutate(
-        { course: b || 'General', title: a, uploadedBy: authorName, userId },
+        { course: b || 'General', title: a, uploadedBy: authorName, userId, file: resourceFile },
         { onError, onSuccess: () => setDone(`"${a}" shared under Resources.`) },
       );
     }
@@ -99,7 +101,7 @@ export default function CreateModal() {
   return (
     <View style={styles.overlay}>
       <Pressable accessibilityLabel="Close" onPress={() => router.back()} style={styles.backdrop} />
-      <View style={styles.sheet}>
+      <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 12 }} keyboardShouldPersistTaps="handled">
         <View style={styles.handle} />
         {!action && !done && (
           <>
@@ -142,6 +144,13 @@ export default function CreateModal() {
                 value={text2}
               />
             )}
+            {action === 'resource' && <>
+              <Text style={styles.meta}>PDF, PNG, JPEG or WebP, up to 10 MB. Shared with signed-in members.</Text>
+              <Pressable accessibilityRole="button" onPress={async () => {
+                const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'], copyToCacheDirectory: true });
+                if (!result.canceled) setResourceFile(result.assets[0]);
+              }} style={styles.cta}><Text style={styles.ctaText}>{resourceFile ? resourceFile.name : 'Choose PDF or image'}</Text></Pressable>
+            </>}
             {action === 'job' && (
               <>
                 <TextInput
@@ -186,7 +195,7 @@ export default function CreateModal() {
             <Pressable onPress={() => router.back()} style={styles.cta}><Text style={styles.ctaText}>Done</Text></Pressable>
           </View>
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 }

@@ -55,6 +55,9 @@ export type Resource = {
   course: string;
   title: string;
   uploaded_by: string;
+  file_path?: string | null;
+  file_name?: string | null;
+  mime_type?: string | null;
   meta: string;
 };
 
@@ -299,11 +302,22 @@ export function useCreateJob() {
 export function useCreateResource() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ course, title, uploadedBy, userId }: { course: string; title: string; uploadedBy: string; userId: string }) => {
-      const { error } = await supabase
-        .from('resources')
-        .insert({ cat: 'Notes', course, meta: 'Just shared', owner_id: userId, title, uploaded_by: uploadedBy });
-      if (error) throw error;
+    mutationFn: async ({ course, title, uploadedBy, userId, file }: {
+      course: string; title: string; uploadedBy: string; userId: string;
+      file?: { uri: string; name: string; mimeType?: string; size?: number } | null;
+    }) => {
+      if (!file) throw new Error('Choose a PDF or image');
+      if ((file.size ?? 0) > 10 * 1024 * 1024) throw new Error('Maximum file size is 10 MB');
+      const mime = file.mimeType || 'application/pdf';
+      if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(mime)) throw new Error('Choose a PDF, PNG, JPEG or WebP');
+      const path = `${userId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const bytes = await (await fetch(file.uri)).arrayBuffer();
+      const { error: uploadError } = await supabase.storage.from('resources').upload(path, bytes, { contentType: mime });
+      if (uploadError) throw uploadError;
+      const { error } = await supabase.from('resources').insert({ cat: 'Notes', course,
+        meta: `${Math.ceil(bytes.byteLength / 1024)} KB`, owner_id: userId, title, uploaded_by: uploadedBy,
+        file_path: path, file_name: file.name, mime_type: mime });
+      if (error) { await supabase.storage.from('resources').remove([path]); throw error; }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['resources'] }),
   });

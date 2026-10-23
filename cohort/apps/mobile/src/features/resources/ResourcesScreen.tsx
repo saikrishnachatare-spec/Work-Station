@@ -1,17 +1,20 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, Linking } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { Chip } from '@/components/Chip';
 import { ScreenHeader } from '@/components/ScreenBits';
-import { COURSES, LEVELS, RESOURCE_FILTERS, SAMPLE_KINDS, SUBJECTS } from '@/lib/demo-data';
+import { COURSES, LEVELS, RESOURCE_FILTERS, SUBJECTS } from '@/lib/demo-data';
 import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
+import { supabase } from '@/lib/supabase';
+import { useToast } from '@/components/Toast';
 import { useResources } from '@/lib/data';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 export function ResourcesScreen() {
+  const toast = useToast();
   const [course, setCourse] = useState('CA');
   const [lvl, setLvl] = useState(0);
   const [open, setOpen] = useState<string | null>(null);
@@ -76,6 +79,11 @@ export function ResourcesScreen() {
                 <Text style={styles.strong}>{r.title}</Text>
                 <Text style={styles.meta}>{r.meta} · by {r.uploaded_by} · {r.course}</Text>
               </View>
+              {r.file_path && <Pressable accessibilityRole="button" accessibilityLabel={`Open ${r.title}`} onPress={async () => {
+                const { data, error } = await supabase.storage.from('resources').createSignedUrl(r.file_path!, 300);
+                if (error || !data) { toast.show('Sign in to open this file, or try again.', 'error'); return; }
+                await Linking.openURL(data.signedUrl);
+              }}><Ionicons color={colors.brand} name="download-outline" size={22} /></Pressable>}
             </Card>
           ))}
         </View>
@@ -94,23 +102,13 @@ export function ResourcesScreen() {
                   <View style={styles.resIcon}><Ionicons color={colors.brand} name="book-outline" size={17} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.strong}>{sub}</Text>
-                    <Text style={styles.meta}>{SAMPLE_KINDS.length} resources</Text>
+                    <Text style={styles.meta}>Browse subject</Text>
                   </View>
                   <Ionicons color={colors.ink3} name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} />
                 </Pressable>
                 {isOpen && (
                   <View style={styles.subjBody}>
-                    {SAMPLE_KINDS.filter((k) => kind === 'All' || k.cat === kind).map((k) => (
-                      <View key={k.cat} style={styles.subRes}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.strong}>{sub}: {k.cat}</Text>
-                          <Text style={styles.meta}>{k.meta} · by {k.by}</Text>
-                        </View>
-                      </View>
-                    ))}
-                    {SAMPLE_KINDS.filter((k) => kind === 'All' || k.cat === kind).length === 0 && (
-                      <Text style={styles.meta}>No {kind.toLowerCase()} for this subject yet.</Text>
-                    )}
+                    <Text style={styles.meta}>No files have been tagged to this subject yet. Community files are listed above.</Text>
                   </View>
                 )}
               </Card>
