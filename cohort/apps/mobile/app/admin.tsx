@@ -17,6 +17,7 @@ import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
 import { Pill, SectionTitle } from '@/components/ScreenBits';
 import {
+  useAdminAnalytics,
   timeAgo, useActivityLog, useGroups, useJobs, useMyProfile, usePosts, useProfiles, useResources, useTrash,
   type ActivityRow, type TrashRow,
 } from '@/lib/data';
@@ -49,7 +50,7 @@ function useErrorLogs(enabled: boolean) {
   });
 }
 
-const SECTIONS = ['Overview', 'Users', 'Posts', 'Announcements', 'Resources', 'Groups', 'Jobs', 'Reports', 'Errors', 'Activity', 'Trash'] as const;
+const SECTIONS = ['Overview', 'Analytics', 'Users', 'Posts', 'Announcements', 'Resources', 'Groups', 'Jobs', 'Reports', 'Errors', 'Activity', 'Trash'] as const;
 
 function ActionBtn({ label, onPress }: { label: string; onPress: () => void }) {
   return (
@@ -108,10 +109,11 @@ export default function AdminScreen() {
   const [activityLimit, setActivityLimit] = useState(200);
   const activity = useActivityLog(!!isAdmin, activityLimit);
   const trash = useTrash(!!isAdmin);
+  const analytics = useAdminAnalytics(!!isAdmin);
   const reports = useQuery({queryKey:['reports'],enabled:!!isAdmin,queryFn:async()=>{const{data,error}=await supabase.from('content_reports').select('*').order('created_at',{ascending:false});if(error)throw error;return data||[];}});
 
   const refresh = () => {
-    for (const key of ['profiles', 'posts', 'groups', 'jobs', 'resources', 'error_logs', 'activity-log', 'trash']) {
+    for (const key of ['profiles', 'posts', 'groups', 'jobs', 'resources', 'error_logs', 'activity-log', 'trash', 'admin-analytics']) {
       qc.invalidateQueries({ queryKey: [key] });
     }
   };
@@ -209,6 +211,7 @@ export default function AdminScreen() {
     verified: 'verified a member', unverified: 'removed verification', admin_role_admin: 'granted admin', admin_role_user: 'revoked admin',
     posts_trashed: 'trashed a post', jobs_trashed: 'trashed an opening', resources_trashed: 'trashed a resource',
     posts_restored: 'restored a post', jobs_restored: 'restored an opening', resources_restored: 'restored a resource',
+    screen_view: 'opened a screen',
     posts_purged: 'permanently deleted a post', jobs_purged: 'permanently deleted an opening', resources_purged: 'permanently deleted a resource',
   };
   const publishAnnouncement = async (text: string) => {
@@ -273,6 +276,127 @@ export default function AdminScreen() {
           </Text>
         </View>
       )}
+
+      {section === 'Analytics' && (() => {
+        const a = analytics.data;
+        if (analytics.isLoading) return <ActivityIndicator color={colors.brand} />;
+        if (analytics.isError || !a) return <Text style={styles.meta}>Could not load analytics.</Text>;
+        const maxDay = Math.max(1, ...a.by_day.map((d) => Math.max(d.signins, d.new_members)));
+        return (
+          <View style={{ gap: spacing.md }}>
+            <Text style={styles.meta}>
+              Real recorded activity only - nothing estimated or backfilled. Sign-ins and content counts come from the
+              activity log (recording since {a.log_since ? new Date(a.log_since).toLocaleDateString() : 'no events yet'}).
+              Screen views are counted only since {a.screen_tracking_since ? new Date(a.screen_tracking_since).toLocaleString() : 'not yet recorded'},
+              for signed-in members, screen names only. Message contents are never tracked.
+            </Text>
+            <View style={styles.statGrid}>
+              {[
+                ['Active members (7d)', a.active_members.signin_7d], ['Active members (30d)', a.active_members.signin_30d],
+                ['Members', a.totals.members], ['Verified', a.totals.verified], ['Suspended', a.totals.suspended],
+                ['Posts', a.totals.posts], ['Openings (open)', a.totals.jobs_open], ['Openings (closed)', a.totals.jobs_closed],
+                ['Applications', a.totals.applications], ['Resources', a.totals.resources], ['Groups', a.totals.groups],
+                ['Messages sent', a.totals.messages],
+              ].map(([label, n]) => (
+                <Card key={label as string} style={styles.stat}>
+                  <Text style={styles.statNum}>{n}</Text>
+                  <Text style={styles.meta}>{label}</Text>
+                </Card>
+              ))}
+            </View>
+
+            <SectionTitle first title="Last 14 days" />
+            <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.brand }} /><Text style={styles.meta}>Sign-ins</Text></View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.brandDeep }} /><Text style={styles.meta}>New members</Text></View>
+            </View>
+            {a.by_day.map((d) => (
+              <View key={d.day} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <Text style={[styles.meta, { width: 44 }]}>{d.day.slice(5)}</Text>
+                <View style={{ flex: 1, gap: 3 }}>
+                  <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.brand, width: d.signins ? `${Math.max(3, (d.signins / maxDay) * 100)}%` : 3, opacity: d.signins ? 1 : 0.15 }} />
+                  <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.brandDeep, width: d.new_members ? `${Math.max(3, (d.new_members / maxDay) * 100)}%` : 3, opacity: d.new_members ? 1 : 0.15 }} />
+                </View>
+                <Text style={styles.meta}>{d.signins} / {d.new_members}</Text>
+              </View>
+            ))}
+
+            <SectionTitle title="Hiring funnel" />
+            <View style={styles.statGrid}>
+              {[
+                ['Applications sent', a.funnel.sent], ['Reviewed', a.funnel.reviewed],
+                ['Shortlisted', a.funnel.shortlisted], ['Declined', a.funnel.declined], ['Waiting', a.funnel.pending],
+              ].map(([label, n]) => (
+                <Card key={label as string} style={styles.stat}>
+                  <Text style={styles.statNum}>{n}</Text>
+                  <Text style={styles.meta}>{label}</Text>
+                </Card>
+              ))}
+            </View>
+
+            <SectionTitle title="Most used screens" />
+            {a.screens.length === 0 ? (
+              <Text style={styles.meta}>No screen views recorded yet. Counting started when this update went live.</Text>
+            ) : a.screens.map((sc) => (
+              <Card key={sc.screen} style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>/{sc.screen}</Text>
+                  <Text style={styles.meta}>{sc.members} member{sc.members === 1 ? '' : 's'}</Text>
+                </View>
+                <Pill label={`${sc.views} views`} />
+              </Card>
+            ))}
+
+            <SectionTitle title="Openings by applications" />
+            {a.per_job.length === 0 ? <Text style={styles.meta}>No openings yet.</Text> : a.per_job.map((j) => (
+              <Card key={j.id} style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>{j.role} · {j.firm}</Text>
+                  <Text style={styles.meta}>
+                    {j.status} · {j.applications} application{j.applications === 1 ? '' : 's'}
+                    {j.shortlisted ? ` · ${j.shortlisted} shortlisted` : ''}{j.declined ? ` · ${j.declined} declined` : ''}
+                  </Text>
+                </View>
+              </Card>
+            ))}
+
+            <SectionTitle title="Most engaged posts" />
+            {a.top_posts.length === 0 ? <Text style={styles.meta}>No posts yet.</Text> : a.top_posts.map((p) => (
+              <Card key={p.id} style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>{p.excerpt || '(no text)'}</Text>
+                  <Text style={styles.meta}>{p.author_name} · {p.like_count} likes · {p.comment_count} comments</Text>
+                </View>
+              </Card>
+            ))}
+
+            <SectionTitle title="Groups by size" />
+            {a.groups_by_size.length === 0 ? <Text style={styles.meta}>No groups yet.</Text> : a.groups_by_size.map((g) => (
+              <Card key={g.id} style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>{g.name}</Text>
+                  <Text style={styles.meta}>{g.member_count} members · {g.threads} threads · {g.messages} messages</Text>
+                </View>
+              </Card>
+            ))}
+
+            <SectionTitle title="Most active members (30d)" />
+            {a.most_active.length === 0 ? <Text style={styles.meta}>No recorded activity yet.</Text> : a.most_active.map((m) => (
+              <Card key={m.actor_id} style={styles.row}>
+                <Avatar name={m.name || '?'} size={34} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>{m.name}</Text>
+                  <Text style={styles.meta}>{m.events} recorded events · last active {timeAgo(m.last_active)}</Text>
+                </View>
+                <ActionBtn
+                  label="Activity"
+                  onPress={() => { setActorFilter(m.name || ''); setActionFilter('All'); setActivityWindow('All'); setSection('Activity'); }}
+                />
+              </Card>
+            ))}
+          </View>
+        );
+      })()}
 
       {section === 'Users' && (
         <View style={{ gap: spacing.sm }}>
@@ -402,6 +526,7 @@ export default function AdminScreen() {
           'Sign-ins': ['sign_in', 'signup'],
           Content: ['post_created', 'opening_posted', 'resource_shared', 'group_created', 'group_removed'],
           Hiring: ['application_sent', 'application_reviewed', 'application_shortlisted', 'application_rejected'],
+          Screens: ['screen_view'],
           Membership: ['member_added', 'member_left', 'member_removed', 'group_admin_granted', 'group_admin_revoked'],
           Moderation: ['verified', 'unverified', 'admin_role_admin', 'admin_role_user', 'account_suspended', 'account_active',
             'posts_trashed', 'jobs_trashed', 'resources_trashed', 'posts_restored', 'jobs_restored', 'resources_restored',
@@ -409,6 +534,7 @@ export default function AdminScreen() {
         };
         const windowMs = activityWindow === '24h' ? 864e5 : activityWindow === '7d' ? 7 * 864e5 : 0;
         const rows = (activity.data ?? []).filter((a: ActivityRow) => {
+          if (a.action === 'screen_view' && !actorFilter.trim() && actionFilter !== 'Screens') return false;
           if (actorFilter.trim() && !(a.actor_name || '').toLowerCase().includes(actorFilter.trim().toLowerCase())) return false;
           if (actionFilter !== 'All' && !(CATEGORIES[actionFilter] ?? []).includes(a.action)) return false;
           if (windowMs && Date.now() - new Date(a.created_at).getTime() > windowMs) return false;
@@ -418,7 +544,7 @@ export default function AdminScreen() {
           <View style={{ gap: spacing.sm }}>
             <Text style={styles.meta}>
               Real events only: signups, sign-ins (from auth timestamps, at most one per member per 15 min), content created,
-              moderation and hiring actions. Message contents are never logged.
+              moderation and hiring actions. Message contents are never logged. Screen views appear in a member's timeline and under the Screens filter.
             </Text>
             <TextInput
               placeholder="Filter by member name"
@@ -453,6 +579,7 @@ export default function AdminScreen() {
                     {typeof a.detail?.name === 'string' && a.detail.name ? `${a.detail.name} · ` : ''}
                     {typeof a.detail?.member === 'string' && a.detail.member ? `${a.detail.member} · ` : ''}
                     {typeof a.detail?.group === 'string' && a.detail.group ? `${a.detail.group} · ` : ''}
+                    {a.action === 'screen_view' ? `/${a.entity_id} · ` : ''}
                     {timeAgo(a.created_at)}
                   </Text>
                 </View>

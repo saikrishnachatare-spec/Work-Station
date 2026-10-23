@@ -3,7 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Platform, Text, View } from 'react-native';
 
 import { ConsentBanner } from '@/components/ConsentBanner';
@@ -12,6 +12,7 @@ import { ToastProvider } from '@/components/Toast';
 import { initAnalytics } from '@/lib/analytics';
 import { installErrorLogging } from '@/lib/errors';
 import { queryClient } from '@/lib/queryClient';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/session';
 import { colors } from '@/theme';
 
@@ -43,6 +44,27 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+
+/** Records which screens signed-in members open (screen name only, deduped
+ * server-side to one row per member per screen per 30 min). Powers the admin
+ * usage analytics; never sends params, ids or content. */
+function ScreenTracker() {
+  const segments = useSegments();
+  const { session } = useAuth();
+  const last = useRef('');
+  useEffect(() => {
+    if (!session) return;
+    const parts = (segments as string[]).filter((s) => s !== '(tabs)' && s !== '(auth)');
+    const screen = (parts.length === 0 ? 'home' : parts.map((s) => (/^[0-9a-f-]{8,}$/i.test(s) ? ':id' : s)).join('/')).slice(0, 60);
+    if (!screen || screen === last.current) return;
+    last.current = screen;
+    supabase.rpc('log_screen_view', { p_screen: screen }).then(({ error }) => {
+      if (error) last.current = '';
+    });
+  }, [segments, session]);
+  return null;
+}
+
 export default function RootLayout() {
   // Vector-icon fonts don't load by default on web; without this, tab icons are invisible.
   const [fontsLoaded] = useFonts({ ...Ionicons.font });
@@ -62,6 +84,7 @@ export default function RootLayout() {
       <ToastProvider>
       <StatusBar style="dark" />
       <AuthGate>
+        <ScreenTracker />
         <Stack
           screenOptions={{
             contentStyle: { backgroundColor: colors.cream },

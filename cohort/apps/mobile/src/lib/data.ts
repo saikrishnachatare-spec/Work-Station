@@ -834,3 +834,28 @@ export function useDeleteOwnContent(table: 'posts' | 'comments', userId: string 
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['posts'] }); qc.invalidateQueries({ queryKey: ['post'] }); qc.invalidateQueries({ queryKey: ['comments'] }); },
   });
 }
+
+export type AdminAnalytics = {
+  generated_at: string; log_since: string | null; screen_tracking_since: string | null;
+  totals: Record<string, number>;
+  active_members: { signin_7d: number; signin_30d: number };
+  funnel: Record<string, number>;
+  by_day: { day: string; signins: number; new_members: number }[];
+  screens: { screen: string; views: number; members: number }[];
+  per_job: { id: string; role: string; firm: string; status: string; applications: number; shortlisted: number; declined: number; reviewed: number }[];
+  top_posts: { id: string; excerpt: string; author_name: string; like_count: number; comment_count: number }[];
+  groups_by_size: { id: string; name: string; member_count: number; threads: number; messages: number }[];
+  most_active: { actor_id: string; name: string; events: number; last_active: string }[];
+};
+
+export function useAdminAnalytics(enabled: boolean) {
+  return useQuery({
+    enabled,
+    queryKey: ['admin-analytics'],
+    queryFn: async (): Promise<AdminAnalytics> => {
+      const { data, error } = await supabase.rpc('admin_analytics');
+      if (error) throw error;
+      return data as AdminAnalytics;
+    },
+  });
+}
