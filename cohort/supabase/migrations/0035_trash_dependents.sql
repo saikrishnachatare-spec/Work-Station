@@ -61,6 +61,16 @@ begin
     raise exception 'not_found';
   end if;
   payload := t.payload - '_applications' - '_comments' - '_likes';
+  -- never resurrect a deleted account: if the original owner is gone or
+  -- deleted, the restoring admin takes ownership; display attribution stays
+  -- as sanitised in the snapshot ('Former member')
+  if t.entity_table = 'posts' and not exists (select 1 from profiles pr where pr.id = (payload->>'author_id')::uuid and pr.status <> 'deleted') then
+    payload := jsonb_set(payload, '{author_id}', to_jsonb(auth.uid()::text));
+  elsif t.entity_table = 'jobs' and not exists (select 1 from profiles pr where pr.id = (payload->>'posted_by')::uuid and pr.status <> 'deleted') then
+    payload := jsonb_set(payload, '{posted_by}', to_jsonb(auth.uid()::text));
+  elsif t.entity_table = 'resources' and not exists (select 1 from profiles pr where pr.id = (payload->>'owner_id')::uuid and pr.status <> 'deleted') then
+    payload := jsonb_set(payload, '{owner_id}', to_jsonb(auth.uid()::text));
+  end if;
   execute format('insert into %I select * from jsonb_populate_record(null::%I, $1)', t.entity_table, t.entity_table) using payload;
   if t.entity_table = 'jobs' then
     for d in select * from jsonb_array_elements(coalesce(t.payload->'_applications', '[]'::jsonb)) loop
@@ -166,11 +176,17 @@ begin
    where entity_table = 'posts' and payload->>'author_id' = uid::text;
   update trash set payload = jsonb_set(payload, '{uploaded_by}', '"Former member"')
    where entity_table = 'resources' and payload->>'owner_id' = uid::text;
-  -- the member's own trashed content is permanently removed with the account
-  delete from trash
-   where (entity_table = 'posts' and payload->>'author_id' = uid::text)
-      or (entity_table = 'jobs' and payload->>'posted_by' = uid::text)
-      or (entity_table = 'resources' and payload->>'owner_id' = uid::text);
+  update trash set payload = jsonb_set(payload, '{firm}', '"Former member"')
+   where entity_table = 'jobs' and payload->>'posted_by' = uid::text;
+  -- their own applications leave trashed-job snapshots (account deletion
+  -- withdraws applications everywhere, live or snapshotted); other members'
+  -- applications stay as retained relations
+  update trash
+     set payload = jsonb_set(payload, '{_applications}', coalesce((
+       select jsonb_agg(a) from jsonb_array_elements(payload->'_applications') a
+       where a->>'user_id' <> uid::text), '[]'::jsonb))
+   where entity_table = 'jobs' and payload ? '_applications'
+     and payload->>'_applications'::text like '%' || uid::text || '%';
 
   delete from jobs where posted_by = uid;
 

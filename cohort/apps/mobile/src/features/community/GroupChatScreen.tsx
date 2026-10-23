@@ -9,8 +9,9 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
 import {
-  getGroupInviteLink, useAddGroupMembers, useGroupMembers, useGroupThread, useLeaveGroup, useMarkThreadRead,
-  useProfiles, useSendMessage, useThreadMessages,
+  getGroupInviteLink, useAddGroupMembers, useGroup, useGroupMemberRows, useGroupMembers, useGroupThread,
+  useLeaveGroup, useMarkThreadRead, useProfiles, useRemoveGroupMember, useSendMessage, useSetGroupMemberRole,
+  useThreadMessages,
 } from '@/lib/data';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -24,6 +25,7 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
   const userId = session?.user?.id;
   const [draft, setDraft] = useState('');
   const [adding, setAdding] = useState(false);
+  const [managing, setManaging] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
   const thread = useGroupThread(groupId, userId);
@@ -32,6 +34,13 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
   const sendMessage = useSendMessage(userId);
   const profiles = useProfiles();
   const members = useGroupMembers(groupId);
+  const memberRows = useGroupMemberRows(groupId);
+  const group = useGroup(groupId);
+  const setMemberRole = useSetGroupMemberRole(groupId);
+  const removeMember = useRemoveGroupMember(groupId);
+  const isCreator = !!userId && group.data?.created_by === userId;
+  const myRole = (memberRows.data ?? []).find((r) => r.user_id === userId)?.role;
+  const canManage = isCreator || myRole === 'admin';
   const addMembers = useAddGroupMembers(userId);
   const leaveGroup = useLeaveGroup(userId);
   const markRead = useMarkThreadRead(userId);
@@ -163,6 +172,70 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
     );
   }
 
+  if (managing && canManage) {
+    const creatorId = group.data?.created_by;
+    const rows = [...(memberRows.data ?? [])].sort((a, b) =>
+      (a.user_id === creatorId ? -1 : b.user_id === creatorId ? 1 : a.role === b.role ? 0 : a.role === 'admin' ? -1 : 1));
+    const changeRole = (memberId: string, role: 'admin' | 'member') => {
+      setMemberRole.mutate({ memberId, role }, {
+        onError: () => toast.show('Could not change that role. Only group admins can manage members.', 'error'),
+      });
+    };
+    const remove = (memberId: string) => {
+      const doRemove = () => removeMember.mutate(memberId, {
+        onError: () => toast.show('Could not remove that member. Try again.', 'error'),
+      });
+      if (Platform.OS === 'web') {
+        if (window.confirm(`Remove ${nameOf(memberId)} from the group?`)) doRemove();
+      } else {
+        Alert.alert('Remove member', `Remove ${nameOf(memberId)} from the group?`, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Remove', style: 'destructive', onPress: doRemove },
+        ]);
+      }
+    };
+    return (
+      <View style={styles.threadPage}>
+        <Pressable onPress={() => setManaging(false)} style={styles.backBtn}>
+          <Ionicons color={colors.brand} name="chevron-back" size={16} />
+          <Text style={styles.backText}>Back to chat</Text>
+        </Pressable>
+        <Text style={styles.meta}>
+          The group creator is always an admin. Admins can make other members admins or remove them.
+        </Text>
+        <ScrollView contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.lg }}>
+          {rows.map((r) => {
+            const isCreatorRow = r.user_id === creatorId;
+            const isSelf = r.user_id === userId;
+            return (
+              <Card key={r.user_id} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <Avatar name={nameOf(r.user_id)} size={34} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>{nameOf(r.user_id)}{isSelf ? ' (you)' : ''}</Text>
+                  <Text style={styles.meta}>{isCreatorRow ? 'Creator' : r.role === 'admin' ? 'Admin' : 'Member'}</Text>
+                </View>
+                {!isCreatorRow && !isSelf && (
+                  <>
+                    <Pressable
+                      disabled={setMemberRole.isPending}
+                      onPress={() => changeRole(r.user_id, r.role === 'admin' ? 'member' : 'admin')}
+                      style={styles.primaryBtn}
+                    >
+                      <Text style={styles.primaryBtnText}>{r.role === 'admin' ? 'Remove admin' : 'Make admin'}</Text>
+                    </Pressable>
+                    <Pressable disabled={removeMember.isPending} onPress={() => remove(r.user_id)} style={styles.iconBtn}>
+                      <Ionicons color={colors.danger} name="person-remove-outline" size={18} />
+                    </Pressable>
+                  </>
+                )}
+              </Card>
+            );
+          })}
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.threadPage}>
       <Pressable onPress={() => router.back()} style={styles.backBtn}>
@@ -175,6 +248,11 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
           <Text style={styles.strong}>{groupName}</Text>
           <Text style={styles.meta}>Group chat - {(members.data ?? []).length} members</Text>
         </View>
+        {canManage && (
+          <Pressable accessibilityLabel="Manage members" onPress={() => setManaging(true)} style={styles.iconBtn}>
+            <Ionicons color={colors.brand} name="people-outline" size={18} />
+          </Pressable>
+        )}
         <Pressable accessibilityLabel="Add people" onPress={() => setAdding(true)} style={styles.iconBtn}>
           <Ionicons color={colors.brand} name="person-add-outline" size={18} />
         </Pressable>

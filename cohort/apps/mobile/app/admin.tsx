@@ -94,6 +94,9 @@ export default function AdminScreen() {
   const qc = useQueryClient();
   const [section, setSection] = useState<(typeof SECTIONS)[number]>('Overview');
   const toast = useToast();
+  const [actorFilter, setActorFilter] = useState('');
+  const [actionFilter, setActionFilter] = useState<string>('All');
+  const [activityWindow, setActivityWindow] = useState<'24h' | '7d' | 'All'>('7d');
 
   const profiles = useProfiles();
   const posts = usePosts();
@@ -289,6 +292,10 @@ export default function AdminScreen() {
                 <>
                   <ActionBtn label="Make admin" onPress={() => setRole(u.id, 'admin')} />
                   <ActionBtn
+                    label="Activity"
+                    onPress={() => { setActorFilter(u.full_name || ''); setActionFilter('All'); setActivityWindow('All'); setSection('Activity'); }}
+                  />
+                  <ActionBtn
                     label={u.verified_at ? 'Unverify' : 'Verify'}
                     onPress={() => setVerified(u.id, !u.verified_at)}
                   />
@@ -388,31 +395,72 @@ export default function AdminScreen() {
         </View>
       )}
 
-      {section === 'Activity' && (
-        <View style={{ gap: spacing.sm }}>
-          <Text style={styles.meta}>
-            Real events only: signups, sign-ins (from auth timestamps, at most one per member per 15 min), content created,
-            moderation and hiring actions. Message contents are never logged.
-          </Text>
-          {activity.isLoading && <Text style={styles.meta}>Loading…</Text>}
-          {activity.isError && <Text style={styles.meta}>Could not load the activity log.</Text>}
-          {(activity.data ?? []).map((a: ActivityRow) => (
-            <Card key={a.id} style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.strong}>{a.actor_name || (a.action === 'account_deleted' ? 'A member' : 'Someone')} {ACTION_LABELS[a.action] ?? a.action}</Text>
-                <Text style={styles.meta}>
-                  {typeof a.detail?.title === 'string' && a.detail.title ? `${a.detail.title} · ` : ''}
-                  {typeof a.detail?.role === 'string' && a.detail.role ? `${a.detail.role} · ` : ''}
-                  {typeof a.detail?.name === 'string' && a.detail.name ? `${a.detail.name} · ` : ''}
-                  {typeof a.detail?.member === 'string' && a.detail.member ? `${a.detail.member} · ` : ''}
-                  {timeAgo(a.created_at)}
-                </Text>
-              </View>
-            </Card>
-          ))}
-          {activity.data && activity.data.length === 0 && <Text style={styles.meta}>No activity recorded yet.</Text>}
-        </View>
-      )}
+      {section === 'Activity' && (() => {
+        const CATEGORIES: Record<string, string[]> = {
+          All: [],
+          'Sign-ins': ['sign_in', 'signup'],
+          Content: ['post_created', 'opening_posted', 'resource_shared', 'group_created', 'group_removed'],
+          Hiring: ['application_sent', 'application_reviewed', 'application_shortlisted', 'application_rejected'],
+          Membership: ['member_added', 'member_left', 'member_removed', 'group_admin_granted', 'group_admin_revoked'],
+          Moderation: ['verified', 'unverified', 'admin_role_admin', 'admin_role_user', 'account_suspended', 'account_active',
+            'posts_trashed', 'jobs_trashed', 'resources_trashed', 'posts_restored', 'jobs_restored', 'resources_restored',
+            'posts_purged', 'jobs_purged', 'resources_purged', 'account_deleted'],
+        };
+        const windowMs = activityWindow === '24h' ? 864e5 : activityWindow === '7d' ? 7 * 864e5 : 0;
+        const rows = (activity.data ?? []).filter((a: ActivityRow) => {
+          if (actorFilter.trim() && !(a.actor_name || '').toLowerCase().includes(actorFilter.trim().toLowerCase())) return false;
+          if (actionFilter !== 'All' && !(CATEGORIES[actionFilter] ?? []).includes(a.action)) return false;
+          if (windowMs && Date.now() - new Date(a.created_at).getTime() > windowMs) return false;
+          return true;
+        });
+        return (
+          <View style={{ gap: spacing.sm }}>
+            <Text style={styles.meta}>
+              Real events only: signups, sign-ins (from auth timestamps, at most one per member per 15 min), content created,
+              moderation and hiring actions. Message contents are never logged.
+            </Text>
+            <TextInput
+              placeholder="Filter by member name"
+              placeholderTextColor={colors.ink3}
+              style={styles.input}
+              value={actorFilter}
+              onChangeText={setActorFilter}
+            />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
+              {Object.keys(CATEGORIES).map((c) => (
+                <Pressable key={c} onPress={() => setActionFilter(c)} style={[styles.segBtn, c === actionFilter && styles.segOn]}>
+                  <Text style={[styles.segText, c === actionFilter && styles.segTextOn]}>{c}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.xs }}>
+              {(['24h', '7d', 'All'] as const).map((w) => (
+                <Pressable key={w} onPress={() => setActivityWindow(w)} style={[styles.segBtn, w === activityWindow && styles.segOn]}>
+                  <Text style={[styles.segText, w === activityWindow && styles.segTextOn]}>{w === 'All' ? 'All time' : `Last ${w}`}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            {activity.isLoading && <Text style={styles.meta}>Loading…</Text>}
+            {activity.isError && <Text style={styles.meta}>Could not load the activity log.</Text>}
+            {rows.map((a: ActivityRow) => (
+              <Card key={a.id} style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>{a.actor_name || (a.action === 'account_deleted' ? 'A member' : 'Someone')} {ACTION_LABELS[a.action] ?? a.action}</Text>
+                  <Text style={styles.meta}>
+                    {typeof a.detail?.title === 'string' && a.detail.title ? `${a.detail.title} · ` : ''}
+                    {typeof a.detail?.role === 'string' && a.detail.role ? `${a.detail.role} · ` : ''}
+                    {typeof a.detail?.name === 'string' && a.detail.name ? `${a.detail.name} · ` : ''}
+                    {typeof a.detail?.member === 'string' && a.detail.member ? `${a.detail.member} · ` : ''}
+                    {typeof a.detail?.group === 'string' && a.detail.group ? `${a.detail.group} · ` : ''}
+                    {timeAgo(a.created_at)}
+                  </Text>
+                </View>
+              </Card>
+            ))}
+            {!activity.isLoading && rows.length === 0 && <Text style={styles.meta}>No matching events.</Text>}
+          </View>
+        );
+      })()}
       {section === 'Trash' && (
         <View style={{ gap: spacing.sm }}>
           <Text style={styles.meta}>

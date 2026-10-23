@@ -356,7 +356,7 @@ export function useActivityLog(enabled: boolean) {
     enabled,
     queryKey: ['activity-log'],
     queryFn: async (): Promise<ActivityRow[]> => {
-      const { data, error } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).order('id', { ascending: false }).limit(50);
+      const { data, error } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).order('id', { ascending: false }).limit(200);
       if (error) throw error;
       return data as ActivityRow[];
     },
@@ -695,6 +695,59 @@ export function useGroupMembers(groupId: string | null) {
       const { data, error } = await supabase.from('group_members').select('user_id').eq('group_id', groupId!);
       if (error) throw error;
       return (data as { user_id: string }[]).map((r) => r.user_id);
+    },
+  });
+}
+
+export type GroupMemberRow = { user_id: string; role: 'admin' | 'member' };
+
+export function useGroupMemberRows(groupId: string | null) {
+  return useQuery({
+    enabled: !!groupId,
+    queryKey: ['group-member-rows', groupId],
+    queryFn: async (): Promise<GroupMemberRow[]> => {
+      const { data, error } = await supabase.from('group_members').select('user_id, role').eq('group_id', groupId!);
+      if (error) throw error;
+      return data as GroupMemberRow[];
+    },
+  });
+}
+
+export function useGroup(groupId: string | null) {
+  return useQuery({
+    enabled: !!groupId,
+    queryKey: ['group', groupId],
+    queryFn: async (): Promise<{ id: string; name: string; created_by: string } | null> => {
+      const { data, error } = await supabase.from('groups').select('id, name, created_by').eq('id', groupId!).maybeSingle();
+      if (error) throw error;
+      return data as { id: string; name: string; created_by: string } | null;
+    },
+  });
+}
+
+export function useSetGroupMemberRole(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ memberId, role }: { memberId: string; role: 'admin' | 'member' }) => {
+      const { data, error } = await supabase.from('group_members').update({ role }).eq('group_id', groupId).eq('user_id', memberId).select('user_id');
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('not_permitted');
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['group-member-rows', groupId] }),
+  });
+}
+
+export function useRemoveGroupMember(groupId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (memberId: string) => {
+      const { data, error } = await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', memberId).select('user_id');
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('not_permitted');
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['group-member-rows', groupId] });
+      qc.invalidateQueries({ queryKey: ['group-members', groupId] });
     },
   });
 }
