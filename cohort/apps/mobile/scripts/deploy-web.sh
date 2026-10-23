@@ -7,6 +7,10 @@ node_modules/.bin/expo export --platform web --output-dir dist
 # Static export regenerates dist/, so restore the Vercel config (cleanUrls
 # keeps deep links like /search working) before every deploy.
 cp vercel.dist.json dist/vercel.json
+# Static web files (OG image, robots.txt, sitemap.xml).
+cp web-static/* dist/
 # Vercel serves 404.html for unmatched routes; point it at the branded 404 page.
 cp "dist/+not-found.html" dist/404.html
+# Per-route SEO head tags (title/meta/OG/canonical).
+python3 scripts/seo-inject.py dist
 npx vercel deploy --prod --yes --token "$VERCEL_TOKEN" --name cohort dist

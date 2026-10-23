@@ -1,3 +1,4 @@
+import { SeoHead } from '@/components/SeoHead';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 
 import { colors, spacing, type as typeScale } from '@/theme';
@@ -18,6 +19,7 @@ const SECTIONS: [string, string][] = [
 export default function PrivacyScreen() {
   return (
     <ScrollView contentContainerStyle={styles.page}>
+      <SeoHead description="How Cohort collects, uses and protects your data." path="/privacy" title="Privacy policy" />
       <Text style={styles.title}>Privacy policy</Text>
       <Text style={styles.meta}>Cohort · last updated 23 October 2026</Text>
       {SECTIONS.map(([head, body]) => (

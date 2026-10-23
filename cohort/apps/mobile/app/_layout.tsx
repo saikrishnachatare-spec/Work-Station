@@ -4,7 +4,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { useEffect } from 'react';
-import { Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 
 import { ToastProvider } from '@/components/Toast';
 import { queryClient } from '@/lib/queryClient';
@@ -27,13 +27,15 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [guest, loading, router, segments, session]);
 
-  if (loading) {
+  if (loading && Platform.OS !== 'web') {
     return (
       <View style={{ alignItems: 'center', backgroundColor: colors.cream, flex: 1, justifyContent: 'center' }}>
         <Text style={{ color: colors.brand, fontFamily: 'Georgia', fontSize: 28 }}>Cohort</Text>
       </View>
     );
   }
+  // On web (including the static export pass) render children while the session
+  // loads so routes produce real HTML: page content, titles and meta tags.
   return <>{children}</>;
 }
 

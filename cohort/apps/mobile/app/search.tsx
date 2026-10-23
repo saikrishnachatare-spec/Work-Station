@@ -1,4 +1,5 @@
 /** Global search across the app's content: posts, resources, groups, jobs, people. */
+import { SeoHead } from '@/components/SeoHead';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -50,6 +51,7 @@ export default function SearchScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <SeoHead description="Search posts, resources, groups, jobs and people across Cohort." path="/search" title="Search" />
       <View style={styles.searchbar}>
         <Ionicons color={colors.ink3} name="search" size={16} />
         <TextInput

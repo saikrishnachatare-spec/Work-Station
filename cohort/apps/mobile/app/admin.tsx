@@ -6,6 +6,7 @@
  * The passcode gate below is a Phase-1 demo placeholder - Phase 2 replaces it
  * with Supabase auth plus an admins table and row-level security.
  */
+import { SeoHead } from '@/components/SeoHead';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -28,6 +29,7 @@ function Gate({ onUnlock }: { onUnlock: () => void }) {
   };
   return (
     <View style={styles.gate}>
+      <SeoHead noindex description="Cohort admin panel." path="/admin" title="Admin" />
       <Card style={{ gap: spacing.md, maxWidth: 420, width: '100%' }}>
         <View style={styles.gateIcon}><Ionicons color="#fff" name="lock-closed-outline" size={20} /></View>
         <Text style={styles.title}>Cohort admin</Text>

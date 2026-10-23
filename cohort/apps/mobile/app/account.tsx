@@ -1,4 +1,5 @@
 /** Account screen: profile, verification status, sign out, delete account. */
+import { SeoHead } from '@/components/SeoHead';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -45,6 +46,7 @@ export default function AccountScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
+      <SeoHead noindex description="Your Cohort account and settings." path="/account" title="Account" />
       <Card style={{ alignItems: 'center', gap: spacing.sm }}>
         <Avatar name={name} size={56} />
         <Text style={styles.name}>{name}</Text>

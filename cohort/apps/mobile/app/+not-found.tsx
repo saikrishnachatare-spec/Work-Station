@@ -1,4 +1,5 @@
 /** Shown for any unmatched route (the web 404). */
+import { SeoHead } from '@/components/SeoHead';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
@@ -8,6 +9,7 @@ import { colors, radius, spacing, type as typeScale } from '@/theme';
 export default function NotFoundScreen() {
   return (
     <View style={styles.wrap}>
+      <SeoHead noindex description="This page could not be found." path="/404" title="Not found" />
       <View style={styles.iconWrap}>
         <Ionicons color={colors.brand} name="compass-outline" size={30} />
       </View>

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /account
+Disallow: /messages
+
+Sitemap: https://cohort-pi-eight.vercel.app/sitemap.xml

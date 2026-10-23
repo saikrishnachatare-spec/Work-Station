@@ -1,4 +1,5 @@
 /** Landing page for the password-reset email link. */
+import { SeoHead } from '@/components/SeoHead';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -41,6 +42,7 @@ export default function ResetPasswordScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <SeoHead noindex description="Reset your Cohort password." path="/reset-password" title="Reset password" />
       <Card style={{ gap: spacing.md, maxWidth: 420, width: '100%' }}>
         <Text style={styles.title}>Set a new password</Text>
         {done ? (

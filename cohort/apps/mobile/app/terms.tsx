@@ -1,3 +1,4 @@
+import { SeoHead } from '@/components/SeoHead';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 
 import { colors, spacing, type as typeScale } from '@/theme';
@@ -18,6 +19,7 @@ const SECTIONS: [string, string][] = [
 export default function TermsScreen() {
   return (
     <ScrollView contentContainerStyle={styles.page}>
+      <SeoHead description="The terms that govern use of Cohort." path="/terms" title="Terms of use" />
       <Text style={styles.title}>Terms of use</Text>
       <Text style={styles.meta}>Cohort · last updated 23 October 2026</Text>
       {SECTIONS.map(([head, body]) => (

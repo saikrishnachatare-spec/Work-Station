@@ -2,6 +2,7 @@
  * Sign in, create account (email verification) and password reset.
  * Validation, loading and error states are handled inline.
  */
+import { SeoHead } from '@/components/SeoHead';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -95,6 +96,7 @@ export default function LoginScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <SeoHead description="Log in or create your Cohort account - the community for CA students and professionals." path="/login" title="Log in" />
       <Text style={styles.brand}>Cohort</Text>
       <Text style={styles.tagline}>The CA · CMA · CS student community</Text>
 
