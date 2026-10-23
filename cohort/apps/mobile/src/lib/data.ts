@@ -839,7 +839,8 @@ export type AdminAnalytics = {
   generated_at: string; log_since: string | null; screen_tracking_since: string | null;
   totals: Record<string, number>;
   active_members: { signin_7d: number; signin_30d: number };
-  funnel: Record<string, number>;
+  funnel: { scope: string; pending: number; reviewed: number; shortlisted: number; declined: number; total: number };
+  basis: string;
   by_day: { day: string; signins: number; new_members: number }[];
   screens: { screen: string; views: number; members: number }[];
   per_job: { id: string; role: string; firm: string; status: string; applications: number; shortlisted: number; declined: number; reviewed: number }[];

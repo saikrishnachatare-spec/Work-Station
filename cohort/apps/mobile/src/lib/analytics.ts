@@ -11,7 +11,7 @@ const KEY = 'cohort-analytics-consent';
 export type Consent = 'accepted' | 'declined' | null;
 
 export function getConsent(): Consent {
-  if (Platform.OS !== 'web') return 'accepted'; // native app: no web tracker exists
+  if (Platform.OS !== 'web') return null; // native consent UI does not exist yet: optional tracking stays off there by default
   if (typeof window === 'undefined') return null; // static export render pass
   const v = window.localStorage.getItem(KEY);
   return v === 'accepted' || v === 'declined' ? v : null;

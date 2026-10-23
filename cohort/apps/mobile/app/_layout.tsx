@@ -9,7 +9,7 @@ import { Platform, Text, View } from 'react-native';
 import { ConsentBanner } from '@/components/ConsentBanner';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/Toast';
-import { initAnalytics } from '@/lib/analytics';
+import { getConsent, initAnalytics } from '@/lib/analytics';
 import { installErrorLogging } from '@/lib/errors';
 import { queryClient } from '@/lib/queryClient';
 import { supabase } from '@/lib/supabase';
@@ -45,15 +45,16 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 
-/** Records which screens signed-in members open (screen name only, deduped
+/** Records which screens signed-in members open, but only after the member
+ * accepts analytics in the consent banner (screen name only, deduped
  * server-side to one row per member per screen per 30 min). Powers the admin
- * usage analytics; never sends params, ids or content. */
+ * usage analytics; never sends params, ids or content. Decline = nothing sent. */
 function ScreenTracker() {
   const segments = useSegments();
   const { session } = useAuth();
   const last = useRef('');
   useEffect(() => {
-    if (!session) return;
+    if (!session || getConsent() !== 'accepted') return;
     const parts = (segments as string[]).filter((s) => s !== '(tabs)' && s !== '(auth)');
     const screen = (parts.length === 0 ? 'home' : parts.map((s) => (/^[0-9a-f-]{8,}$/i.test(s) ? ':id' : s)).join('/')).slice(0, 60);
     if (!screen || screen === last.current) return;

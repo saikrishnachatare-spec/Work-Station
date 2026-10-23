@@ -4,7 +4,8 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 import { colors, spacing, type as typeScale } from '@/theme';
 
 const SECTIONS: [string, string][] = [
-  ['1. What we collect', 'Account details (name, email), the content you post (posts, resources, messages, listings), and usage data (screens visited, actions taken) used to improve the app.'],
+  ['1. What we collect', 'Account details (name, email), the content you post (posts, resources, messages, listings), and security and audit records (sign-ins and moderation actions, kept as an admin-only audit log to protect accounts).'],
+  ['1a. Optional analytics', 'Only if you accept in the consent note, we also count which screens signed-in members open - screen names only, at most one count per screen per 30 minutes, visible to admins only - to see which features get used. Declining collects nothing. Deleting your account anonymises these records like every other audit row.'],
   ['2. What we do with it', 'Run the community: show your posts to other members, deliver messages, recommend content, keep the service secure, and understand what to build next. We do not sell your personal data.'],
   ['3. What others see', 'Your name, course level and the content you post are visible to other members. Messages are visible only to their participants. Admins can review reported content to keep the community safe.'],
   ['4. Where data lives', 'Data is stored with Supabase in the ap-south-1 (Mumbai) region. Analytics and error reports are processed by our monitoring providers under their own privacy terms.'],

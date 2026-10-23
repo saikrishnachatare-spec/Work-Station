@@ -1,7 +1,9 @@
 /**
- * One-time analytics consent banner (web only). Vercel Web Analytics is
- * cookie-less, but nothing loads until the visitor accepts; declining stores
- * the choice and loads nothing. Native builds never see this.
+ * One-time analytics consent banner (web only). Both optional collectors -
+ * cookie-less Vercel Web Analytics and member-linked screen counting - stay
+ * off until the visitor accepts; declining stores the choice and collects
+ * nothing. Security/audit records are not analytics and are not gated here.
+ * Native builds never see this; optional tracking stays off there by default.
  */
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -31,8 +33,10 @@ export function ConsentBanner() {
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={styles.title}>A quick note on analytics</Text>
         <Text style={styles.meta}>
-          Cohort uses privacy-friendly, cookie-less analytics to see which features get used.
-          No personal data, no cross-site tracking.
+          With your OK, Cohort counts which screens signed-in members open (screen names only,
+          visible to admins) and uses cookie-less website statistics, to see which features get
+          used. Decline and none of this is collected. Sign-in and security records are kept
+          either way to protect accounts.
         </Text>
       </View>
       <Pressable onPress={() => choose('accepted')} style={styles.accept}>

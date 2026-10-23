@@ -304,6 +304,7 @@ export default function AdminScreen() {
                 </Card>
               ))}
             </View>
+            <Text style={styles.meta}>{a.basis}</Text>
 
             <SectionTitle first title="Last 14 days" />
             <View style={{ flexDirection: 'row', gap: spacing.md, marginBottom: 4 }}>
@@ -321,11 +322,12 @@ export default function AdminScreen() {
               </View>
             ))}
 
-            <SectionTitle title="Hiring funnel" />
+            <SectionTitle title="Applications right now" />
+            <Text style={styles.meta}>{a.funnel.scope}</Text>
             <View style={styles.statGrid}>
               {[
-                ['Applications sent', a.funnel.sent], ['Reviewed', a.funnel.reviewed],
-                ['Shortlisted', a.funnel.shortlisted], ['Declined', a.funnel.declined], ['Waiting', a.funnel.pending],
+                ['Total', a.funnel.total], ['Waiting', a.funnel.pending], ['Reviewed', a.funnel.reviewed],
+                ['Shortlisted', a.funnel.shortlisted], ['Declined', a.funnel.declined],
               ].map(([label, n]) => (
                 <Card key={label as string} style={styles.stat}>
                   <Text style={styles.statNum}>{n}</Text>
