@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.brand,
     borderRadius: radius.pill,
-    bottom: spacing.xl,
+    bottom: 68,
     elevation: 2,
     height: 38,
     justifyContent: 'center',
