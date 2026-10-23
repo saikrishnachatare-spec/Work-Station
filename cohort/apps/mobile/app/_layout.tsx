@@ -80,6 +80,10 @@ export default function RootLayout() {
           <Stack.Screen name="terms" options={{ title: 'Terms of use' }} />
           <Stack.Screen name="privacy" options={{ title: 'Privacy policy' }} />
           <Stack.Screen name="reset-password" options={{ title: 'Reset password' }} />
+          <Stack.Screen name="group-chat" options={{ title: 'Group chat' }} />
+          <Stack.Screen name="join" options={{ title: 'Join a group' }} />
+          <Stack.Screen name="post" options={{ title: 'Post' }} />
+          <Stack.Screen name="job" options={{ title: 'Opening' }} />
           <Stack.Screen
             name="create"
             options={{
