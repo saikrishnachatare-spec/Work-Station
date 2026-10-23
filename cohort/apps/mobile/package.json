@@ -57,7 +57,8 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "test:e2e": "node scripts/e2e-smoke.mjs"
+    "test:e2e": "node scripts/e2e-smoke.mjs",
+    "test:e2e:browser": "node scripts/e2e-browser.mjs"
   },
   "private": true
 }

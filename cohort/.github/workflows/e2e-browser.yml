@@ -1,0 +1,28 @@
+# Click-and-type browser regression tests (scripts/e2e-browser.mjs).
+# Drives headless Chrome over the DevTools protocol against the live site.
+# NOTE: like the HTTP smoke suite, a push-triggered run checks the CURRENT
+# live alias - it is a regression check, not a gate for a new deployment.
+#
+# Signed-in flows need the controlled test account's credentials as repo
+# secrets (COHORT_TEST_EMAIL, COHORT_TEST_PASSWORD). Without them those
+# flows report SKIP and the run still passes on the public checks.
+# Never put a real user's credentials here.
+name: e2e-browser
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run click/type browser tests
+        working-directory: apps/mobile
+        env:
+          COHORT_TEST_EMAIL: ${{ secrets.COHORT_TEST_EMAIL }}
+          COHORT_TEST_PASSWORD: ${{ secrets.COHORT_TEST_PASSWORD }}
+        run: node scripts/e2e-browser.mjs
