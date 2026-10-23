@@ -1,10 +1,140 @@
-import { ScreenPlaceholder } from '@/components/ScreenPlaceholder';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { Card } from '@/components/Card';
+import { Chip } from '@/components/Chip';
+import { ScreenHeader } from '@/components/ScreenBits';
+import { COURSES, LEVELS, RESOURCE_FILTERS, SAMPLE_KINDS, SUBJECTS } from '@/lib/demo-data';
+import { useDemo } from '@/store/demo';
+import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 export function ResourcesScreen() {
+  const [course, setCourse] = useState('CA');
+  const [lvl, setLvl] = useState(0);
+  const [open, setOpen] = useState<string | null>(null);
+  const [kind, setKind] = useState('All');
+  const shared = useDemo((s) => s.resources);
+  const groups = SUBJECTS[course][lvl];
+
   return (
-    <ScreenPlaceholder
-      subtitle="The study library: CA, CMA and CS materials by level, group and subject."
-      title="Resources"
-    />
+    <ScrollView contentContainerStyle={styles.page}>
+      <ScreenHeader sub="Pick a course, a level, then a subject." title="Resources" />
+      <View style={styles.searchbar}>
+        <Ionicons color={colors.ink3} name="search" size={16} />
+        <Text style={styles.searchText}>Search FR, Audit, Company Law…</Text>
+      </View>
+
+      <View style={styles.seg}>
+        {COURSES.map((c) => (
+          <Pressable key={c} onPress={() => { setCourse(c); setLvl(0); setOpen(null); }} style={[styles.segBtn, c === course && styles.segOn]}>
+            <Text style={[styles.segText, c === course && styles.segTextOn]}>{c}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={styles.levels}>
+        {LEVELS[course].map((l, i) => (
+          <Pressable key={l} onPress={() => { setLvl(i); setOpen(null); }} style={[styles.level, i === lvl && styles.levelOn]}>
+            <Text style={[styles.levelText, i === lvl && styles.segTextOn]}>{l}</Text>
+            <Text style={styles.levelSub}>level {i + 1}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+        {RESOURCE_FILTERS.map((f) => <Chip key={f} label={f} active={f === kind} onPress={() => setKind(f)} />)}
+      </ScrollView>
+
+      {shared.filter((r) => kind === 'All' || r.cat === kind).length > 0 && (
+        <View style={{ gap: spacing.sm }}>
+          <Text style={styles.crumbs}>Shared by the community</Text>
+          {shared.filter((r) => kind === 'All' || r.cat === kind).map((r) => (
+            <Card key={r.id} style={styles.resCard}>
+              <View style={styles.resIcon}><Ionicons color={colors.brand} name="book-outline" size={17} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.strong}>{r.title}</Text>
+                <Text style={styles.meta}>{r.meta} · by {r.by} · {r.course}</Text>
+              </View>
+              <Ionicons color={colors.ink3} name="download-outline" size={18} />
+            </Card>
+          ))}
+        </View>
+      )}
+
+      <Text style={styles.crumbs}>{course} › {LEVELS[course][lvl]} › Subject-wise</Text>
+      {groups.map((g) => (
+        <View key={g.group} style={{ gap: spacing.sm }}>
+          <Text style={styles.groupLabel}>{g.group}</Text>
+          {g.subjects.map((sub) => {
+            const key = course + lvl + sub;
+            const isOpen = open === key;
+            return (
+              <Card key={key} style={{ gap: 0, paddingVertical: 10 }}>
+                <Pressable accessibilityRole="button" onPress={() => setOpen(isOpen ? null : key)} style={styles.subjHead}>
+                  <View style={styles.resIcon}><Ionicons color={colors.brand} name="book-outline" size={17} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.strong}>{sub}</Text>
+                    <Text style={styles.meta}>{SAMPLE_KINDS.length} resources</Text>
+                  </View>
+                  <Ionicons color={colors.ink3} name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} />
+                </Pressable>
+                {isOpen && (
+                  <View style={styles.subjBody}>
+                    {SAMPLE_KINDS.filter((k) => kind === 'All' || k.cat === kind).map((k) => (
+                      <View key={k.cat} style={styles.subRes}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.strong}>{sub}: {k.cat}</Text>
+                          <Text style={styles.meta}>{k.meta} · by {k.by}</Text>
+                        </View>
+                        <Ionicons color={colors.ink3} name="download-outline" size={16} />
+                      </View>
+                    ))}
+                    {SAMPLE_KINDS.filter((k) => kind === 'All' || k.cat === kind).length === 0 && (
+                      <Text style={styles.meta}>No {kind.toLowerCase()} for this subject yet.</Text>
+                    )}
+                  </View>
+                )}
+              </Card>
+            );
+          })}
+        </View>
+      ))}
+    </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 120 },
+  searchbar: {
+    alignItems: 'center', backgroundColor: colors.card, borderColor: colors.lineWarm,
+    borderRadius: radius.input, borderWidth: 1, flexDirection: 'row', gap: spacing.sm, padding: 12,
+  },
+  searchText: { ...typeScale.caption, color: colors.ink3 },
+  seg: { backgroundColor: colors.raised, borderRadius: radius.input, flexDirection: 'row', padding: 3 },
+  segBtn: { alignItems: 'center', borderRadius: 10, flex: 1, paddingVertical: 8 },
+  segOn: { backgroundColor: colors.card },
+  segText: { ...typeScale.body, color: colors.ink2, fontWeight: '600' },
+  segTextOn: { color: colors.brand },
+  levels: { flexDirection: 'row', gap: spacing.sm },
+  level: {
+    alignItems: 'center', backgroundColor: colors.card, borderColor: colors.lineWarm,
+    borderRadius: radius.tile, borderWidth: 1, flex: 1, gap: 2, paddingVertical: 10,
+  },
+  levelOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
+  levelText: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
+  levelSub: { ...typeScale.caption, color: colors.ink3 },
+  chips: { gap: spacing.sm },
+  crumbs: { ...typeScale.caption, color: colors.ink3, fontWeight: '600', textTransform: 'uppercase' },
+  groupLabel: { ...typeScale.caption, color: colors.ink2, fontWeight: '700' },
+  resCard: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  resIcon: {
+    alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: 10,
+    height: 34, justifyContent: 'center', width: 34,
+  },
+  subjHead: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  subjBody: { borderTopColor: colors.hairline, borderTopWidth: 1, gap: spacing.sm, marginTop: 10, paddingTop: 10 },
+  subRes: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  strong: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
+  meta: { ...typeScale.caption, color: colors.ink3 },
+});

@@ -19,6 +19,7 @@ export default function RootLayout() {
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="messages" options={{ title: 'Messages' }} />
+        <Stack.Screen name="admin" options={{ title: 'Cohort admin' }} />
         <Stack.Screen
           name="create"
           options={{
