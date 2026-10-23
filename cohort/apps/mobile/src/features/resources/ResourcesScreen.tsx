@@ -6,7 +6,9 @@ import { Card } from '@/components/Card';
 import { Chip } from '@/components/Chip';
 import { ScreenHeader } from '@/components/ScreenBits';
 import { COURSES, LEVELS, RESOURCE_FILTERS, SAMPLE_KINDS, SUBJECTS } from '@/lib/demo-data';
-import { useDemo } from '@/store/demo';
+import { EmptyState } from '@/components/EmptyState';
+import { ListSkeleton } from '@/components/Skeleton';
+import { useResources } from '@/lib/data';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 export function ResourcesScreen() {
@@ -14,7 +16,8 @@ export function ResourcesScreen() {
   const [lvl, setLvl] = useState(0);
   const [open, setOpen] = useState<string | null>(null);
   const [kind, setKind] = useState('All');
-  const shared = useDemo((s) => s.resources);
+  const resources = useResources();
+  const shared = resources.data ?? [];
   const groups = SUBJECTS[course][lvl];
 
   return (
@@ -46,6 +49,23 @@ export function ResourcesScreen() {
         {RESOURCE_FILTERS.map((f) => <Chip key={f} label={f} active={f === kind} onPress={() => setKind(f)} />)}
       </ScrollView>
 
+      {resources.isLoading && <ListSkeleton count={2} />}
+      {resources.isError && (
+        <EmptyState
+          actionLabel="Try again"
+          body="Resources could not load. Check your connection and try again."
+          icon="cloud-offline-outline"
+          onAction={() => resources.refetch()}
+          title="Could not load resources"
+        />
+      )}
+      {!resources.isLoading && !resources.isError && shared.filter((r) => kind === 'All' || r.cat === kind).length === 0 && (
+        <EmptyState
+          body={`No ${kind === 'All' ? '' : kind.toLowerCase()} shared yet. Community uploads appear here.`}
+          icon="book-outline"
+          title="Nothing shared yet"
+        />
+      )}
       {shared.filter((r) => kind === 'All' || r.cat === kind).length > 0 && (
         <View style={{ gap: spacing.sm }}>
           <Text style={styles.crumbs}>Shared by the community</Text>
@@ -54,7 +74,7 @@ export function ResourcesScreen() {
               <View style={styles.resIcon}><Ionicons color={colors.brand} name="book-outline" size={17} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.strong}>{r.title}</Text>
-                <Text style={styles.meta}>{r.meta} · by {r.by} · {r.course}</Text>
+                <Text style={styles.meta}>{r.meta} · by {r.uploaded_by} · {r.course}</Text>
               </View>
               <Ionicons color={colors.ink3} name="download-outline" size={18} />
             </Card>

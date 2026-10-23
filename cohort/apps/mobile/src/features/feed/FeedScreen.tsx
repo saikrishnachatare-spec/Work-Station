@@ -7,8 +7,10 @@ import { useToast } from '@/components/Toast';
 import { Card } from '@/components/Card';
 import { Chip } from '@/components/Chip';
 import { Pill, SectionTitle } from '@/components/ScreenBits';
+import { ListSkeleton } from '@/components/Skeleton';
+import { timeAgo, useMyLikes, usePosts, useToggleLike } from '@/lib/data';
+import { useAuth } from '@/store/session';
 import { FEED_FILTERS, GREETING_NAME, READS, TODAY_LABEL } from '@/lib/demo-data';
-import { useDemo } from '@/store/demo';
 import { colors, spacing, type as typeScale } from '@/theme';
 
 function TopReads() {
@@ -75,14 +77,18 @@ function TopReads() {
 
 export function FeedScreen() {
   const [filter, setFilter] = useState('All');
-  const [liked, setLiked] = useState<Record<string, boolean>>({});
   const toast = useToast();
-  const feed = useDemo((s) => s.feed);
-  const items = feed.filter((f) =>
+  const { session } = useAuth();
+  const userId = session?.user?.id;
+  const posts = usePosts();
+  const myLikes = useMyLikes(userId);
+  const toggleLike = useToggleLike(userId);
+
+  const items = (posts.data ?? []).filter((f) =>
     filter === 'All' ||
-    (filter === 'Posts' && f.type === 'post') ||
-    (filter === 'Announcements' && f.type === 'announcement') ||
-    (filter === 'Messages' && f.type === 'message'));
+    (filter === 'Posts' && f.kind === 'post') ||
+    (filter === 'Announcements' && f.kind === 'announcement') ||
+    (filter === 'Messages' && f.kind === 'message'));
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
@@ -92,41 +98,62 @@ export function FeedScreen() {
         {FEED_FILTERS.map((f) => <Chip key={f} label={f} active={f === filter} onPress={() => setFilter(f)} />)}
       </ScrollView>
       <SectionTitle first title={filter === 'All' ? 'Latest' : filter} />
-      {items.length === 0 && (
+      {posts.isLoading && <ListSkeleton count={3} />}
+      {posts.isError && (
+        <EmptyState
+          actionLabel="Try again"
+          body="The feed could not load. Check your connection and try again."
+          icon="cloud-offline-outline"
+          onAction={() => posts.refetch()}
+          title="Could not load the feed"
+        />
+      )}
+      {!posts.isLoading && !posts.isError && items.length === 0 && (
         <EmptyState
           body={`Nothing under ${filter} yet. Posts will show up here as your cohort shares them.`}
           icon="newspaper-outline"
           title="Nothing here yet"
         />
       )}
-      {items.map((f) => (
+      {items.map((f) => {
+        const liked = myLikes.data?.has(f.id) ?? false;
+        return (
         <Card key={f.id}>
           {f.pinned ? <Text style={styles.pinned}>📌 Pinned announcement</Text> : null}
           <View style={styles.postHead}>
-            <Avatar name={f.author} />
+            <Avatar name={f.author_name} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.strong}>{f.author}</Text>
-              <Text style={styles.meta}>{f.time}</Text>
+              <Text style={styles.strong}>{f.author_name}</Text>
+              <Text style={styles.meta}>{timeAgo(f.created_at)}</Text>
             </View>
-            <Pill label={f.role} />
+            {f.author_role ? <Pill label={f.author_role} /> : null}
           </View>
-          <Text style={styles.body}>{f.text}</Text>
+          <Text style={styles.body}>{f.body}</Text>
           <View style={styles.actions}>
             <Pressable
               onPress={() => {
-                const next = !liked[f.id];
-                setLiked((l) => ({ ...l, [f.id]: next }));
-                toast.show(next ? 'Added to your likes' : 'Removed from your likes', 'success');
+                if (!userId) {
+                  toast.show('Sign in to like posts', 'info');
+                  return;
+                }
+                toggleLike.mutate(
+                  { liked, postId: f.id },
+                  {
+                    onError: () => toast.show('Could not update the like. Try again.', 'error'),
+                    onSuccess: () => toast.show(liked ? 'Removed from your likes' : 'Added to your likes', 'success'),
+                  },
+                );
               }}
             >
-              <Text style={[styles.meta, liked[f.id] && styles.liked]}>
-                {liked[f.id] ? '♥' : '♡'} {f.likes + (liked[f.id] ? 1 : 0)}
+              <Text style={[styles.meta, liked && styles.liked]}>
+                {liked ? '♥' : '♡'} {f.like_count}
               </Text>
             </Pressable>
-            <Text style={styles.meta}>💬 {f.comments}</Text>
+            <Text style={styles.meta}>💬 {f.comment_count}</Text>
           </View>
         </Card>
-      ))}
+        );
+      })}
     </ScrollView>
   );
 }

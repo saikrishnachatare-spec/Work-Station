@@ -9,8 +9,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { Card } from '@/components/Card';
 import { Pill, SectionTitle } from '@/components/ScreenBits';
-import { PEOPLE } from '@/lib/demo-data';
-import { useDemo } from '@/store/demo';
+import { useGroups, useJobs, usePosts, useProfiles, useResources } from '@/lib/data';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 const match = (hay: string, q: string) => hay.toLowerCase().includes(q);
@@ -19,19 +18,23 @@ export default function SearchScreen() {
   const [q, setQ] = useState('');
   const [searching, setSearching] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const demo = useDemo((s) => s);
+  const posts = usePosts();
+  const resources = useResources();
+  const groups = useGroups();
+  const jobs = useJobs();
+  const profiles = useProfiles();
   const query = q.trim().toLowerCase();
 
   const results = useMemo(() => {
     if (query.length < 2) return null;
     return {
-      posts: demo.feed.filter((f) => match(`${f.text} ${f.author}`, query)),
-      resources: demo.resources.filter((r) => match(`${r.title} ${r.by} ${r.course} ${r.cat}`, query)),
-      groups: demo.groups.filter((g) => match(`${g.name} ${g.desc} ${g.purpose}`, query)),
-      jobs: demo.jobs.filter((j) => match(`${j.role} ${j.firm} ${j.loc} ${j.tags.join(' ')}`, query)),
-      people: PEOPLE.filter((p) => match(`${p.name} ${p.role} ${p.kind}`, query)),
+      posts: (posts.data ?? []).filter((f) => match(`${f.body} ${f.author_name}`, query)),
+      resources: (resources.data ?? []).filter((r) => match(`${r.title} ${r.uploaded_by} ${r.course} ${r.cat}`, query)),
+      groups: (groups.data ?? []).filter((g) => match(`${g.name} ${g.description} ${g.purpose}`, query)),
+      jobs: (jobs.data ?? []).filter((j) => match(`${j.role} ${j.firm} ${j.loc} ${j.tags.join(' ')}`, query)),
+      people: (profiles.data ?? []).filter((p) => match(`${p.full_name} ${p.role}`, query)),
     };
-  }, [demo, query]);
+  }, [groups.data, jobs.data, posts.data, profiles.data, query, resources.data]);
 
   useEffect(() => {
     if (!searching) return;
@@ -81,10 +84,10 @@ export default function SearchScreen() {
           <SectionTitle first title={`Posts (${results.posts.length})`} />
           {results.posts.map((f) => (
             <Card key={f.id} style={styles.row}>
-              <Avatar name={f.author} size={32} />
+              <Avatar name={f.author_name} size={32} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.strong}>{f.author}</Text>
-                <Text numberOfLines={2} style={styles.meta}>{f.text}</Text>
+                <Text style={styles.strong}>{f.author_name}</Text>
+                <Text numberOfLines={2} style={styles.meta}>{f.body}</Text>
               </View>
             </Card>
           ))}
@@ -98,7 +101,7 @@ export default function SearchScreen() {
             <Card key={r.id} style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.strong}>{r.title}</Text>
-                <Text style={styles.meta}>{r.cat} · {r.course} · by {r.by}</Text>
+                <Text style={styles.meta}>{r.cat} · {r.course} · by {r.uploaded_by}</Text>
               </View>
             </Card>
           ))}
@@ -112,7 +115,7 @@ export default function SearchScreen() {
             <Card key={g.id} style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.strong}>{g.name}</Text>
-                <Text style={styles.meta}>{g.purpose} · {g.members.toLocaleString('en-IN')} members</Text>
+                <Text style={styles.meta}>{g.purpose} · {g.member_count.toLocaleString('en-IN')} members</Text>
               </View>
             </Card>
           ))}
@@ -138,13 +141,13 @@ export default function SearchScreen() {
         <View style={{ gap: spacing.sm }}>
           <SectionTitle first title={`People (${results.people.length})`} />
           {results.people.map((p) => (
-            <Card key={p.name} style={styles.row}>
-              <Avatar name={p.name} size={32} />
+            <Card key={p.id} style={styles.row}>
+              <Avatar name={p.full_name || '?'} size={32} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.strong}>{p.name}</Text>
-                <Text style={styles.meta}>{p.role}</Text>
+                <Text style={styles.strong}>{p.full_name || 'Unnamed member'}</Text>
+                <Text style={styles.meta}>Member</Text>
               </View>
-              <Pill label={p.kind} />
+              {p.role === 'admin' ? <Pill label="Admin" /> : null}
             </Card>
           ))}
         </View>

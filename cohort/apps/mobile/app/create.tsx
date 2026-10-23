@@ -3,7 +3,9 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { getDemo, nextId, updateDemo } from '@/store/demo';
+import { useToast } from '@/components/Toast';
+import { useCreateGroup, useCreateJob, useCreatePost, useCreateResource, useMyProfile } from '@/lib/data';
+import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 type ActionId = 'post' | 'group' | 'job' | 'message' | 'resource';
@@ -30,6 +32,14 @@ export default function CreateModal() {
   const [text, setText] = useState('');
   const [text2, setText2] = useState('');
   const form = action ? FORMS[action] : null;
+  const toast = useToast();
+  const { session } = useAuth();
+  const userId = session?.user?.id;
+  const profile = useMyProfile(userId);
+  const createPost = useCreatePost();
+  const createGroup = useCreateGroup();
+  const createJob = useCreateJob();
+  const createResource = useCreateResource();
 
   const pick = (id: ActionId) => {
     if (id === 'message') {
@@ -44,41 +54,36 @@ export default function CreateModal() {
     const a = text.trim();
     const b = text2.trim();
     if (!a || !action) return;
-    const demo = getDemo();
+    if (!userId) {
+      toast.show('Sign in to create content', 'info');
+      return;
+    }
+    const authorName = profile.data?.full_name || session?.user?.email?.split('@')[0] || 'You';
+    const onError = () => toast.show('Could not save. Try again.', 'error');
     if (action === 'post') {
-      updateDemo({
-        feed: [{
-          id: nextId('f'), type: 'post', author: 'You', role: 'CA Inter',
-          time: 'just now', text: a, likes: 0, comments: 0,
-        }, ...demo.feed],
-      });
-      setDone('Posted to your Feed. Your circle can see it now.');
+      createPost.mutate(
+        { authorId: userId, authorName, body: a },
+        { onError, onSuccess: () => setDone('Posted to the feed. Everyone can see it now.') },
+      );
     } else if (action === 'group') {
-      updateDemo({
-        groups: [{
-          id: nextId('g'), name: a, purpose: b || 'Study group', members: 1,
-          desc: b || 'Created by you.', mine: true,
-        }, ...demo.groups],
-      });
-      setDone(`Group "${a}" created. You are the admin. Find it under My groups.`);
+      createGroup.mutate(
+        { description: b || 'Created by you.', name: a, purpose: b || 'Study group', userId },
+        { onError, onSuccess: () => setDone(`Circle "${a}" created. Find it under My groups.`) },
+      );
     } else if (action === 'job') {
-      updateDemo({
-        jobs: [{
-          id: nextId('j'), cat: 'Jobs', firm: b || 'Your firm', role: a,
-          loc: 'Hyderabad', pay: 'Competitive', tags: ['New'],
-        }, ...demo.jobs],
-      });
-      setDone(`"${a}"${b ? ' at ' + b : ''} is live under Work & hiring.`);
+      createJob.mutate(
+        { firm: b || 'Your firm', role: a, userId },
+        { onError, onSuccess: () => setDone(`"${a}"${b ? ' at ' + b : ''} is live under Work & hiring.`) },
+      );
     } else if (action === 'resource') {
-      updateDemo({
-        resources: [{
-          id: nextId('r'), cat: 'Notes', course: b || 'CA Inter', title: a,
-          by: 'You', meta: 'PDF · just shared',
-        }, ...demo.resources],
-      });
-      setDone(`"${a}" shared under Resources.`);
+      createResource.mutate(
+        { course: b || 'General', title: a, uploadedBy: authorName, userId },
+        { onError, onSuccess: () => setDone(`"${a}" shared under Resources.`) },
+      );
     }
   };
+
+  const busy = createPost.isPending || createGroup.isPending || createJob.isPending || createResource.isPending;
 
   return (
     <View style={styles.overlay}>
@@ -126,7 +131,7 @@ export default function CreateModal() {
                 value={text2}
               />
             )}
-            <Pressable onPress={submit} style={styles.cta}><Text style={styles.ctaText}>{form.cta}</Text></Pressable>
+            <Pressable disabled={busy} onPress={submit} style={[styles.cta, busy && { opacity: 0.6 }]}><Text style={styles.ctaText}>{busy ? 'Saving…' : form.cta}</Text></Pressable>
           </View>
         )}
         {!!done && (

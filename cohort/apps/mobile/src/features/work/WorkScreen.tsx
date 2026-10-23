@@ -6,15 +6,40 @@ import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
 import { Chip } from '@/components/Chip';
 import { ScreenHeader } from '@/components/ScreenBits';
+import { EmptyState } from '@/components/EmptyState';
+import { ListSkeleton } from '@/components/Skeleton';
+import { useToast } from '@/components/Toast';
 import { JOB_FILTERS } from '@/lib/demo-data';
-import { useDemo } from '@/store/demo';
+import { useJobs, useMyApplications, useToggleApplication } from '@/lib/data';
+import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 export function WorkScreen() {
   const [filter, setFilter] = useState('All');
-  const [applied, setApplied] = useState<Record<string, boolean>>({});
-  const jobs = useDemo((s) => s.jobs);
-  const items = jobs.filter((j) => filter === 'All' || j.cat === filter);
+  const toast = useToast();
+  const { session } = useAuth();
+  const userId = session?.user?.id;
+  const jobs = useJobs();
+  const applications = useMyApplications(userId);
+  const toggleApplication = useToggleApplication(userId);
+
+  const items = (jobs.data ?? []).filter((j) => filter === 'All' || j.cat === filter);
+  const total = (jobs.data ?? []).length;
+
+  const apply = (jobId: string) => {
+    if (!userId) {
+      toast.show('Sign in to apply', 'info');
+      return;
+    }
+    const applied = applications.data?.has(jobId) ?? false;
+    toggleApplication.mutate(
+      { applied, jobId },
+      {
+        onError: () => toast.show('Could not save your application. Try again.', 'error'),
+        onSuccess: () => toast.show(applied ? 'Application withdrawn' : 'Application saved', 'success'),
+      },
+    );
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
@@ -23,13 +48,32 @@ export function WorkScreen() {
         <Ionicons color={colors.brandDeep} name="notifications-outline" size={18} />
         <View style={{ flex: 1 }}>
           <Text style={styles.strong}>Vacancy scan</Text>
-          <Text style={styles.meta}>12 new openings this week match your CA Inter profile.</Text>
+          <Text style={styles.meta}>{total} opening{total === 1 ? '' : 's'} listed right now.</Text>
         </View>
       </Card>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
         {JOB_FILTERS.map((f) => <Chip key={f} label={f} active={f === filter} onPress={() => setFilter(f)} />)}
       </ScrollView>
-      {items.map((j) => (
+      {jobs.isLoading && <ListSkeleton count={3} />}
+      {jobs.isError && (
+        <EmptyState
+          actionLabel="Try again"
+          body="Openings could not load. Check your connection and try again."
+          icon="cloud-offline-outline"
+          onAction={() => jobs.refetch()}
+          title="Could not load openings"
+        />
+      )}
+      {!jobs.isLoading && !jobs.isError && items.length === 0 && (
+        <EmptyState
+          body={`No ${filter === 'All' ? '' : filter.toLowerCase()} openings right now. New ones appear here as firms post them.`}
+          icon="briefcase-outline"
+          title="No openings"
+        />
+      )}
+      {items.map((j) => {
+        const applied = applications.data?.has(j.id) ?? false;
+        return (
         <Card key={j.id}>
           <View style={styles.jobTop}>
             <Avatar name={j.firm} size={42} />
@@ -44,14 +88,15 @@ export function WorkScreen() {
           </View>
           <View style={styles.foot}>
             <Text style={styles.meta}>{j.cat}</Text>
-            <Pressable onPress={() => setApplied((a) => ({ ...a, [j.id]: !a[j.id] }))} style={[styles.btn, applied[j.id] && styles.btnDone]}>
-              <Text style={[styles.btnText, applied[j.id] && styles.btnTextDone]}>
-                {applied[j.id] ? '✓ Applied' : 'Apply'}
+            <Pressable onPress={() => apply(j.id)} style={[styles.btn, applied && styles.btnDone]}>
+              <Text style={[styles.btnText, applied && styles.btnTextDone]}>
+                {applied ? '✓ Applied' : 'Apply'}
               </Text>
             </Pressable>
           </View>
         </Card>
-      ))}
+        );
+      })}
     </ScrollView>
   );
 }
