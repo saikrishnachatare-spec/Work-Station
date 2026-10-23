@@ -76,7 +76,7 @@ export default function TabsLayout() {
         onPress={() => router.push('/create')}
         style={styles.fab}
       >
-        <Ionicons color="#ffffff" name="add" size={28} />
+        <Ionicons color="#ffffff" name="add" size={18} />
       </Pressable>
     </View>
   );
@@ -100,15 +100,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand,
     borderRadius: radius.pill,
     bottom: spacing.xl,
-    elevation: 4,
-    height: 56,
+    elevation: 2,
+    height: 38,
     justifyContent: 'center',
+    opacity: 0.9,
     position: 'absolute',
     right: spacing.lg,
     shadowColor: colors.ink,
-    shadowOffset: { height: 2, width: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    width: 56,
+    shadowOffset: { height: 1, width: 0 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    width: 38,
   },
 });
