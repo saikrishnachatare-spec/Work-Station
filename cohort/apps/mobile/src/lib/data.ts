@@ -62,6 +62,9 @@ export type Resource = {
 };
 
 export type Profile = {
+  course?: string;
+  level?: string;
+  avatar_path?: string | null;
   id: string;
   full_name: string;
   role: 'user' | 'admin';

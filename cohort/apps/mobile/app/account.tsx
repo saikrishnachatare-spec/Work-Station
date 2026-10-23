@@ -1,7 +1,9 @@
 /** Account screen: profile, verification status, sign out, delete account. */
 import { SeoHead } from '@/components/SeoHead';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { createElement, useEffect, useState } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
+import { useMyProfile } from '@/lib/data';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Avatar } from '@/components/Avatar';
@@ -19,6 +21,12 @@ export default function AccountScreen() {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [savingName, setSavingName] = useState(false);
+  const profile = useMyProfile(session?.user.id);
+  const [courseDraft, setCourseDraft] = useState('');
+  const [levelDraft, setLevelDraft] = useState('');
+  const [photo, setPhoto] = useState<{uri:string;name:string;mimeType?:string;size?:number}|null>(null);
+  const [photoPreview, setPhotoPreview] = useState('');
+  useEffect(()=>{if(profile.data?.avatar_path) supabase.storage.from('resources').createSignedUrl(profile.data.avatar_path,3600).then(({data})=>{if(data)setPhotoPreview(data.signedUrl);});},[profile.data?.avatar_path]);
   const toast = useToast();
   const qc = useQueryClient();
 
@@ -44,16 +52,25 @@ export default function AccountScreen() {
     }
     setSavingName(true);
     try {
-      const { error: pErr } = await supabase.from('profiles').update({ full_name: next }).eq('id', user.id);
-      if (pErr) throw pErr;
+      let avatarPath = profile.data?.avatar_path || null;
+      if(photo){
+        if(!['image/png','image/jpeg','image/webp'].includes(photo.mimeType || '') || (photo.size || 0)>5*1024*1024) throw new Error('Choose PNG, JPEG or WebP up to 5 MB');
+        avatarPath = `${user.id}/avatar-${Date.now()}`;
+        const bytes=await (await fetch(photo.uri)).arrayBuffer();
+        const {error}=await supabase.storage.from('resources').upload(avatarPath,bytes,{contentType:photo.mimeType});
+        if(error) throw error;
+      }
+      const { data: saved, error: pErr } = await supabase.from('profiles').update({ full_name: next, course: courseDraft, level: levelDraft, avatar_path: avatarPath }).eq('id', user.id).select('id').single();
+      if (pErr || !saved) throw pErr || new Error('Profile did not save');
       const { error: uErr } = await supabase.auth.updateUser({ data: { full_name: next } });
       if (uErr) throw uErr;
       await qc.invalidateQueries({ queryKey: ['profile', user.id] });
       await qc.invalidateQueries({ queryKey: ['profiles'] });
-      toast.show('Name updated', 'success');
+      toast.show('Profile updated', 'success');
+      if(photo) setPhotoPreview(photo.uri);
       setEditingName(false);
-    } catch {
-      toast.show('Could not save your name. Try again.', 'error');
+    } catch (error) {
+      toast.show(error instanceof Error ? error.message : 'Could not save profile', 'error');
     } finally {
       setSavingName(false);
     }
@@ -73,7 +90,8 @@ export default function AccountScreen() {
     <ScrollView contentContainerStyle={styles.page}>
       <SeoHead noindex description="Your Cohort account and settings." path="/account" title="Account" />
       <Card style={{ alignItems: 'center', gap: spacing.sm }}>
-        <Avatar name={name} size={56} />
+        {photoPreview ? <Image source={{uri:photoPreview}} style={{width:56,height:56,borderRadius:28}} /> : <Avatar name={name} size={56} />}
+        <Text style={styles.meta}>{profile.data?.course} {profile.data?.level}</Text>
         <Text style={styles.name}>{name}</Text>
         <Text style={styles.meta}>{user.email}</Text>
         <Text style={[styles.badge, verified ? styles.badgeOk : styles.badgeWarn]}>
@@ -92,18 +110,25 @@ export default function AccountScreen() {
             placeholderTextColor={colors.ink3}
             style={styles.input}
           />
+          <Text style={styles.label}>Course</Text>
+          <View style={{ flexDirection:'row',gap:8 }}>{['CA','CMA','CS'].map(c=><Pressable key={c} onPress={()=>setCourseDraft(c)} style={styles.ghostBtn}><Text>{courseDraft===c?'✓ ':''}{c}</Text></Pressable>)}</View>
+          <Text style={styles.label}>Level</Text>
+          <View style={{ flexDirection:'row',gap:8 }}>{['Foundation','Inter','Final'].map(c=><Pressable key={c} onPress={()=>setLevelDraft(c)} style={styles.ghostBtn}><Text>{levelDraft===c?'✓ ':''}{c}</Text></Pressable>)}</View>
+          <Text style={styles.label}>Profile photo (PNG, JPEG, WebP, up to 5 MB)</Text>
+          {Platform.OS==='web' ? createElement('input',{type:'file',accept:'image/png,image/jpeg,image/webp','aria-label':'Profile photo',onChange:(e:{target:{files:FileList|null}})=>{const f=e.target.files?.[0];if(f)setPhoto({uri:URL.createObjectURL(f),name:f.name,mimeType:f.type,size:f.size})}}) : <Pressable onPress={async()=>{const r=await DocumentPicker.getDocumentAsync({type:['image/png','image/jpeg','image/webp']});if(!r.canceled)setPhoto(r.assets[0]);}}><Text>Choose photo</Text></Pressable>}
+          {photo && <Text style={styles.meta}>{photo.name}</Text>}
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Pressable onPress={() => setEditingName(false)} style={styles.ghostBtn}>
               <Text style={styles.ghostText}>Cancel</Text>
             </Pressable>
             <Pressable disabled={savingName} onPress={saveName} style={styles.cta}>
-              <Text style={styles.ctaText}>{savingName ? 'Saving…' : 'Save name'}</Text>
+              <Text style={styles.ctaText}>{savingName ? 'Saving…' : 'Save profile'}</Text>
             </Pressable>
           </View>
         </Card>
       ) : (
-        <Pressable onPress={() => setEditingName(true)} style={styles.cta}>
-          <Text style={styles.ctaText}>Edit name</Text>
+        <Pressable onPress={() => {setNameDraft(name);setCourseDraft(profile.data?.course||'');setLevelDraft(profile.data?.level||'');setPhoto(null);setEditingName(true);}}  style={styles.cta}>
+          <Text style={styles.ctaText}>Edit profile</Text>
         </Pressable>
       )}
 
