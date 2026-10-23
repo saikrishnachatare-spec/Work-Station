@@ -13,7 +13,11 @@ export function ConsentBanner() {
   // Decide on the client only: the static export pass has no window.
   const [visible, setVisible] = useState(false);
   useEffect(() => {
-    if (Platform.OS === 'web' && getConsent() === null) setVisible(true);
+    if (Platform.OS !== 'web' || getConsent() !== null) return;
+    // Defer past the effect body: react-hooks/set-state-in-effect rejects
+    // synchronous setState, and the banner must wait for mount anyway.
+    const id = setTimeout(() => setVisible(true), 0);
+    return () => clearTimeout(id);
   }, []);
   if (!visible) return null;
 
