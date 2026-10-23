@@ -391,3 +391,139 @@ export function useSendMessage(userId: string | undefined) {
     },
   });
 }
+
+/* ---------- Group chat, invites, and single-item reads ---------- */
+
+export type GroupInvitePreview = { group_id: string; name: string; purpose: string; member_count: number };
+
+/** Get (or create on demand) the chat thread owned by a group. */
+export async function getGroupThreadId(groupId: string): Promise<string> {
+  const { data: existing, error: e1 } = await supabase
+    .from('threads')
+    .select('id')
+    .eq('group_id', groupId)
+    .maybeSingle();
+  if (e1) throw e1;
+  if (existing) return existing.id as string;
+  const { data: created, error: e2 } = await supabase
+    .from('threads')
+    .insert({ group_id: groupId })
+    .select('id')
+    .single();
+  if (e2) throw e2;
+  return created.id as string;
+}
+
+export function useGroupThread(groupId: string | null, userId: string | undefined) {
+  return useQuery({
+    enabled: !!groupId && !!userId,
+    queryKey: ['group-thread', groupId],
+    queryFn: () => getGroupThreadId(groupId!),
+  });
+}
+
+/** Get (or create) the shareable invite link for a group the user belongs to. */
+export async function getGroupInviteLink(groupId: string, userId: string): Promise<string> {
+  const { data: existing, error: e1 } = await supabase
+    .from('group_invites')
+    .select('token')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (e1) throw e1;
+  let token = existing?.token as string | undefined;
+  if (!token) {
+    const { data: created, error: e2 } = await supabase
+      .from('group_invites')
+      .insert({ created_by: userId, group_id: groupId })
+      .select('token')
+      .single();
+    if (e2) throw e2;
+    token = created.token as string;
+  }
+  return `https://cohort-pi-eight.vercel.app/join?token=${token}`;
+}
+
+/** Public invite preview (no membership required). */
+export function useInvitePreview(token: string | null) {
+  return useQuery({
+    enabled: !!token,
+    queryKey: ['invite', token],
+    queryFn: async (): Promise<GroupInvitePreview | null> => {
+      const { data, error } = await supabase.rpc('group_by_invite_token', { p_token: token! });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return (row as GroupInvitePreview) ?? null;
+    },
+  });
+}
+
+export function useJoinByToken(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (token: string): Promise<string> => {
+      if (!userId) throw new Error('Sign in to join');
+      const { data, error } = await supabase.rpc('join_group_by_token', { p_token: token });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-groups', userId] });
+      qc.invalidateQueries({ queryKey: ['groups'] });
+    },
+  });
+}
+
+/** Add other people to a group the user belongs to. */
+export function useAddGroupMembers(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ groupId, memberIds }: { groupId: string; memberIds: string[] }) => {
+      if (!userId) throw new Error('Sign in to add people');
+      const rows = memberIds.map((id) => ({ group_id: groupId, user_id: id }));
+      const { error } = await supabase.from('group_members').upsert(rows, { onConflict: 'group_id,user_id' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['groups'] });
+      qc.invalidateQueries({ queryKey: ['my-groups', userId] });
+    },
+  });
+}
+
+export function useGroupMembers(groupId: string | null) {
+  return useQuery({
+    enabled: !!groupId,
+    queryKey: ['group-members', groupId],
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase.from('group_members').select('user_id').eq('group_id', groupId!);
+      if (error) throw error;
+      return (data as { user_id: string }[]).map((r) => r.user_id);
+    },
+  });
+}
+
+export function usePost(id: string | null) {
+  return useQuery({
+    enabled: !!id,
+    queryKey: ['post', id],
+    queryFn: async (): Promise<Post | null> => {
+      const { data, error } = await supabase.from('posts').select('*').eq('id', id!).maybeSingle();
+      if (error) throw error;
+      return (data as Post) ?? null;
+    },
+  });
+}
+
+export function useJob(id: string | null) {
+  return useQuery({
+    enabled: !!id,
+    queryKey: ['job', id],
+    queryFn: async (): Promise<Job | null> => {
+      const { data, error } = await supabase.from('jobs').select('*').eq('id', id!).maybeSingle();
+      if (error) throw error;
+      return (data as Job) ?? null;
+    },
+  });
+}

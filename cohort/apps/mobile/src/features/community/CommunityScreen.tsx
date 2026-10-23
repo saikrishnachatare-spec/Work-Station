@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
@@ -13,6 +14,7 @@ import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 export function CommunityScreen() {
+  const router = useRouter();
   const [view, setView] = useState('My groups');
   const toast = useToast();
   const { session } = useAuth();
@@ -72,9 +74,20 @@ export function CommunityScreen() {
               <Text style={styles.meta}>{g.member_count.toLocaleString('en-IN')} members</Text>
             </View>
           </View>
-          <Pressable onPress={() => toggle(g.id)} style={[styles.btn, mine(g.id) && styles.btnDone]}>
-            <Text style={[styles.btnText, mine(g.id) && styles.btnTextDone]}>{mine(g.id) ? 'Joined' : 'Join'}</Text>
-          </Pressable>
+          <View style={{ alignItems: 'flex-end', gap: 6 }}>
+            <Pressable onPress={() => toggle(g.id)} style={[styles.btn, mine(g.id) && styles.btnDone]}>
+              <Text style={[styles.btnText, mine(g.id) && styles.btnTextDone]}>{mine(g.id) ? 'Joined' : 'Join'}</Text>
+            </Pressable>
+            {mine(g.id) && (
+              <Pressable
+                onPress={() => router.push({ params: { group: g.id, name: g.name }, pathname: '/group-chat' })}
+                style={styles.chatBtn}
+              >
+                <Ionicons color={colors.brand} name="chatbubbles-outline" size={13} />
+                <Text style={styles.chatBtnText}>Group chat</Text>
+              </Pressable>
+            )}
+          </View>
         </Card>
       ))}
     </ScrollView>
@@ -99,4 +112,6 @@ const styles = StyleSheet.create({
   btnDone: { backgroundColor: colors.card },
   btnText: { ...typeScale.caption, color: '#fff', fontWeight: '600' },
   btnTextDone: { color: colors.brand },
+  chatBtn: { alignItems: 'center', flexDirection: 'row', gap: 4, paddingVertical: 3 },
+  chatBtnText: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },
 });

@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
@@ -15,6 +16,7 @@ import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 export function WorkScreen() {
+  const router = useRouter();
   const [filter, setFilter] = useState('All');
   const toast = useToast();
   const { session } = useAuth();
@@ -74,7 +76,8 @@ export function WorkScreen() {
       {items.map((j) => {
         const applied = applications.data?.has(j.id) ?? false;
         return (
-        <Card key={j.id}>
+        <Pressable key={j.id} onPress={() => router.push({ params: { id: j.id }, pathname: '/job' })}>
+        <Card>
           <View style={styles.jobTop}>
             <Avatar name={j.firm} size={42} />
             <View style={{ flex: 1 }}>
@@ -95,6 +98,7 @@ export function WorkScreen() {
             </Pressable>
           </View>
         </Card>
+        </Pressable>
         );
       })}
     </ScrollView>

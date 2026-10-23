@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
@@ -76,6 +77,7 @@ function TopReads() {
 }
 
 export function FeedScreen() {
+  const router = useRouter();
   const [filter, setFilter] = useState('All');
   const toast = useToast();
   const { session } = useAuth();
@@ -118,7 +120,8 @@ export function FeedScreen() {
       {items.map((f) => {
         const liked = myLikes.data?.has(f.id) ?? false;
         return (
-        <Card key={f.id}>
+        <Pressable key={f.id} onPress={() => router.push({ params: { id: f.id }, pathname: '/post' })}>
+        <Card>
           {f.pinned ? <Text style={styles.pinned}>📌 Pinned announcement</Text> : null}
           <View style={styles.postHead}>
             <Avatar name={f.author_name} />
@@ -152,6 +155,7 @@ export function FeedScreen() {
             <Text style={styles.meta}>💬 {f.comment_count}</Text>
           </View>
         </Card>
+        </Pressable>
         );
       })}
     </ScrollView>
