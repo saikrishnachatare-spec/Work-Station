@@ -5,27 +5,72 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
-import { useToast } from '@/components/Toast';
 import { ScreenHeader } from '@/components/ScreenBits';
-import { THREADS, type ThreadMsg } from '@/lib/demo-data';
+import { ListSkeleton } from '@/components/Skeleton';
+import { useToast } from '@/components/Toast';
+import {
+  timeAgo, useProfiles, useSendMessage, useStartThread, useThreadMessages, useThreads,
+} from '@/lib/data';
+import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 export function MessagesScreen() {
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [extra, setExtra] = useState<Record<string, ThreadMsg[]>>({});
-  const [draft, setDraft] = useState('');
   const toast = useToast();
-  const open = THREADS.find((t) => t.id === openId);
+  const { session } = useAuth();
+  const userId = session?.user?.id;
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [draft, setDraft] = useState('');
 
-  if (open) {
-    const msgs = [...open.thread, ...(extra[open.id] || [])];
-    const send = () => {
-      const t = draft.trim();
-      if (!t) return;
-      setExtra((e) => ({ ...e, [open.id]: [...(e[open.id] || []), { from: 'you', text: t }] }));
-      setDraft('');
-      toast.show('Message sent', 'success');
-    };
+  const threads = useThreads(userId);
+  const profiles = useProfiles();
+  const messages = useThreadMessages(openId);
+  const startThread = useStartThread(userId);
+  const sendMessage = useSendMessage(userId);
+
+  if (!userId) {
+    return (
+      <View style={styles.pageCenter}>
+        <EmptyState
+          body="Sign in to message students, mentors and firms directly."
+          icon="chatbubbles-outline"
+          title="Messages need an account"
+        />
+      </View>
+    );
+  }
+
+  const open = threads.data?.find((t) => t.id === openId);
+
+  const send = () => {
+    const body = draft.trim();
+    if (!body || !openId) return;
+    setDraft('');
+    sendMessage.mutate(
+      { body, threadId: openId },
+      { onError: () => toast.show('Message could not be sent. Try again.', 'error') },
+    );
+  };
+
+  const startWith = (otherId: string, name: string) => {
+    const body = draft.trim() || 'Hi!';
+    setDraft('');
+    startThread.mutate(
+      { firstMessage: body, otherUserId: otherId },
+      {
+        onError: () => toast.show('Could not start the conversation. Try again.', 'error'),
+        onSuccess: (threadId) => {
+          setPicking(false);
+          setOpenId(threadId);
+          toast.show(`Conversation with ${name} started`, 'success');
+        },
+      },
+    );
+  };
+
+  // Conversation view
+  if (openId) {
+    const title = open?.otherName ?? 'Conversation';
     return (
       <View style={styles.threadPage}>
         <Pressable onPress={() => setOpenId(null)} style={styles.backBtn}>
@@ -33,15 +78,16 @@ export function MessagesScreen() {
           <Text style={styles.backText}>All messages</Text>
         </Pressable>
         <Card style={styles.threadHead}>
-          <Avatar name={open.name} />
+          <Avatar name={title} />
           <View>
-            <Text style={styles.strong}>{open.name}</Text>
-            <Text style={styles.meta}>{open.role}</Text>
+            <Text style={styles.strong}>{title}</Text>
+            <Text style={styles.meta}>Member</Text>
           </View>
         </Card>
         <ScrollView contentContainerStyle={styles.threadBody}>
-          {msgs.map((m, i) => (
-            <Text key={i} style={[styles.bubble, m.from === 'you' ? styles.you : styles.them]}>{m.text}</Text>
+          {messages.isLoading && <ListSkeleton count={1} />}
+          {(messages.data ?? []).map((m) => (
+            <Text key={m.id} style={[styles.bubble, m.sender_id === userId ? styles.you : styles.them]}>{m.body}</Text>
           ))}
         </ScrollView>
         <View style={styles.composer}>
@@ -62,27 +108,82 @@ export function MessagesScreen() {
     );
   }
 
+  // Member picker for a new conversation
+  if (picking) {
+    const others = (profiles.data ?? []).filter((p) => p.id !== userId);
+    return (
+      <ScrollView contentContainerStyle={styles.page}>
+        <Pressable onPress={() => setPicking(false)} style={styles.backBtn}>
+          <Ionicons color={colors.brand} name="chevron-back" size={16} />
+          <Text style={styles.backText}>Back to messages</Text>
+        </Pressable>
+        <ScreenHeader sub="Pick someone to write to. Your first message says Hi - you can edit it next." title="New message" />
+        <TextInput
+          onChangeText={setDraft}
+          placeholder="First message (optional)…"
+          placeholderTextColor={colors.ink3}
+          style={styles.input}
+          value={draft}
+        />
+        {others.length === 0 && (
+          <EmptyState
+            body="No other members have joined yet. When they do, you can message them here."
+            icon="people-outline"
+            title="No members yet"
+          />
+        )}
+        {others.map((p) => (
+          <Pressable key={p.id} onPress={() => startWith(p.id, p.full_name || 'Member')}>
+            <Card style={styles.convo}>
+              <Avatar name={p.full_name || '?'} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.strong}>{p.full_name || 'Unnamed member'}</Text>
+                <Text style={styles.meta}>{p.role === 'admin' ? 'Admin' : 'Member'}</Text>
+              </View>
+              <Ionicons color={colors.ink3} name="chatbubble-outline" size={16} />
+            </Card>
+          </Pressable>
+        ))}
+      </ScrollView>
+    );
+  }
+
+  // Thread list
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <ScreenHeader sub="Students, mentors and firms, one tap away." title="Messages" />
-      {THREADS.length === 0 && (
+      <Pressable onPress={() => setPicking(true)} style={styles.newBtn}>
+        <Ionicons color="#fff" name="add" size={15} />
+        <Text style={styles.newBtnText}>New message</Text>
+      </Pressable>
+      {threads.isLoading && <ListSkeleton count={2} />}
+      {threads.isError && (
         <EmptyState
-          body="When a student, mentor or firm reaches out, the conversation appears here."
+          actionLabel="Try again"
+          body="Conversations could not load. Check your connection and try again."
+          icon="cloud-offline-outline"
+          onAction={() => threads.refetch()}
+          title="Could not load messages"
+        />
+      )}
+      {!threads.isLoading && !threads.isError && (threads.data ?? []).length === 0 && (
+        <EmptyState
+          actionLabel="Start a conversation"
+          body="When you message a student, mentor or firm, the conversation appears here."
           icon="chatbubbles-outline"
+          onAction={() => setPicking(true)}
           title="No conversations yet"
         />
       )}
-      {THREADS.map((t) => (
+      {(threads.data ?? []).map((t) => (
         <Pressable key={t.id} onPress={() => setOpenId(t.id)}>
           <Card style={styles.convo}>
-            <Avatar name={t.name} />
+            <Avatar name={t.otherName} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.strong}>{t.name}</Text>
-              <Text numberOfLines={1} style={styles.meta}>{t.preview}</Text>
+              <Text style={styles.strong}>{t.otherName}</Text>
+              <Text numberOfLines={1} style={styles.meta}>{t.lastMessage}</Text>
             </View>
-            {t.unread > 0 && (
-              <View style={styles.unread}><Text style={styles.unreadText}>{t.unread}</Text></View>
-            )}
+            {t.lastAt ? <Text style={styles.meta}>{timeAgo(t.lastAt)}</Text> : null}
           </Card>
         </Pressable>
       ))}
@@ -91,30 +192,34 @@ export function MessagesScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 40 },
-  convo: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
-  unread: {
-    alignItems: 'center', backgroundColor: colors.brand, borderRadius: 10,
-    height: 20, justifyContent: 'center', minWidth: 20, paddingHorizontal: 5,
+  page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 60 },
+  pageCenter: { flex: 1, justifyContent: 'center', padding: spacing.lg },
+  newBtn: {
+    alignItems: 'center', alignSelf: 'flex-start', backgroundColor: colors.brand,
+    borderRadius: radius.pill, flexDirection: 'row', gap: 6,
+    paddingHorizontal: spacing.lg, paddingVertical: 9,
   },
-  unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  threadPage: { flex: 1, gap: spacing.md, padding: spacing.lg },
-  backBtn: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 2 },
+  newBtnText: { ...typeScale.caption, color: '#fff', fontWeight: '600' },
+  convo: { alignItems: 'center', flexDirection: 'row', gap: spacing.md },
+  threadPage: { flex: 1, gap: spacing.sm, padding: spacing.lg },
+  backBtn: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 4, paddingVertical: 4 },
   backText: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },
-  threadHead: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
-  threadBody: { flexGrow: 1, gap: spacing.sm, justifyContent: 'flex-end' },
-  bubble: { ...typeScale.body, borderRadius: 14, maxWidth: '85%', overflow: 'hidden', padding: 10 },
+  threadHead: { alignItems: 'center', flexDirection: 'row', gap: spacing.md },
+  threadBody: { flexGrow: 1, gap: 6, paddingVertical: spacing.sm },
+  bubble: {
+    ...typeScale.body, borderRadius: radius.tile, maxWidth: '80%',
+    overflow: 'hidden', paddingHorizontal: 12, paddingVertical: 8,
+  },
   you: { alignSelf: 'flex-end', backgroundColor: colors.brand, color: '#fff' },
-  them: { alignSelf: 'flex-start', backgroundColor: colors.raised, color: colors.ink },
-  composer: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  them: { alignSelf: 'flex-start', backgroundColor: colors.card, color: colors.ink },
+  composer: { flexDirection: 'row', gap: spacing.sm },
   input: {
     ...typeScale.body, backgroundColor: colors.card, borderColor: colors.lineWarm,
-    borderRadius: radius.input, borderWidth: 1, color: colors.ink, flex: 1,
-    paddingHorizontal: 12, paddingVertical: 9,
+    borderRadius: radius.input, borderWidth: 1, color: colors.ink, flex: 1, padding: 10,
   },
   sendBtn: {
-    alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.pill,
-    height: 36, justifyContent: 'center', width: 36,
+    alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.input,
+    justifyContent: 'center', paddingHorizontal: 14,
   },
   strong: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
   meta: { ...typeScale.caption, color: colors.ink3 },

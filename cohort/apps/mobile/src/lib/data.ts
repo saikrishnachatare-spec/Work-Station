@@ -291,3 +291,103 @@ export function useCreateResource() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['resources'] }),
   });
 }
+
+export type ThreadSummary = {
+  id: string;
+  otherName: string;
+  lastMessage: string;
+  lastAt: string;
+};
+
+/** Threads the signed-in user participates in, with the other person's name. */
+export function useThreads(userId: string | undefined) {
+  return useQuery({
+    enabled: !!userId,
+    queryKey: ['threads', userId],
+    queryFn: async (): Promise<ThreadSummary[]> => {
+      const { data: mine, error: e1 } = await supabase
+        .from('thread_participants')
+        .select('thread_id')
+        .eq('user_id', userId!);
+      if (e1) throw e1;
+      const ids = (mine as { thread_id: string }[]).map((r) => r.thread_id);
+      if (ids.length === 0) return [];
+      const { data: others, error: e2 } = await supabase
+        .from('thread_participants')
+        .select('thread_id, user_id')
+        .in('thread_id', ids)
+        .neq('user_id', userId!);
+      if (e2) throw e2;
+      const otherIds = (others as { user_id: string }[]).map((r) => r.user_id);
+      const { data: names } = await supabase.from('profiles').select('id, full_name').in('id', otherIds);
+      const nameOf = new Map((names ?? []).map((p: { id: string; full_name: string }) => [p.id, p.full_name]));
+      const { data: msgs, error: e3 } = await supabase
+        .from('messages')
+        .select('thread_id, body, created_at')
+        .in('thread_id', ids)
+        .order('created_at', { ascending: false });
+      if (e3) throw e3;
+      const lastOf = new Map<string, { body: string; created_at: string }>();
+      for (const m of msgs as { thread_id: string; body: string; created_at: string }[]) {
+        if (!lastOf.has(m.thread_id)) lastOf.set(m.thread_id, m);
+      }
+      return (others as { thread_id: string; user_id: string }[]).map((o) => ({
+        id: o.thread_id,
+        otherName: nameOf.get(o.user_id) || 'Member',
+        lastMessage: lastOf.get(o.thread_id)?.body ?? '',
+        lastAt: lastOf.get(o.thread_id)?.created_at ?? '',
+      }));
+    },
+  });
+}
+
+export function useThreadMessages(threadId: string | null) {
+  return useQuery({
+    enabled: !!threadId,
+    queryKey: ['messages', threadId],
+    queryFn: async (): Promise<Message[]> => {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('thread_id', threadId!)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data as Message[];
+    },
+    refetchInterval: 5000,
+  });
+}
+
+export function useStartThread(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ otherUserId, firstMessage }: { firstMessage: string; otherUserId: string }) => {
+      if (!userId) throw new Error('Sign in to send messages');
+      const { data: thread, error: e1 } = await supabase.from('threads').insert({}).select('id').single();
+      if (e1) throw e1;
+      const { error: e2 } = await supabase
+        .from('thread_participants')
+        .insert([{ thread_id: thread.id, user_id: userId }, { thread_id: thread.id, user_id: otherUserId }]);
+      if (e2) throw e2;
+      const { error: e3 } = await supabase.from('messages').insert({ body: firstMessage, sender_id: userId, thread_id: thread.id });
+      if (e3) throw e3;
+      return thread.id as string;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['threads', userId] }),
+  });
+}
+
+export function useSendMessage(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ body, threadId }: { body: string; threadId: string }) => {
+      if (!userId) throw new Error('Sign in to send messages');
+      const { error } = await supabase.from('messages').insert({ body, sender_id: userId, thread_id: threadId });
+      if (error) throw error;
+    },
+    onSuccess: (_r, v) => {
+      qc.invalidateQueries({ queryKey: ['messages', v.threadId] });
+      qc.invalidateQueries({ queryKey: ['threads', userId] });
+    },
+  });
+}
