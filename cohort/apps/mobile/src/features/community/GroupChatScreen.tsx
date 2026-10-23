@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
 import {
-  getGroupInviteLink, useAddGroupMembers, useGroupMembers, useGroupThread, useLeaveGroup,
+  getGroupInviteLink, useAddGroupMembers, useGroupMembers, useGroupThread, useLeaveGroup, useMarkThreadRead,
   useProfiles, useSendMessage, useThreadMessages,
 } from '@/lib/data';
 import { useAuth } from '@/store/session';
@@ -34,6 +34,12 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
   const members = useGroupMembers(groupId);
   const addMembers = useAddGroupMembers(userId);
   const leaveGroup = useLeaveGroup(userId);
+  const markRead = useMarkThreadRead(userId);
+  const msgCount = (messages.data ?? []).length;
+  useEffect(() => {
+    if (threadId && msgCount > 0) markRead.mutate(threadId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadId, msgCount]);
 
   const nameOf = (id: string | null) =>
     (profiles.data ?? []).find((p) => p.id === id)?.full_name || 'Member';

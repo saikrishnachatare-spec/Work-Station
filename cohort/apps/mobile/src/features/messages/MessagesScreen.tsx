@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
@@ -10,7 +10,7 @@ import { ScreenHeader } from '@/components/ScreenBits';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
 import {
-  timeAgo, useProfiles, useSendMessage, useStartThread, useThreadMessages, useThreads,
+  timeAgo, useMarkThreadRead, useProfiles, useSendMessage, useStartThread, useThreadMessages, useThreads,
 } from '@/lib/data';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -26,8 +26,14 @@ export function MessagesScreen() {
   const threads = useThreads(userId);
   const profiles = useProfiles();
   const messages = useThreadMessages(openId);
+  const openMsgCount = (messages.data ?? []).length;
+  useEffect(() => {
+    if (openId && openMsgCount > 0) markRead.mutate(openId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId, openMsgCount]);
   const startThread = useStartThread(userId);
   const sendMessage = useSendMessage(userId);
+  const markRead = useMarkThreadRead(userId);
 
   if (!userId) {
     return (
@@ -186,7 +192,12 @@ export function MessagesScreen() {
               <Text style={styles.strong}>{t.otherName}</Text>
               <Text numberOfLines={1} style={styles.meta}>{t.lastMessage}</Text>
             </View>
-            {t.lastAt ? <Text style={styles.meta}>{timeAgo(t.lastAt)}</Text> : null}
+            <View style={{ alignItems: 'flex-end', gap: 4 }}>
+              {t.lastAt ? <Text style={styles.meta}>{timeAgo(t.lastAt)}</Text> : null}
+              {t.unread > 0 && (
+                <View style={styles.unread}><Text style={styles.unreadText}>{t.unread > 99 ? '99+' : t.unread}</Text></View>
+              )}
+            </View>
           </Card>
         </Pressable>
       ))}
@@ -203,6 +214,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg, paddingVertical: 9,
   },
   newBtnText: { ...typeScale.caption, color: '#fff', fontWeight: '600' },
+  unread: {
+    alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.pill,
+    justifyContent: 'center', minWidth: 20, paddingHorizontal: 5, paddingVertical: 2,
+  },
+  unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   convo: { alignItems: 'center', flexDirection: 'row', gap: spacing.md },
   threadPage: { flex: 1, gap: spacing.sm, padding: spacing.lg },
   backBtn: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 4, paddingVertical: 4 },

@@ -333,6 +333,7 @@ export type ThreadSummary = {
   otherName: string;
   lastMessage: string;
   lastAt: string;
+  unread: number;
 };
 
 /** Threads the signed-in user participates in, with the other person's name. */
@@ -343,9 +344,10 @@ export function useThreads(userId: string | undefined) {
     queryFn: async (): Promise<ThreadSummary[]> => {
       const { data: mine, error: e1 } = await supabase
         .from('thread_participants')
-        .select('thread_id')
+        .select('thread_id, last_read_at')
         .eq('user_id', userId!);
       if (e1) throw e1;
+      const lastRead = new Map((mine as { thread_id: string; last_read_at: string }[]).map((r) => [r.thread_id, r.last_read_at]));
       const ids = (mine as { thread_id: string }[]).map((r) => r.thread_id);
       if (ids.length === 0) return [];
       const { data: others, error: e2 } = await supabase
@@ -359,13 +361,18 @@ export function useThreads(userId: string | undefined) {
       const nameOf = new Map((names ?? []).map((p: { id: string; full_name: string }) => [p.id, p.full_name]));
       const { data: msgs, error: e3 } = await supabase
         .from('messages')
-        .select('thread_id, body, created_at')
+        .select('thread_id, body, created_at, sender_id')
         .in('thread_id', ids)
         .order('created_at', { ascending: false });
       if (e3) throw e3;
       const lastOf = new Map<string, { body: string; created_at: string }>();
-      for (const m of msgs as { thread_id: string; body: string; created_at: string }[]) {
+      const unreadOf = new Map<string, number>();
+      for (const m of msgs as { thread_id: string; body: string; created_at: string; sender_id: string | null }[]) {
         if (!lastOf.has(m.thread_id)) lastOf.set(m.thread_id, m);
+        const readAt = lastRead.get(m.thread_id);
+        if (m.sender_id && m.sender_id !== userId && (!readAt || m.created_at > readAt)) {
+          unreadOf.set(m.thread_id, (unreadOf.get(m.thread_id) ?? 0) + 1);
+        }
       }
       return (others as { thread_id: string; user_id: string }[]).map((o) => ({
         id: o.thread_id,
@@ -373,8 +380,21 @@ export function useThreads(userId: string | undefined) {
         otherName: nameOf.get(o.user_id) || 'Member',
         lastMessage: lastOf.get(o.thread_id)?.body ?? '',
         lastAt: lastOf.get(o.thread_id)?.created_at ?? '',
+        unread: unreadOf.get(o.thread_id) ?? 0,
       }));
     },
+  });
+}
+
+/** Mark a thread read up to now for the signed-in user. */
+export function useMarkThreadRead(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (threadId: string) => {
+      const { error } = await supabase.rpc('mark_thread_read', { p_thread: threadId });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['threads', userId] }),
   });
 }
 
