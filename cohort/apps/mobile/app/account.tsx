@@ -1,12 +1,14 @@
 /** Account screen: profile, verification status, sign out, delete account. */
 import { SeoHead } from '@/components/SeoHead';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
 import { supabase } from '@/lib/supabase';
+import { useToast } from '@/components/Toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { signOut, useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
@@ -15,6 +17,11 @@ export default function AccountScreen() {
   const { guest, session } = useAuth();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const toast = useToast();
+  const qc = useQueryClient();
 
   if (guest || !session) {
     return (
@@ -30,6 +37,28 @@ export default function AccountScreen() {
   const user = session.user;
   const name = (user.user_metadata?.full_name as string) || user.email || 'Member';
   const verified = !!user.email_confirmed_at;
+  const saveName = async () => {
+    const next = nameDraft.trim();
+    if (!next) {
+      toast.show('Enter your name first', 'info');
+      return;
+    }
+    setSavingName(true);
+    try {
+      const { error: pErr } = await supabase.from('profiles').update({ full_name: next }).eq('id', user.id);
+      if (pErr) throw pErr;
+      const { error: uErr } = await supabase.auth.updateUser({ data: { full_name: next } });
+      if (uErr) throw uErr;
+      await qc.invalidateQueries({ queryKey: ['profile', user.id] });
+      await qc.invalidateQueries({ queryKey: ['profiles'] });
+      toast.show('Name updated', 'success');
+      setEditingName(false);
+    } catch {
+      toast.show('Could not save your name. Try again.', 'error');
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   const doSignOut = async () => {
     await signOut();
@@ -55,6 +84,32 @@ export default function AccountScreen() {
           {verified ? 'Email verified' : 'Email not verified yet - check your inbox'}
         </Text>
       </Card>
+
+      {editingName ? (
+        <Card style={{ gap: spacing.sm }}>
+          <Text style={styles.label}>Your name (shown to other members)</Text>
+          <TextInput
+            autoFocus
+            defaultValue={(user.user_metadata?.full_name as string) || ''}
+            onChangeText={setNameDraft}
+            placeholder="e.g. Sai Krishna"
+            placeholderTextColor={colors.ink3}
+            style={styles.input}
+          />
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Pressable onPress={() => setEditingName(false)} style={styles.ghostBtn}>
+              <Text style={styles.ghostText}>Cancel</Text>
+            </Pressable>
+            <Pressable disabled={savingName} onPress={saveName} style={styles.cta}>
+              <Text style={styles.ctaText}>{savingName ? 'Saving…' : 'Save name'}</Text>
+            </Pressable>
+          </View>
+        </Card>
+      ) : (
+        <Pressable onPress={() => setEditingName(true)} style={styles.cta}>
+          <Text style={styles.ctaText}>Edit name</Text>
+        </Pressable>
+      )}
 
       <Pressable onPress={doSignOut} style={styles.cta}>
         <Text style={styles.ctaText}>Sign out</Text>
@@ -96,6 +151,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.pill, paddingVertical: 12,
   },
   ctaText: { ...typeScale.body, color: '#fff', fontWeight: '600' },
+  label: { ...typeScale.caption, color: colors.ink3 },
+  input: {
+    ...typeScale.body, backgroundColor: colors.card, borderColor: colors.lineWarm,
+    borderRadius: radius.input, borderWidth: 1, color: colors.ink, padding: 10,
+  },
   danger: { ...typeScale.caption, color: colors.brandDeep, fontWeight: '600', textAlign: 'center' },
   dangerBtn: {
     alignItems: 'center', backgroundColor: colors.brandDeep, borderRadius: radius.pill,
