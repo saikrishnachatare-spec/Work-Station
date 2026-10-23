@@ -1,0 +1,6 @@
+{
+  "name": "@cohort/config",
+  "version": "0.1.0",
+  "private": true,
+  "files": ["tsconfig.base.json", "prettier.config.js"]
+}
