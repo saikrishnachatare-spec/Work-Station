@@ -77,7 +77,24 @@ export function JobScreen({ id }: { id: string }) {
             </View>
           </View>
         )}
+        {!!j.deadline && (
+          <View style={styles.row}>
+            <Ionicons color={colors.ink3} name="calendar-outline" size={15} />
+            <View>
+              <Text style={styles.rowLabel}>Apply by</Text>
+              <Text style={styles.rowValue}>
+                {new Date(`${j.deadline}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </Text>
+            </View>
+          </View>
+        )}
       </View>
+      {!!j.description && (
+        <View style={{ gap: 4, marginTop: spacing.xs }}>
+          <Text style={styles.rowLabel}>About this opening</Text>
+          <Text style={styles.desc}>{j.description}</Text>
+        </View>
+      )}
       {(j.tags ?? []).length > 0 && (
         <View style={styles.pills}>
           {(j.tags ?? []).map((t) => <Pill key={t} label={t} />)}
@@ -148,4 +165,5 @@ const styles = StyleSheet.create({
   appliedBtn: { backgroundColor: colors.card, borderColor: colors.lineWarm, borderWidth: 1 },
   appliedBtnText: { color: colors.ink },
   meta: { ...typeScale.caption, color: colors.ink3 },
+  desc: { ...typeScale.body, color: colors.ink, lineHeight: 21 },
 });

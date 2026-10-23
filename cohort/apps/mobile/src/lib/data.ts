@@ -36,6 +36,16 @@ export type Job = {
   loc: string;
   pay: string;
   tags: string[];
+  description: string;
+  deadline: string | null;
+};
+
+export type Comment = {
+  id: string;
+  post_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
 };
 
 export type Resource = {
@@ -524,6 +534,40 @@ export function useJob(id: string | null) {
       const { data, error } = await supabase.from('jobs').select('*').eq('id', id!).maybeSingle();
       if (error) throw error;
       return (data as Job) ?? null;
+    },
+  });
+}
+
+/* ---------- Post comments ---------- */
+
+export function useComments(postId: string | null) {
+  return useQuery({
+    enabled: !!postId,
+    queryKey: ['comments', postId],
+    queryFn: async (): Promise<Comment[]> => {
+      const { data, error } = await supabase
+        .from('comments')
+        .select('*')
+        .eq('post_id', postId!)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data as Comment[];
+    },
+  });
+}
+
+export function useAddComment(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ body, postId }: { body: string; postId: string }) => {
+      if (!userId) throw new Error('Sign in to comment');
+      const { error } = await supabase.from('comments').insert({ author_id: userId, body, post_id: postId });
+      if (error) throw error;
+    },
+    onSuccess: (_r, v) => {
+      qc.invalidateQueries({ queryKey: ['comments', v.postId] });
+      qc.invalidateQueries({ queryKey: ['post', v.postId] });
+      qc.invalidateQueries({ queryKey: ['posts'] });
     },
   });
 }
