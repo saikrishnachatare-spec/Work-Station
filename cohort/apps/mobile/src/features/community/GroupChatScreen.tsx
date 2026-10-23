@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
 import {
-  getGroupInviteLink, useAddGroupMembers, useGroupMembers, useGroupThread,
+  getGroupInviteLink, useAddGroupMembers, useGroupMembers, useGroupThread, useLeaveGroup,
   useProfiles, useSendMessage, useThreadMessages,
 } from '@/lib/data';
 import { useAuth } from '@/store/session';
@@ -33,6 +33,7 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
   const profiles = useProfiles();
   const members = useGroupMembers(groupId);
   const addMembers = useAddGroupMembers(userId);
+  const leaveGroup = useLeaveGroup(userId);
 
   const nameOf = (id: string | null) =>
     (profiles.data ?? []).find((p) => p.id === id)?.full_name || 'Member';
@@ -64,6 +65,26 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
     } catch (err) {
       const detail = err instanceof Error ? err.message : '';
       toast.show(`Could not create the invite link.${detail ? ` ${detail}` : ''}`, 'error');
+    }
+  };
+
+
+  const confirmLeave = () => {
+    const doLeave = () =>
+      leaveGroup.mutate(groupId, {
+        onError: (err) => toast.show(err instanceof Error ? err.message : 'Could not leave the group. Try again.', 'error'),
+        onSuccess: () => {
+          toast.show(`You left ${groupName}`, 'success');
+          router.back();
+        },
+      });
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(`Leave ${groupName}? You will stop receiving its messages.`)) doLeave();
+    } else {
+      Alert.alert('Leave group', `Leave ${groupName}? You will stop receiving its messages.`, [
+        { style: 'cancel', text: 'Cancel' },
+        { onPress: doLeave, style: 'destructive', text: 'Leave' },
+      ]);
     }
   };
 
@@ -152,6 +173,9 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
         </Pressable>
         <Pressable accessibilityLabel="Share invite link" onPress={shareLink} style={styles.iconBtn}>
           <Ionicons color={colors.brand} name="link-outline" size={18} />
+        </Pressable>
+        <Pressable accessibilityLabel="Leave group" disabled={leaveGroup.isPending} onPress={confirmLeave} style={styles.iconBtn}>
+          <Ionicons color={colors.danger} name="log-out-outline" size={18} />
         </Pressable>
       </Card>
       {thread.isLoading && <ListSkeleton count={1} />}

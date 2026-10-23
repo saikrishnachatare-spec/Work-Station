@@ -6,6 +6,7 @@ export const colors = {
   brand: '#c0562f',
   brandDeep: '#94401f',
   brandSoft: '#f7e6da',
+  danger: '#b3261e',
   cream: '#faf5f1',
   lineWarm: '#efe4dc',
   card: '#ffffff',

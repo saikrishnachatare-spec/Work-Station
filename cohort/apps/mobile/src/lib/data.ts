@@ -538,6 +538,29 @@ export function useAddGroupMembers(userId: string | undefined) {
   });
 }
 
+/** Leave a group: removes only the caller's own membership row. */
+export function useLeaveGroup(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (groupId: string) => {
+      if (!userId) throw new Error('Sign in to leave a group');
+      const { data, error } = await supabase
+        .from('group_members')
+        .delete()
+        .eq('group_id', groupId)
+        .eq('user_id', userId)
+        .select('user_id');
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('Could not leave - membership row was not removed.');
+    },
+    onSuccess: (_d, groupId) => {
+      qc.invalidateQueries({ queryKey: ['groups'] });
+      qc.invalidateQueries({ queryKey: ['my-groups', userId] });
+      qc.invalidateQueries({ queryKey: ['group-members', groupId] });
+    },
+  });
+}
+
 export function useGroupMembers(groupId: string | null) {
   return useQuery({
     enabled: !!groupId,
