@@ -73,15 +73,16 @@ export function IcaiScreen() {
   const active = TABS.find((t) => t.id === tab) ?? TABS[0];
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <ScreenHeader title="ICAI services" sub="Every needed official service, in one place." />
+      <ScreenHeader title="ICAI services" sub="Relevant official ICAI services, in one place." />
       <Card>
         <Text style={styles.body}>
           Cohort is an independent community, not ICAI. Confirm dates, fees and notices on the official
-          source. ICAI does not allow its pages to be shown inside other apps, so each service opens in a
-          new browser tab on its official site. Cohort never asks for your ICAI password.
+          source. Some ICAI pages cannot be shown inside other apps, so each service opens in a new
+          browser tab on its official site. Cohort never asks for your ICAI password. Links checked
+          23 October 2026.
         </Text>
       </Card>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={Platform.OS === 'web'} contentContainerStyle={styles.tabs}>
         {TABS.map((t) => (
           <Pressable
             accessibilityRole="button"
@@ -93,6 +94,7 @@ export function IcaiScreen() {
           </Pressable>
         ))}
       </ScrollView>
+      <Text style={styles.tabHint}>Swipe sideways for more topics</Text>
       <View style={{ gap: spacing.sm }}>
         {active.services.map((s) => (
           <Pressable accessibilityRole="link" key={s.url} onPress={() => open(s.url)}>
@@ -134,8 +136,9 @@ const styles = StyleSheet.create({
   tabs: { gap: 8, paddingVertical: 2 },
   tab: {
     backgroundColor: colors.card, borderColor: colors.lineWarm, borderRadius: radius.pill,
-    borderWidth: 1, paddingHorizontal: 14, paddingVertical: 8,
+    borderWidth: 1, paddingHorizontal: 12, paddingVertical: 7,
   },
+  tabHint: { ...typeScale.caption, color: colors.ink3, fontSize: 11, marginTop: -6 },
   tabOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
   tabText: { ...typeScale.caption, color: colors.ink2, fontWeight: '500' },
   tabTextOn: { color: colors.brandDeep, fontWeight: '600' },
