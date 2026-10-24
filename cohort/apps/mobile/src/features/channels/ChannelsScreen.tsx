@@ -1,10 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Card } from '@/components/Card';
-import { Pill, ScreenHeader } from '@/components/ScreenBits';
+import { Pill } from '@/components/ScreenBits';
 import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
@@ -12,7 +12,7 @@ import { useChannels, useCreateChannel, useMyGroups, useToggleGroup } from '@/li
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
-export function ChannelsScreen() {
+export function ChannelsPanel() {
   const router = useRouter();
   const toast = useToast();
   const { session } = useAuth();
@@ -63,8 +63,7 @@ export function ChannelsScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
-      <ScreenHeader sub="One-way updates from admins and creators. Follow a channel to read every post." title="Channels" />
+    <View style={{ gap: spacing.md }}>
       {userId && !creating && (
         <Pressable onPress={() => setCreating(true)} style={styles.newBtn}>
           <Ionicons color={colors.brand} name="add" size={16} />
@@ -142,12 +141,11 @@ export function ChannelsScreen() {
           </View>
         </Card>
       ))}
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 120 },
   card: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   icon: {
     alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: 10,

@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Card } from '@/components/Card';
+import { ChannelsPanel } from '@/features/channels/ChannelsScreen';
 import { Chip } from '@/components/Chip';
 import { Pill, ScreenHeader } from '@/components/ScreenBits';
 import { EmptyState } from '@/components/EmptyState';
@@ -27,6 +28,7 @@ export function CommunityScreen() {
   const toggleGroup = useToggleGroup(userId);
 
   const mine = (id: string) => myGroups.data?.has(id) ?? false;
+  const groupsView = view === 'My groups' || view === 'Discover';
   const list = (groups.data ?? []).filter((g) => (view === 'My groups' ? mine(g.id) : !mine(g.id)));
 
   const toggle = (id: string) => {
@@ -47,11 +49,12 @@ export function CommunityScreen() {
     <ScrollView contentContainerStyle={styles.page}>
       <ScreenHeader sub="Groups with fellow students, mentors or anyone. Start a new one from the + button." title="Community" />
       <View style={styles.chips}>
-        {['My groups', 'Discover', 'Communities'].map((v) => <Chip key={v} label={v} active={v === view} onPress={() => setView(v)} />)}
+        {['My groups', 'Discover', 'Communities', 'Channels'].map((v) => <Chip key={v} label={v} active={v === view} onPress={() => setView(v)} />)}
       </View>
       {view === 'Communities' && <CommunitiesPanel userId={userId} />}
-      {view !== 'Communities' && groups.isLoading && <ListSkeleton count={3} />}
-      {view !== 'Communities' && groups.isError && (
+      {view === 'Channels' && <ChannelsPanel />}
+      {groupsView && groups.isLoading && <ListSkeleton count={3} />}
+      {groupsView && groups.isError && (
         <EmptyState
           actionLabel="Try again"
           body="Circles could not load. Check your connection and try again."
@@ -60,14 +63,14 @@ export function CommunityScreen() {
           title="Could not load circles"
         />
       )}
-      {view !== 'Communities' && !groups.isLoading && !groups.isError && list.length === 0 && (
+      {groupsView && !groups.isLoading && !groups.isError && list.length === 0 && (
         <EmptyState
           body={view === 'My groups' ? 'You have not joined any circles yet. Find one under Discover.' : 'No circles to discover right now.'}
           icon="people-outline"
           title={view === 'My groups' ? 'No circles yet' : 'Nothing to discover'}
         />
       )}
-      {view !== 'Communities' && list.map((g) => (
+      {groupsView && list.map((g) => (
         <Card key={g.id} style={styles.card}>
           <View style={styles.icon}><Ionicons color={colors.brand} name="people-outline" size={18} /></View>
           <View style={{ flex: 1, gap: 3 }}>
