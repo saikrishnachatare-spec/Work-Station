@@ -373,9 +373,17 @@ export function useLiveAdminFeed(enabled: boolean) {
   const [live, setLive] = useState(false);
   useEffect(() => {
     if (!enabled) return;
+    // Every admin view reads from these queries; any new activity row means
+    // one of them probably changed, so they all refetch in place (debounced
+    // so a burst of events causes one refresh).
+    const keys = ['activity-log', 'error_logs', 'admin-analytics', 'profiles', 'posts', 'groups', 'jobs', 'resources', 'trash', 'reports'];
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const refresh = () => {
-      qc.invalidateQueries({ queryKey: ['activity-log'] });
-      qc.invalidateQueries({ queryKey: ['error_logs'] });
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        for (const key of keys) qc.invalidateQueries({ queryKey: [key] });
+      }, 800);
     };
     const channel = supabase
       .channel('admin-live-feed')
@@ -383,7 +391,7 @@ export function useLiveAdminFeed(enabled: boolean) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'error_logs' }, refresh)
       .subscribe((status) => setLive(status === 'SUBSCRIBED'));
     const poll = setInterval(refresh, 30000);
-    return () => { clearInterval(poll); supabase.removeChannel(channel); setLive(false); };
+    return () => { clearInterval(poll); if (timer) clearTimeout(timer); supabase.removeChannel(channel); setLive(false); };
   }, [enabled, qc]);
   return live;
 }
