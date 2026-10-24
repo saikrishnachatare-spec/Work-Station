@@ -74,14 +74,6 @@ export function IcaiScreen() {
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <ScreenHeader title="ICAI services" sub="Relevant official ICAI services, in one place." />
-      <Card>
-        <Text style={styles.body}>
-          Cohort is an independent community, not ICAI. Confirm dates, fees and notices on the official
-          source. Some ICAI pages cannot be shown inside other apps, so each service opens in a new
-          browser tab on its official site. Cohort never asks for your ICAI password. Links checked
-          23 October 2026.
-        </Text>
-      </Card>
       <View style={styles.tabs}>
         {TABS.map((t) => (
           <Pressable
