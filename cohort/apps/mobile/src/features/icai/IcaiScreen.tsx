@@ -95,6 +95,7 @@ export function IcaiScreen() {
           </Pressable>
         ))}
       </View>
+      <View style={styles.divider} />
       <View style={styles.grid}>
         {active.services.map((s) => (
           <Pressable
@@ -138,13 +139,14 @@ const styles = StyleSheet.create({
   page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 120 },
   tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tab: {
-    alignItems: 'center', aspectRatio: 1, backgroundColor: colors.card, borderColor: colors.lineWarm,
+    alignItems: 'center', aspectRatio: 1.3, backgroundColor: colors.card, borderColor: colors.lineWarm,
     borderRadius: 14, borderWidth: 1, justifyContent: 'center', maxWidth: 112, minWidth: 92,
     padding: 8, width: '30%',
   },
   tabOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
   tabText: { ...typeScale.caption, color: colors.ink2, fontWeight: '500', textAlign: 'center' },
   tabTextOn: { color: colors.brandDeep, fontWeight: '600' },
+  divider: { backgroundColor: colors.lineWarm, height: 1, width: '100%' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   svcCell: { flexGrow: 0, flexShrink: 0, width: '31%' },
   svc: { gap: 4, minHeight: 148, padding: 10 },
