@@ -22,6 +22,7 @@ export type Post = {
 
 export type Group = {
   id: string;
+  kind?: 'group' | 'channel';
   name: string;
   purpose: string;
   description: string;
@@ -225,6 +226,105 @@ export function useResource(id: string | undefined) {
       const { data, error } = await supabase.from('resources').select('*').eq('id', id!).maybeSingle();
       if (error) throw error;
       return (data as Resource) ?? null;
+    },
+  });
+}
+
+export type Community = {
+  id: string;
+  name: string;
+  about: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+/** Channels are groups with kind='channel': members read, admins post. */
+export function useChannels() {
+  return useQuery({
+    queryKey: ['channels'],
+    queryFn: async (): Promise<Group[]> => {
+      const { data, error } = await supabase.from('groups').select('*').eq('kind', 'channel').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as Group[];
+    },
+  });
+}
+
+export function useCommunities() {
+  return useQuery({
+    queryKey: ['communities'],
+    queryFn: async (): Promise<Community[]> => {
+      const { data, error } = await supabase.from('communities').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as Community[];
+    },
+  });
+}
+
+/** Groups bundled into one community. */
+export function useCommunityGroups(communityId: string | undefined) {
+  return useQuery({
+    enabled: !!communityId,
+    queryKey: ['community-groups', communityId],
+    queryFn: async (): Promise<Group[]> => {
+      const { data, error } = await supabase
+        .from('community_groups')
+        .select('group_id, groups(*)')
+        .eq('community_id', communityId!);
+      if (error) throw error;
+      return (data ?? []).map((r) => (r as unknown as { groups: Group }).groups).filter(Boolean);
+    },
+  });
+}
+
+export function useCreateCommunity(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ name, about }: { name: string; about: string }): Promise<Community> => {
+      if (!userId) throw new Error('Sign in to create a community');
+      const { data, error } = await supabase
+        .from('communities')
+        .insert({ about, created_by: userId, name })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as Community;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['communities'] }),
+  });
+}
+
+export function useAddGroupToCommunity(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ communityId, groupId }: { communityId: string; groupId: string }) => {
+      if (!userId) throw new Error('Sign in to add a group');
+      const { error } = await supabase.from('community_groups').insert({ community_id: communityId, group_id: groupId });
+      if (error) throw error;
+    },
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ['community-groups', v.communityId] }),
+  });
+}
+
+export function useCreateChannel(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ name, purpose }: { name: string; purpose: string }): Promise<Group> => {
+      if (!userId) throw new Error('Sign in to create a channel');
+      const { data, error } = await supabase
+        .from('groups')
+        .insert({ created_by: userId, kind: 'channel', name, purpose })
+        .select()
+        .single();
+      if (error) throw error;
+      const g = data as Group;
+      const { error: mErr } = await supabase.from('group_members').insert({ group_id: g.id, role: 'admin', user_id: userId });
+      if (mErr) throw mErr;
+      return g;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['channels'] });
+      qc.invalidateQueries({ queryKey: ['groups'] });
     },
   });
 }
