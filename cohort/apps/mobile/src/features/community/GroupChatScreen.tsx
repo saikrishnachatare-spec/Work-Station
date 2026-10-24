@@ -275,12 +275,30 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
             title="No messages yet"
           />
         )}
-        {(messages.data ?? []).map((m) => (
-          <View key={m.id} style={m.sender_id === userId ? styles.youWrap : styles.themWrap}>
-            {m.sender_id !== userId && <Text style={styles.senderName}>{nameOf(m.sender_id)}</Text>}
-            <Text style={[styles.bubble, m.sender_id === userId ? styles.you : styles.them]}>{m.body}</Text>
-          </View>
-        ))}
+        {(messages.data ?? []).map((m, i, arr) => {
+          const day = new Date(m.created_at).toDateString();
+          const showDay = i === 0 || new Date(arr[i - 1].created_at).toDateString() !== day;
+          const mine = m.sender_id === userId;
+          const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          return (
+            <View key={m.id} style={{ gap: 6 }}>
+              {showDay && (
+                <View style={styles.dayPillWrap}>
+                  <Text style={styles.dayPill}>
+                    {new Date(m.created_at).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </Text>
+                </View>
+              )}
+              <View style={mine ? styles.youWrap : styles.themWrap}>
+                {!mine && <Text style={styles.senderName}>{nameOf(m.sender_id)}</Text>}
+                <View style={[styles.bubble, mine ? styles.you : styles.them]}>
+                  <Text style={mine ? styles.youText : styles.themText}>{m.body}</Text>
+                  <Text style={[styles.msgTime, mine ? styles.msgTimeYou : styles.msgTimeThem]}>{time}</Text>
+                </View>
+              </View>
+            </View>
+          );
+        })}
       </ScrollView>
       <View style={styles.composer}>
         <TextInput
@@ -312,11 +330,18 @@ const styles = StyleSheet.create({
   themWrap: { alignItems: 'flex-start', gap: 1 },
   senderName: { ...typeScale.caption, color: colors.ink3, marginLeft: 4 },
   bubble: {
-    ...typeScale.body, borderRadius: radius.tile, maxWidth: '80%',
+    borderBottomRightRadius: 4, borderRadius: radius.tile, maxWidth: '80%',
     overflow: 'hidden', paddingHorizontal: 12, paddingVertical: 8,
   },
-  you: { alignSelf: 'flex-end', backgroundColor: colors.brand, color: '#fff' },
-  them: { alignSelf: 'flex-start', backgroundColor: colors.card, color: colors.ink },
+  you: { alignSelf: 'flex-end', backgroundColor: colors.brand, borderBottomRightRadius: 4, borderBottomLeftRadius: radius.tile },
+  them: { alignSelf: 'flex-start', backgroundColor: colors.card, borderBottomLeftRadius: 4, borderBottomRightRadius: radius.tile },
+  youText: { ...typeScale.body, color: '#fff' },
+  themText: { ...typeScale.body, color: colors.ink },
+  msgTime: { ...typeScale.caption, alignSelf: 'flex-end', fontSize: 10, marginTop: 2 },
+  msgTimeYou: { color: 'rgba(255,255,255,0.75)' },
+  msgTimeThem: { color: colors.ink3 },
+  dayPillWrap: { alignItems: 'center', marginVertical: 4 },
+  dayPill: { ...typeScale.caption, backgroundColor: colors.card, borderRadius: radius.pill, color: colors.ink3, overflow: 'hidden', paddingHorizontal: 10, paddingVertical: 3 },
   composer: { flexDirection: 'row', gap: spacing.sm },
   input: {
     ...typeScale.body, backgroundColor: colors.card, borderColor: colors.lineWarm,
