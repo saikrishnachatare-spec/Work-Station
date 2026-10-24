@@ -1,20 +1,17 @@
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
-import { ScreenHeader, SectionTitle } from '@/components/ScreenBits';
-import { colors, radius, spacing, type as typeScale } from '@/theme';
+import { colors, font } from '@/theme';
 
 type Service = { title: string; note: string; url: string; login?: boolean };
-type Tab = { id: string; label: string; services: Service[] };
+type Section = { id: string; label: string; services: Service[] };
 
-const TABS: Tab[] = [
+const SECTIONS: Section[] = [
   {
     id: 'exams', label: 'Exams & results',
     services: [
       { title: 'Exam results and merit lists', note: 'Foundation, Inter and Final results with announcement dates.', url: 'https://icai.nic.in/' },
       { title: 'Exam forms and admit cards', note: 'Application forms, corrections and admit cards run through your SSP login.', url: 'https://eservices.icai.org/', login: true },
-      { title: 'Foundation admit card (direct form)', note: 'Official e-form login for the Foundation admit card.', url: 'https://eservices.icai.org/EForms/configuredHtml/1666/71696/login.html', login: true },
-      { title: 'Intermediate admit card (direct form)', note: 'Official e-form login for the Intermediate admit card.', url: 'https://eservices.icai.org/EForms/loginAction.do?formId=71729&orgId=1666&subAction=ViewLoginPage', login: true },
       { title: 'Exam FAQs', note: 'ICAI answers on exam rules, centres and papers (PDF).', url: 'https://icai-call-sahayata.icai.org/assets/pdf/FAQs-on-Examinations-.pdf' },
     ],
   },
@@ -24,14 +21,12 @@ const TABS: Tab[] = [
       { title: 'BoS Knowledge Portal', note: 'Syllabus, study material, RTPs, mock tests, live and recorded lectures, student journal.', url: 'https://boslive.icai.org/' },
       { title: 'Students home on icai.org', note: 'ICAI student announcements and service directory.', url: 'https://www.icai.org/students.shtml' },
       { title: 'Order printed study material (CDS)', note: 'Centralised Distribution System for books at your doorstep.', url: 'https://www.icai.org/post/publication-cds-directorate' },
-      { title: 'New scheme FAQs', note: 'Current scheme of education and training, answered by ICAI (PDF).', url: 'https://icai-call-sahayata.icai.org/assets/pdf/FAQs_on_CA_Course.pdf' },
     ],
   },
   {
     id: 'account', label: 'ICAI account',
     services: [
       { title: 'Self Service Portal (SSP)', note: 'Your ICAI account: registration, exam forms, fees, letters and requests.', url: 'https://eservices.icai.org/', login: true },
-      { title: 'New student registration', note: 'First-time registration for the CA course.', url: 'https://eservices.icai.org/EForms/configuredHtml/1666/87785/Registration.html' },
       { title: 'ICAI main website', note: 'Institute news, council decisions and official notices.', url: 'https://www.icai.org/' },
     ],
   },
@@ -70,10 +65,13 @@ function open(url: string) {
 export function IcaiScreen() {
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <ScreenHeader title="ICAI services" sub="Relevant official ICAI services, in one place." />
-      {TABS.map((t) => (
+      <View style={styles.head}>
+        <Text style={styles.headTitle}>ICAI services</Text>
+        <Text style={styles.headSub}>Relevant official ICAI services, in one place.</Text>
+      </View>
+      {SECTIONS.map((t) => (
         <View key={t.id} style={styles.section}>
-          <SectionTitle title={t.label} />
+          <Text style={styles.secTitle}>{t.label}</Text>
           <View style={styles.grid}>
             {t.services.map((s) => (
               <Pressable
@@ -84,50 +82,44 @@ export function IcaiScreen() {
                 style={styles.svcCell}
               >
                 <Card style={styles.svc}>
-                  <Text numberOfLines={4} style={styles.svcTitle}>{s.title}</Text>
+                  <Text numberOfLines={2} style={styles.svcTitle}>{s.title}</Text>
                 </Card>
               </Pressable>
             ))}
           </View>
         </View>
       ))}
-      <SectionTitle title="Study tools in Cohort" />
-      <Card>
-        <Text style={styles.title}>AI assistant</Text>
-        <Text style={styles.body}>Coming soon</Text>
-      </Card>
-      <Card>
-        <Text style={styles.title}>MCQ practice bank</Text>
-        <Text style={styles.body}>Coming soon</Text>
-      </Card>
+      <View style={styles.section}>
+        <Text style={styles.secTitle}>Study tools in Cohort</Text>
+        <View style={styles.grid}>
+          <View style={styles.svcCell}>
+            <Card style={styles.svc}>
+              <Text numberOfLines={1} style={styles.svcTitle}>AI assistant</Text>
+              <Text style={styles.soon}>Coming soon</Text>
+            </Card>
+          </View>
+          <View style={styles.svcCell}>
+            <Card style={styles.svc}>
+              <Text numberOfLines={1} style={styles.svcTitle}>MCQ practice bank</Text>
+              <Text style={styles.soon}>Coming soon</Text>
+            </Card>
+          </View>
+        </View>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { gap: spacing.sm },
-  page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 120 },
-  tabs: { flexDirection: 'row', flexWrap: 'nowrap', gap: 6 },
-  tab: {
-    alignItems: 'center', backgroundColor: colors.brandSoft, borderColor: colors.brand,
-    borderRadius: 10, borderWidth: 1, flex: 1, gap: 2, justifyContent: 'center',
-    paddingHorizontal: 2, paddingVertical: 7,
-  },
-  tabOn: { backgroundColor: colors.brand, borderColor: colors.brandDeep },
-  tabText: { color: colors.brandDeep, fontSize: 10, fontWeight: '600', lineHeight: 12, textAlign: 'center' },
-  tabTextOn: { color: colors.card },
-  divider: { backgroundColor: colors.lineWarm, height: 1, width: '100%' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  head: { gap: 1 },
+  headSub: { color: colors.ink2, fontSize: 11, lineHeight: 14 },
+  headTitle: { color: colors.ink, fontFamily: font.display, fontSize: 17, letterSpacing: -0.3 },
+  page: { gap: 10, padding: 12, paddingBottom: 24 },
+  section: { gap: 4 },
+  secTitle: { color: colors.ink, fontFamily: font.display, fontSize: 13.5, letterSpacing: -0.2 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   svcCell: { flexGrow: 0, flexShrink: 0, width: '31%' },
-  svc: { justifyContent: 'center', minHeight: 84, padding: 10 },
-  svcTitle: { ...typeScale.caption, color: colors.ink, fontSize: 12, fontWeight: '600', lineHeight: 16 },
-  svcNote: { ...typeScale.caption, color: colors.ink2, fontSize: 10.5, lineHeight: 14 },
-  svcFoot: { alignItems: 'flex-start', gap: 3, marginTop: 'auto' },
-  title: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
-  body: { ...typeScale.body, color: colors.ink2, lineHeight: 22 },
-  badgeLogin: {
-    ...typeScale.caption, backgroundColor: colors.brandSoft, borderRadius: radius.pill, color: colors.brandDeep,
-    fontSize: 10, fontWeight: '600', overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 3,
-  },
-  badgeOpen: { ...typeScale.caption, color: colors.ink3, fontSize: 10 },
+  svc: { borderRadius: 12, gap: 2, justifyContent: 'center', minHeight: 46, padding: 6 },
+  svcTitle: { color: colors.ink, fontSize: 11, fontWeight: '600', lineHeight: 14 },
+  soon: { color: colors.ink3, fontSize: 9.5, lineHeight: 12 },
 });
