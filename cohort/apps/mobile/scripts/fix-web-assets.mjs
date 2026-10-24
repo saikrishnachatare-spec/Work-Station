@@ -18,17 +18,17 @@ function* walk(dir) {
 
 const moved = [];
 for (const file of walk(join(dist, 'assets'))) {
-  if (!/\.(ttf|otf|woff2?)$/.test(file)) continue;
   const rel = relative(dist, file).split('\\').join('/');
   if (!rel.includes('/.')) continue;
-  const target = `assets/fonts/${basename(file)}`;
-  mkdirSync(join(dist, 'assets/fonts'), { recursive: true });
+  const sub = /\.(ttf|otf|woff2?)$/.test(file) ? 'fonts' : 'img';
+  const target = `assets/${sub}/${basename(file)}`;
+  mkdirSync(join(dist, `assets/${sub}`), { recursive: true });
   cpSync(file, join(dist, target));
   moved.push([rel, target]);
 }
 
-for (const file of walk(join(dist, '_expo'))) {
-  if (!file.endsWith('.js')) continue;
+for (const file of walk(dist)) {
+  if (!/\.(js|html|css|json)$/.test(file)) continue;
   let src = readFileSync(file, 'utf8');
   let changed = false;
   for (const [from, to] of moved) {
