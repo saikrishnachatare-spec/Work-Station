@@ -98,12 +98,7 @@ export function IcaiScreen() {
             style={styles.svcCell}
           >
             <Card style={styles.svc}>
-              <Text numberOfLines={3} style={styles.svcTitle}>{s.title}</Text>
-              <Text numberOfLines={4} style={styles.svcNote}>{s.note}</Text>
-              <View style={styles.svcFoot}>
-                {s.login && <Text style={styles.badgeLogin}>ICAI login</Text>}
-                <Text style={styles.badgeOpen}>New tab</Text>
-              </View>
+              <Text numberOfLines={4} style={styles.svcTitle}>{s.title}</Text>
             </Card>
           </Pressable>
         ))}
@@ -141,7 +136,7 @@ const styles = StyleSheet.create({
   divider: { backgroundColor: colors.lineWarm, height: 1, width: '100%' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   svcCell: { flexGrow: 0, flexShrink: 0, width: '31%' },
-  svc: { gap: 4, minHeight: 148, padding: 10 },
+  svc: { justifyContent: 'center', minHeight: 84, padding: 10 },
   svcTitle: { ...typeScale.caption, color: colors.ink, fontSize: 12, fontWeight: '600', lineHeight: 16 },
   svcNote: { ...typeScale.caption, color: colors.ink2, fontSize: 10.5, lineHeight: 14 },
   svcFoot: { alignItems: 'flex-start', gap: 3, marginTop: 'auto' },
