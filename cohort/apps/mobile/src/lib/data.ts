@@ -568,15 +568,10 @@ export function useStartThread(userId: string | undefined) {
   return useMutation({
     mutationFn: async ({ otherUserId, firstMessage }: { firstMessage: string; otherUserId: string }) => {
       if (!userId) throw new Error('Sign in to send messages');
-      const { data: thread, error: e1 } = await supabase.from('threads').insert({}).select('id').single();
-      if (e1) throw e1;
-      const { error: e2 } = await supabase
-        .from('thread_participants')
-        .insert([{ thread_id: thread.id, user_id: userId }, { thread_id: thread.id, user_id: otherUserId }]);
-      if (e2) throw e2;
-      const { error: e3 } = await supabase.from('messages').insert({ body: firstMessage, sender_id: userId, thread_id: thread.id });
-      if (e3) throw e3;
-      return thread.id as string;
+      // Server-side function creates the DM, adds both people and sends the first message.
+      const { data, error } = await supabase.rpc('start_dm', { p_other: otherUserId, p_first: firstMessage });
+      if (error) throw error;
+      return data as string;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['threads', userId] }),
   });
