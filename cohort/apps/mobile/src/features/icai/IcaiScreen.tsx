@@ -4,53 +4,22 @@ import { Card } from '@/components/Card';
 import { colors, font } from '@/theme';
 
 type Service = { title: string; note: string; url: string; login?: boolean };
-type Section = { id: string; services: Service[] };
 
-const SECTIONS: Section[] = [
-  {
-    id: 'exams',
-    services: [
-      { title: 'Exam results and merit lists', note: 'Foundation, Inter and Final results with announcement dates.', url: 'https://caresults.icai.org' },
-      { title: 'Exam forms and admit cards', note: 'Application forms, corrections and admit cards run through your SSP login.', url: 'https://eservices.icai.org/', login: true },
-      { title: 'Exam FAQs', note: 'ICAI answers on exam rules, centres and papers (PDF).', url: 'https://icai-call-sahayata.icai.org/assets/pdf/FAQs-on-Examinations-.pdf' },
-    ],
-  },
-  {
-    id: 'study',
-    services: [
-      { title: 'BoS Knowledge Portal', note: 'Syllabus, study material, RTPs, mock tests, live and recorded lectures, student journal.', url: 'https://boslive.icai.org/' },
-      { title: 'Order printed study material (CDS)', note: 'Centralised Distribution System for books at your doorstep.', url: 'https://www.icai.org/post/publication-cds-directorate' },
-    ],
-  },
-  {
-    id: 'training',
-    services: [
-      { title: 'ICITSS / Advanced ICITSS', note: 'IT and soft-skills course information and FAQs (PDF).', url: 'https://icai-call-sahayata.icai.org/wp-content/uploads/2025/03/SSEB-ICITSS-AICITSS-faq.pdf' },
-      { title: 'Practical training portal (SPMT)', note: 'Articleship and industrial training records through SSP-linked services.', url: 'https://spmt.icai.org/ICAI/LoginAction_input.action', login: true },
-      { title: 'ICAI Cloud Campus', note: 'Digital learning environment for ICAI courses.', url: 'https://cloudcampus.icai.org/', login: true },
-    ],
-  },
-  {
-    id: 'account',
-    services: [
-      { title: 'Self Service Portal (SSP)', note: 'Your ICAI account: registration, exam forms, fees, letters and requests.', url: 'https://eservices.icai.org/', login: true },
-      { title: 'ICAI main website', note: 'Institute news, council decisions and official notices.', url: 'https://www.icai.org/' },
-    ],
-  },
-  {
-    id: 'money',
-    services: [
-      { title: 'Scholarships (CASBF)', note: 'Financial assistance from the CA Students Benevolent Fund - rules and how to apply (PDF).', url: 'https://icai-call-sahayata.icai.org/wp-content/uploads/2025/01/scholarship-FAQs-updated-1.pdf' },
-      { title: 'Campus placements (CMI&B)', note: 'ICAI campus placement programme for newly qualified CAs.', url: 'https://cmib.icai.org/campus-signin?user_type=student', login: true },
-    ],
-  },
-  {
-    id: 'help',
-    services: [
-      { title: 'ICAI Call Sahayata', note: 'Official student helpdesk: call +91-99975 99975 or browse the FAQ library.', url: 'https://icai-call-sahayata.icai.org/' },
-      { title: 'BoS portal help and FAQs', note: 'Using the BoS Knowledge Portal, step by step.', url: 'https://www.icai.org/post/18502' },
-    ],
-  },
+const SERVICES: Service[] = [
+  { title: 'Exam results and merit lists', note: 'Foundation, Inter and Final results with announcement dates.', url: 'https://caresults.icai.org' },
+  { title: 'Self Service Portal (SSP)', note: 'Your ICAI account: registration, exam forms, fees, letters and requests.', url: 'https://eservices.icai.org/', login: true },
+  { title: 'Exam forms and admit cards', note: 'Application forms, corrections and admit cards run through your SSP login.', url: 'https://eservices.icai.org/', login: true },
+  { title: 'BoS Knowledge Portal', note: 'Syllabus, study material, RTPs, mock tests, live and recorded lectures, student journal.', url: 'https://boslive.icai.org/' },
+  { title: 'Order printed study material (CDS)', note: 'Centralised Distribution System for books at your doorstep.', url: 'https://www.icai.org/post/publication-cds-directorate' },
+  { title: 'Practical training portal (SPMT)', note: 'Articleship and industrial training records through SSP-linked services.', url: 'https://spmt.icai.org/ICAI/LoginAction_input.action', login: true },
+  { title: 'ICITSS / Advanced ICITSS', note: 'IT and soft-skills course information and FAQs (PDF).', url: 'https://icai-call-sahayata.icai.org/wp-content/uploads/2025/03/SSEB-ICITSS-AICITSS-faq.pdf' },
+  { title: 'ICAI Cloud Campus', note: 'Digital learning environment for ICAI courses.', url: 'https://cloudcampus.icai.org/', login: true },
+  { title: 'ICAI main website', note: 'Institute news, council decisions and official notices.', url: 'https://www.icai.org/' },
+  { title: 'Scholarships (CASBF)', note: 'Financial assistance from the CA Students Benevolent Fund - rules and how to apply (PDF).', url: 'https://icai-call-sahayata.icai.org/wp-content/uploads/2025/01/scholarship-FAQs-updated-1.pdf' },
+  { title: 'Campus placements (CMI&B)', note: 'ICAI campus placement programme for newly qualified CAs.', url: 'https://cmib.icai.org/campus-signin?user_type=student', login: true },
+  { title: 'Exam FAQs', note: 'ICAI answers on exam rules, centres and papers (PDF).', url: 'https://icai-call-sahayata.icai.org/assets/pdf/FAQs-on-Examinations-.pdf' },
+  { title: 'ICAI Call Sahayata', note: 'Official student helpdesk: call +91-99975 99975 or browse the FAQ library.', url: 'https://icai-call-sahayata.icai.org/' },
+  { title: 'BoS portal help and FAQs', note: 'Using the BoS Knowledge Portal, step by step.', url: 'https://www.icai.org/post/18502' },
 ];
 
 function open(url: string) {
@@ -68,25 +37,21 @@ export function IcaiScreen() {
         <Text style={styles.headTitle}>ICAI services</Text>
         <Text style={styles.headSub}>Relevant official ICAI services, in one place.</Text>
       </View>
-      {SECTIONS.map((t) => (
-        <View key={t.id} style={styles.section}>
-          <View style={styles.grid}>
-            {t.services.map((s) => (
-              <Pressable
-                accessibilityRole="link"
-                accessibilityLabel={`${s.title}. ${s.note}`}
-                key={s.url}
-                onPress={() => open(s.url)}
-                style={styles.svcCell}
-              >
-                <Card style={styles.svc}>
-                  <Text numberOfLines={2} style={styles.svcTitle}>{s.title}</Text>
-                </Card>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      ))}
+      <View style={styles.grid}>
+        {SERVICES.map((s) => (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`${s.title}. ${s.note}`}
+            key={s.title}
+            onPress={() => open(s.url)}
+            style={styles.svcCell}
+          >
+            <Card style={styles.svc}>
+              <Text numberOfLines={2} style={styles.svcTitle}>{s.title}</Text>
+            </Card>
+          </Pressable>
+        ))}
+      </View>
       <View style={styles.section}>
         <Text style={styles.secTitle}>Study tools in Cohort</Text>
         <View style={styles.grid}>
