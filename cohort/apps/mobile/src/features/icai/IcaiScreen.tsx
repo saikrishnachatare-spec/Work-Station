@@ -1,5 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
@@ -70,65 +68,44 @@ function open(url: string) {
 }
 
 export function IcaiScreen() {
-  const [tab, setTab] = useState(TABS[0].id);
-  const active = TABS.find((t) => t.id === tab) ?? TABS[0];
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <ScreenHeader title="ICAI services" sub="Relevant official ICAI services, in one place." />
-      <View style={styles.tabs}>
-        {TABS.map((t) => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ selected: tab === t.id }}
-            key={t.id}
-            onPress={() => setTab(t.id)}
-            style={[styles.tab, tab === t.id && styles.tabOn]}
-          >
-            <Text numberOfLines={3} style={[styles.tabText, tab === t.id && styles.tabTextOn]}>{t.label}</Text>
-            <Ionicons
-              color={tab === t.id ? colors.card : colors.brand}
-              name="chevron-down"
-              size={11}
-            />
-          </Pressable>
-        ))}
-      </View>
-      <View style={styles.divider} />
-      <View style={styles.grid}>
-        {active.services.map((s) => (
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel={`${s.title}. ${s.note}`}
-            key={s.url}
-            onPress={() => open(s.url)}
-            style={styles.svcCell}
-          >
-            <Card style={styles.svc}>
-              <Text numberOfLines={4} style={styles.svcTitle}>{s.title}</Text>
-            </Card>
-          </Pressable>
-        ))}
-      </View>
+      {TABS.map((t) => (
+        <View key={t.id} style={styles.section}>
+          <SectionTitle title={t.label} />
+          <View style={styles.grid}>
+            {t.services.map((s) => (
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel={`${s.title}. ${s.note}`}
+                key={s.url}
+                onPress={() => open(s.url)}
+                style={styles.svcCell}
+              >
+                <Card style={styles.svc}>
+                  <Text numberOfLines={4} style={styles.svcTitle}>{s.title}</Text>
+                </Card>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ))}
       <SectionTitle title="Study tools in Cohort" />
       <Card>
-        <Text style={styles.title}>AI assistant not connected</Text>
-        <Text style={styles.body}>
-          A real provider key and spending limit are needed. The canned assistant was removed rather than
-          shown as live AI.
-        </Text>
+        <Text style={styles.title}>AI assistant</Text>
+        <Text style={styles.body}>Coming soon</Text>
       </Card>
       <Card>
-        <Text style={styles.title}>Question bank not published</Text>
-        <Text style={styles.body}>
-          The sample quiz was removed. A reviewed original or licensed question bank is still needed.
-          Until then, use the BoS Knowledge Portal official mock tests and RTPs above.
-        </Text>
+        <Text style={styles.title}>MCQ practice bank</Text>
+        <Text style={styles.body}>Coming soon</Text>
       </Card>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  section: { gap: spacing.sm },
   page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 120 },
   tabs: { flexDirection: 'row', flexWrap: 'nowrap', gap: 6 },
   tab: {
