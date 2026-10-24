@@ -496,31 +496,51 @@ export default function AdminScreen() {
       )}
 
       {section === 'Reports' && <View style={{gap:12}}>{reports.isError?<Text>Could not load reports.</Text>:reports.data?.length===0?<Text>No reports.</Text>:reports.data?.map(r=><Card key={r.id}><Text>{r.target_type}: {r.target_id}</Text><Text>{r.reason}</Text><Text>{r.status}</Text>{r.status==='open'&&<ActionBtn label="Mark reviewed" onPress={async()=>{const{error}=await supabase.from('content_reports').update({status:'reviewed'}).eq('id',r.id);if(!error)qc.invalidateQueries({queryKey:['reports']});}}/>}</Card>)}</View>}
-      {section === 'Errors' && (
-        <View style={{ gap: spacing.sm }}>
-          <Text style={styles.meta}>
-            Uncaught errors and failed promises from the app land here automatically, newest first.
-          </Text>
-          {(errorLogs.data ?? []).length === 0 && (
-            <Card><Text style={styles.meta}>No errors logged. That is the goal.</Text></Card>
-          )}
-          {(errorLogs.data ?? []).map((e) => (
-            <Card key={e.id} style={{ gap: 4 }}>
-              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.strong} numberOfLines={2}>{e.message}</Text>
-                  <Text style={styles.meta}>{e.url} · {timeAgo(e.created_at)}</Text>
+      {section === 'Errors' && (() => {
+        const rows = errorLogs.data ?? [];
+        const groups = new Map<string, { key: string; message: string; url: string; count: number; first: string; last: string; stack: string | null; agents: Set<string>; ids: string[] }>();
+        for (const e of rows) {
+          const key = `${e.message.slice(0, 120)}|${e.url ?? 'app'}`;
+          const g = groups.get(key) ?? { key, message: e.message, url: e.url ?? 'app', count: 0, first: e.created_at, last: e.created_at, stack: e.stack, agents: new Set<string>(), ids: [] as string[] };
+          g.count += 1;
+          if (e.created_at < g.first) g.first = e.created_at;
+          if (e.created_at > g.last) { g.last = e.created_at; g.stack = e.stack; }
+          if (e.user_agent) g.agents.add(e.user_agent.includes('HeadlessChrome') ? 'automated test browser' : e.user_agent.slice(0, 40));
+          g.ids.push(e.id);
+          groups.set(key, g);
+        }
+        const sorted = [...groups.values()].sort((a, b) => (a.last < b.last ? 1 : -1));
+        return (
+          <View style={{ gap: spacing.sm }}>
+            <Text style={styles.meta}>
+              Uncaught errors and failed promises from the app land here automatically. Identical errors are grouped -
+              the count is how many times each happened. Entries from automated test browsers are marked; those come
+              from Cohort's own verification runs, not from members.
+            </Text>
+            {rows.length === 0 && (
+              <Card><Text style={styles.meta}>No errors logged. That is the goal.</Text></Card>
+            )}
+            {sorted.map((g) => (
+              <Card key={g.key} style={{ gap: 4 }}>
+                <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.strong} numberOfLines={2}>{g.message}</Text>
+                    <Text style={styles.meta}>
+                      {g.url} · {g.count} time{g.count === 1 ? '' : 's'} · first {timeAgo(g.first)} · latest {timeAgo(g.last)}
+                    </Text>
+                    <Text style={styles.meta}>{[...g.agents].join(', ')}</Text>
+                  </View>
+                  <ActionBtn label={g.count > 1 ? `Clear ${g.count}` : 'Clear'} onPress={async () => {
+                    await supabase.from('error_logs').delete().in('id', g.ids);
+                    refresh();
+                  }} />
                 </View>
-                <ActionBtn label="Clear" onPress={async () => {
-                  await supabase.from('error_logs').delete().eq('id', e.id);
-                  refresh();
-                }} />
-              </View>
-              {e.stack ? <Text numberOfLines={3} style={styles.stack}>{e.stack}</Text> : null}
-            </Card>
-          ))}
-        </View>
-      )}
+                {g.stack ? <Text numberOfLines={3} style={styles.stack}>{g.stack}</Text> : null}
+              </Card>
+            ))}
+          </View>
+        );
+      })()}
 
       {section === 'Activity' && (() => {
         const CATEGORIES: Record<string, string[]> = {
