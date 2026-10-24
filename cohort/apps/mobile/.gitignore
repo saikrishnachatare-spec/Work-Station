@@ -42,3 +42,4 @@ example
 /ios
 /android
 .vercel
+.env*
