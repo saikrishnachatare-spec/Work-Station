@@ -41,7 +41,7 @@ export function CardSkeleton() {
   return (
     <View style={styles.card}>
       <View style={styles.cardHead}>
-        <Skeleton height={40} width={40} style={{ borderRadius: 20 }} />
+        <Skeleton height={40} width={40} style={styles.circle} />
         <View style={styles.cardHeadText}>
           <Skeleton height={13} width="55%" />
           <Skeleton height={11} width="35%" />
@@ -77,5 +77,10 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   cardHead: { alignItems: 'center', flexDirection: 'row', gap: spacing.md },
+  // Registered style (atomic class) rather than an inline object: the static
+  // export serialises inline borderRadius as four longhand properties while
+  // the browser normalises them to the shorthand, which React hydration
+  // reports as a style mismatch (error #418 on every skeleton).
+  circle: { borderRadius: 20 },
   cardHeadText: { flex: 1, gap: 6 },
 });
