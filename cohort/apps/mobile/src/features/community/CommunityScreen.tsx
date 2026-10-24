@@ -72,29 +72,26 @@ export function CommunityScreen() {
       )}
       {groupsView && list.map((g) => (
         <Card key={g.id} style={styles.card}>
-          <View style={styles.icon}><Ionicons color={colors.brand} name="people-outline" size={18} /></View>
-          <View style={{ flex: 1, gap: 3 }}>
-            <Text style={styles.strong}>{g.name}</Text>
-            <Text style={styles.meta}>{g.description}</Text>
-            <View style={styles.tags}>
-              <Pill label={g.purpose} />
-              <Text style={styles.meta}>{g.member_count.toLocaleString('en-IN')} members</Text>
+          <Pressable
+            disabled={!mine(g.id)}
+            onPress={() => router.push({ params: { group: g.id, name: g.name }, pathname: '/group-chat' })}
+            style={styles.cardTap}
+          >
+            <View style={styles.icon}><Ionicons color={colors.brand} name="people-outline" size={18} /></View>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={styles.strong}>{g.name}</Text>
+              <Text style={styles.meta}>{g.description}</Text>
+              <View style={styles.tags}>
+                <Pill label={g.purpose} />
+                <Text style={styles.meta}>{g.member_count.toLocaleString('en-IN')} members</Text>
+              </View>
             </View>
-          </View>
-          <View style={{ alignItems: 'flex-end', gap: 6 }}>
-            <Pressable onPress={() => toggle(g.id)} style={[styles.btn, mine(g.id) && styles.btnDone]}>
-              <Text style={[styles.btnText, mine(g.id) && styles.btnTextDone]}>{mine(g.id) ? 'Joined' : 'Join'}</Text>
+          </Pressable>
+          {!mine(g.id) && (
+            <Pressable onPress={() => toggle(g.id)} style={styles.btn}>
+              <Text style={styles.btnText}>Join</Text>
             </Pressable>
-            {mine(g.id) && (
-              <Pressable
-                onPress={() => router.push({ params: { group: g.id, name: g.name }, pathname: '/group-chat' })}
-                style={styles.chatBtn}
-              >
-                <Ionicons color={colors.brand} name="chatbubbles-outline" size={13} />
-                <Text style={styles.chatBtnText}>Group chat</Text>
-              </Pressable>
-            )}
-          </View>
+          )}
         </Card>
       ))}
     </ScrollView>
@@ -246,6 +243,7 @@ const styles = StyleSheet.create({
   page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 120 },
   chips: { flexDirection: 'row', gap: spacing.sm },
   card: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  cardTap: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: spacing.sm },
   icon: {
     alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: 10,
     height: 38, justifyContent: 'center', width: 38,
