@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useState } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
+import { createElement, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Linking } from 'react-native';
 
 import { Card } from '@/components/Card';
@@ -10,7 +11,8 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/Toast';
-import { useResources } from '@/lib/data';
+import { useDeleteStudentNote, useMyProfile, useResources, useStudentNotes, useUploadStudentNote } from '@/lib/data';
+import { useAuth } from '@/store/session';
 import { itemShareUrl, shareItemLink } from '@/lib/share';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
@@ -22,6 +24,17 @@ export function ResourcesScreen() {
   const [kind, setKind] = useState('All');
   const [query, setQuery] = useState('');
   const resources = useResources();
+  const { session } = useAuth();
+  const userId = session?.user?.id;
+  const profile = useMyProfile(userId);
+  const notes = useStudentNotes();
+  const uploadNote = useUploadStudentNote();
+  const deleteNote = useDeleteStudentNote();
+  const [noteQuery, setNoteQuery] = useState('');
+  const [addingNote, setAddingNote] = useState(false);
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteSubject, setNoteSubject] = useState('');
+  const [noteFile, setNoteFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const q = query.trim().toLowerCase();
   const matches = (r: { title: string; course: string; subject?: string }) =>
     !q || r.title.toLowerCase().includes(q) || r.course.toLowerCase().includes(q) || (r.subject ?? '').toLowerCase().includes(q);
@@ -31,6 +44,26 @@ export function ResourcesScreen() {
     if (error || !data) { toast.show('Sign in to open this file, or try again.', 'error'); return; }
     if (Platform.OS === 'web') window.location.assign(data.signedUrl);
     else await Linking.openURL(data.signedUrl);
+  };
+  const openNote = async (filePath: string) => {
+    const { data, error } = await supabase.storage.from('student-notes').createSignedUrl(filePath, 300);
+    if (error || !data) { toast.show('Could not open this file. Try again.', 'error'); return; }
+    if (Platform.OS === 'web') window.location.assign(data.signedUrl);
+    else await Linking.openURL(data.signedUrl);
+  };
+  const nq = noteQuery.trim().toLowerCase();
+  const visibleNotes = (notes.data ?? []).filter((n) =>
+    !nq || n.title.toLowerCase().includes(nq) || n.subject.toLowerCase().includes(nq) || n.uploader_name.toLowerCase().includes(nq));
+  const submitNote = () => {
+    const t = noteTitle.trim();
+    if (!t || !userId) { toast.show('Name your notes first', 'info'); return; }
+    uploadNote.mutate(
+      { file: noteFile, subject: noteSubject.trim(), title: t, uploaderName: profile.data?.full_name || 'A member', userId },
+      {
+        onError: (e) => toast.show(e instanceof Error ? e.message : 'Could not share the notes. Try again.', 'error'),
+        onSuccess: () => { toast.show('Notes shared', 'success'); setAddingNote(false); setNoteTitle(''); setNoteSubject(''); setNoteFile(null); },
+      },
+    );
   };
   const ResourceRow = ({ r }: { r: (typeof shared)[number] }) => (
     <Card style={styles.resCard}>
@@ -145,6 +178,96 @@ export function ResourcesScreen() {
           })}
         </View>
       ))}
+      <Text style={styles.crumbs}>Student notes</Text>
+      <Text style={styles.meta}>Notes and files shared by members. Anyone signed in can add theirs.</Text>
+      <View style={styles.searchbar}>
+        <Ionicons color={colors.ink3} name="search" size={16} />
+        <TextInput
+          onChangeText={setNoteQuery}
+          placeholder="Search notes, subjects or uploaders…"
+          placeholderTextColor={colors.ink3}
+          style={[styles.searchText, { flex: 1 }]}
+          value={noteQuery}
+        />
+      </View>
+      {userId && !addingNote && (
+        <Pressable accessibilityRole="button" onPress={() => setAddingNote(true)} style={styles.addNoteBtn}>
+          <Ionicons color={colors.brand} name="add" size={16} />
+          <Text style={styles.addNoteText}>Share your notes</Text>
+        </Pressable>
+      )}
+      {addingNote && (
+        <Card style={{ gap: spacing.sm }}>
+          <Text style={styles.strong}>Share notes</Text>
+          <TextInput
+            onChangeText={setNoteTitle}
+            placeholder="Title, e.g. FR revision notes"
+            placeholderTextColor={colors.ink3}
+            style={styles.input}
+            value={noteTitle}
+          />
+          <TextInput
+            onChangeText={setNoteSubject}
+            placeholder="Subject (optional)"
+            placeholderTextColor={colors.ink3}
+            style={styles.input}
+            value={noteSubject}
+          />
+          <Text style={styles.meta}>PDF, PNG, JPEG or WebP, up to 10 MB.</Text>
+          {Platform.OS === 'web' ? createElement('input', {
+            type: 'file', accept: 'application/pdf,image/png,image/jpeg,image/webp',
+            'aria-label': 'Choose PDF or image',
+            onChange: (event: { target: { files: FileList | null } }) => {
+              const file = event.target.files?.[0];
+              if (file) setNoteFile({ uri: URL.createObjectURL(file), name: file.name, lastModified: file.lastModified, size: file.size, mimeType: file.type } as DocumentPicker.DocumentPickerAsset);
+            }, style: { padding: 12, backgroundColor: '#fff', borderRadius: 12 },
+          }) : (
+            <Pressable accessibilityRole="button" onPress={async () => {
+              const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'], copyToCacheDirectory: true });
+              if (!result.canceled) setNoteFile(result.assets[0]);
+            }} style={styles.pickBtn}><Text style={styles.pickBtnText}>{noteFile ? noteFile.name : 'Choose PDF or image'}</Text></Pressable>
+          )}
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Pressable accessibilityRole="button" disabled={uploadNote.isPending} onPress={submitNote} style={styles.btn}>
+              <Text style={styles.btnText}>{uploadNote.isPending ? 'Sharing…' : 'Share'}</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => setAddingNote(false)} style={styles.ghostBtn}>
+              <Text style={styles.ghostBtnText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </Card>
+      )}
+      {notes.isLoading && <ListSkeleton count={2} />}
+      {!notes.isLoading && visibleNotes.length === 0 && (
+        <EmptyState
+          body={nq ? 'No notes match that search.' : 'No notes yet. Be the first to share yours.'}
+          icon="document-text-outline"
+          title={nq ? 'Nothing found' : 'No notes yet'}
+        />
+      )}
+      {visibleNotes.map((n) => (
+        <Card key={n.id} style={styles.resCard}>
+          <View style={styles.resIcon}><Ionicons color={colors.brand} name="document-text-outline" size={17} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.strong}>{n.title}</Text>
+            <Text style={styles.meta}>{[n.subject, n.meta, `by ${n.uploader_name}`].filter(Boolean).join(' · ')}</Text>
+          </View>
+          {n.file_path && (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Open ${n.title}`} onPress={() => openNote(n.file_path!)}>
+              <Ionicons color={colors.brand} name="download-outline" size={22} />
+            </Pressable>
+          )}
+          {n.owner_id === userId && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Remove ${n.title}`}
+              onPress={() => deleteNote.mutate(n, { onError: () => toast.show('Could not remove the notes. Try again.', 'error'), onSuccess: () => toast.show('Notes removed', 'success') })}
+            >
+              <Ionicons color={colors.ink3} name="trash-outline" size={19} />
+            </Pressable>
+          )}
+        </Card>
+      ))}
     </ScrollView>
   );
 }
@@ -180,6 +303,21 @@ const styles = StyleSheet.create({
   subjHead: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   subjBody: { borderTopColor: colors.hairline, borderTopWidth: 1, gap: spacing.sm, marginTop: 10, paddingTop: 10 },
   subRes: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  addNoteBtn: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 4, paddingVertical: 4 },
+  addNoteText: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },
+  btn: {
+    backgroundColor: colors.brand, borderColor: colors.brand, borderRadius: radius.pill,
+    borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7,
+  },
+  btnText: { ...typeScale.caption, color: '#fff', fontWeight: '600' },
+  ghostBtn: { borderColor: colors.brand, borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7 },
+  ghostBtnText: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },
+  pickBtn: { backgroundColor: colors.cream, borderRadius: radius.input, padding: 12 },
+  pickBtnText: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },
+  input: {
+    ...typeScale.body, backgroundColor: colors.cream, borderColor: colors.lineWarm,
+    borderRadius: radius.input, borderWidth: 1, color: colors.ink, padding: 10,
+  },
   strong: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
   meta: { ...typeScale.caption, color: colors.ink3 },
 });

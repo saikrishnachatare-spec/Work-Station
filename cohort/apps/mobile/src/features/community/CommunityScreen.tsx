@@ -19,7 +19,7 @@ import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 export function CommunityScreen() {
   const router = useRouter();
-  const [view, setView] = useState('My groups');
+  const [view, setView] = useState('Groups');
   const toast = useToast();
   const { session } = useAuth();
   const userId = session?.user?.id;
@@ -28,8 +28,8 @@ export function CommunityScreen() {
   const toggleGroup = useToggleGroup(userId);
 
   const mine = (id: string) => myGroups.data?.has(id) ?? false;
-  const groupsView = view === 'My groups' || view === 'Discover';
-  const list = (groups.data ?? []).filter((g) => (view === 'My groups' ? mine(g.id) : !mine(g.id)));
+  const groupsView = view === 'Groups' || view === 'Discover';
+  const list = (groups.data ?? []).filter((g) => (view === 'Groups' ? mine(g.id) : !mine(g.id)));
 
   const toggle = (id: string) => {
     if (!userId) {
@@ -39,7 +39,7 @@ export function CommunityScreen() {
     toggleGroup.mutate(
       { groupId: id, member: mine(id) },
       {
-        onError: () => toast.show('Could not update membership. Try again.', 'error'),
+        onError: (e) => toast.show(e instanceof Error && e.message.includes('full') ? e.message : 'Could not update membership. Try again.', 'error'),
         onSuccess: () => toast.show(mine(id) ? 'Left the circle' : 'Joined the circle', 'success'),
       },
     );
@@ -49,10 +49,11 @@ export function CommunityScreen() {
     <ScrollView contentContainerStyle={styles.page}>
       <ScreenHeader sub="Groups with fellow students, mentors or anyone. Start a new one from the + button." title="Community" />
       <View style={styles.chips}>
-        {['My groups', 'Discover', 'Communities', 'Channels'].map((v) => <Chip key={v} label={v} active={v === view} onPress={() => setView(v)} />)}
+        {['Groups', 'Discover', 'Communities', 'Channels'].map((v) => <Chip key={v} label={v} active={v === view} onPress={() => setView(v)} />)}
       </View>
       {view === 'Communities' && <CommunitiesPanel userId={userId} />}
       {view === 'Channels' && <ChannelsPanel />}
+      {view === 'Groups' && <CommunitiesBrowse />}
       {groupsView && groups.isLoading && <ListSkeleton count={3} />}
       {groupsView && groups.isError && (
         <EmptyState
@@ -65,9 +66,9 @@ export function CommunityScreen() {
       )}
       {groupsView && !groups.isLoading && !groups.isError && list.length === 0 && (
         <EmptyState
-          body={view === 'My groups' ? 'You have not joined any circles yet. Find one under Discover.' : 'No circles to discover right now.'}
+          body={view === 'Groups' ? 'You have not joined any circles yet. Find one under Discover.' : 'No circles to discover right now.'}
           icon="people-outline"
-          title={view === 'My groups' ? 'No circles yet' : 'Nothing to discover'}
+          title={view === 'Groups' ? 'No circles yet' : 'Nothing to discover'}
         />
       )}
       {groupsView && list.map((g) => (
@@ -98,6 +99,54 @@ export function CommunityScreen() {
   );
 }
 
+
+function CommunitiesBrowse() {
+  const router = useRouter();
+  const communities = useCommunities();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const openGroups = useCommunityGroups(openId ?? undefined);
+  if (!communities.isLoading && (communities.data ?? []).length === 0) return null;
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <Text style={styles.crumbs}>Communities</Text>
+      {communities.isLoading && <ListSkeleton count={1} />}
+      {(communities.data ?? []).map((c) => {
+        const isOpen = openId === c.id;
+        return (
+          <Card key={c.id} style={{ gap: spacing.sm }}>
+            <Pressable onPress={() => setOpenId(isOpen ? null : c.id)} style={styles.card}>
+              <View style={styles.icon}><Ionicons color={colors.brand} name="people-circle-outline" size={18} /></View>
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={styles.strong}>{c.name}</Text>
+                {!!c.about && <Text style={styles.meta}>{c.about}</Text>}
+              </View>
+              <Ionicons color={colors.ink3} name={isOpen ? 'chevron-up' : 'chevron-down'} size={16} />
+            </Pressable>
+            {isOpen && (
+              <View style={{ gap: spacing.sm }}>
+                {openGroups.isLoading && <ListSkeleton count={1} />}
+                {!openGroups.isLoading && (openGroups.data ?? []).length === 0 && (
+                  <Text style={styles.meta}>No groups in this community yet.</Text>
+                )}
+                {(openGroups.data ?? []).map((g) => (
+                  <Pressable
+                    key={g.id}
+                    onPress={() => router.push({ params: { group: g.id, name: g.name }, pathname: '/group-chat' })}
+                    style={styles.chatBtn}
+                  >
+                    <Ionicons color={colors.brand} name="chatbubbles-outline" size={13} />
+                    <Text style={styles.chatBtnText}>{g.name} - open group chat</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </Card>
+        );
+      })}
+      <Text style={styles.crumbs}>Groups</Text>
+    </View>
+  );
+}
 
 function CommunitiesPanel({ userId }: { userId: string | undefined }) {
   const router = useRouter();
@@ -219,7 +268,7 @@ function CommunitiesPanel({ userId }: { userId: string | undefined }) {
                         onPress={() =>
                           addGroup.mutate(
                             { communityId: c.id, groupId: g.id },
-                            { onError: () => toast.show('Could not add that group. Try again.', 'error') },
+                            { onError: (e) => toast.show(e instanceof Error && e.message.includes('full') ? e.message : 'Could not add that group. Try again.', 'error') },
                           )
                         }
                         style={styles.chatBtn}
@@ -243,6 +292,7 @@ const styles = StyleSheet.create({
   page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 120 },
   chips: { flexDirection: 'row', gap: spacing.sm },
   card: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  crumbs: { ...typeScale.caption, color: colors.ink3, fontWeight: '600', textTransform: 'uppercase' },
   cardTap: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: spacing.sm },
   icon: {
     alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: 10,

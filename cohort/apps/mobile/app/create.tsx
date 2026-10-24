@@ -5,8 +5,7 @@ import { createElement, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useToast } from '@/components/Toast';
-import { COURSES } from '@/lib/demo-data';
-import { useCreateGroup, useCreateJob, useCreatePost, useCreateResource, useMyProfile } from '@/lib/data';
+import { useCreateGroup, useCreateJob, useCreatePost, useMyProfile, useUploadStudentNote } from '@/lib/data';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
@@ -17,14 +16,14 @@ const ACTIONS: { id: ActionId; icon: string; label: string; desc: string }[] = [
   { id: 'group', icon: 'people-outline', label: 'Create a group', desc: 'Study circle, exam form or professional' },
   { id: 'job', icon: 'briefcase-outline', label: 'Post a job opening', desc: 'Articleship, job, gig or industrial training' },
   { id: 'message', icon: 'chatbubble-outline', label: 'New message', desc: 'Message a student, mentor or firm' },
-  { id: 'resource', icon: 'book-outline', label: 'Share a resource', desc: 'Notes, question papers, videos or RTP / MTP' },
+  { id: 'resource', icon: 'book-outline', label: 'Share notes', desc: 'Class notes, guides or question papers for everyone' },
 ];
 
 const FORMS: Record<string, { title: string; ph1: string; ph2?: string; cta: string }> = {
   post: { title: 'Create a post', ph1: 'What do you want to share?', cta: 'Post' },
   group: { title: 'Create a group', ph1: 'Group name', ph2: 'What is it for?', cta: 'Create group' },
   job: { title: 'Post a job opening', ph1: 'Role, e.g. Articleship, statutory audit', ph2: 'Firm or company', cta: 'Post opening' },
-  resource: { title: 'Share a resource', ph1: 'Title, e.g. FR revision notes', ph2: 'Subject, e.g. Financial Reporting', cta: 'Share' },
+  resource: { title: 'Share notes', ph1: 'Title, e.g. FR revision notes', ph2: 'Subject, e.g. Financial Reporting', cta: 'Share' },
 };
 
 export default function CreateModal() {
@@ -34,7 +33,6 @@ export default function CreateModal() {
   const [text, setText] = useState('');
   const [text2, setText2] = useState('');
   const [resourceFile, setResourceFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
-  const [resourceCourse, setResourceCourse] = useState('CA');
   const [jobCat, setJobCat] = useState('Gig work');
   const [jobDesc, setJobDesc] = useState('');
   const [jobDeadline, setJobDeadline] = useState('');
@@ -48,7 +46,7 @@ export default function CreateModal() {
   const createPost = useCreatePost();
   const createGroup = useCreateGroup();
   const createJob = useCreateJob();
-  const createResource = useCreateResource();
+  const uploadNote = useUploadStudentNote();
 
   const pick = (id: ActionId) => {
     if (id === 'message') {
@@ -77,7 +75,7 @@ export default function CreateModal() {
     } else if (action === 'group') {
       createGroup.mutate(
         { description: b || 'Created by you.', name: a, purpose: b || 'Study group', userId },
-        { onError, onSuccess: () => setDone(`Circle "${a}" created. Find it under My groups.`) },
+        { onError, onSuccess: () => setDone(`Circle "${a}" created. Find it under the Groups tab.`) },
       );
     } else if (action === 'job') {
       if (jobDeadline && !/^\d{4}-\d{2}-\d{2}$/.test(jobDeadline.trim())) {
@@ -96,14 +94,14 @@ export default function CreateModal() {
         { onError, onSuccess: () => setDone(`"${a}"${b ? ' at ' + b : ''} is live under Work & hiring.`) },
       );
     } else if (action === 'resource') {
-      createResource.mutate(
-        { course: resourceCourse, subject: b, title: a, uploadedBy: authorName, userId, file: resourceFile },
-        { onError, onSuccess: () => setDone(`"${a}" shared under Resources${b ? ` in ${b}` : ''}.`) },
+      uploadNote.mutate(
+        { file: resourceFile, subject: b, title: a, uploaderName: authorName, userId },
+        { onError, onSuccess: () => setDone(`"${a}" shared under Resources in Student notes${b ? ` in ${b}` : ''}.`) },
       );
     }
   };
 
-  const busy = createPost.isPending || createGroup.isPending || createJob.isPending || createResource.isPending;
+  const busy = createPost.isPending || createGroup.isPending || createJob.isPending || uploadNote.isPending;
 
   return (
     <View style={styles.overlay}>
@@ -152,14 +150,7 @@ export default function CreateModal() {
               />
             )}
             {action === 'resource' && <>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {COURSES.map((c) => (
-                  <Pressable accessibilityRole="button" key={c} onPress={() => setResourceCourse(c)} style={[styles.courseChip, c === resourceCourse && styles.courseChipOn]}>
-                    <Text style={[styles.courseChipText, c === resourceCourse && styles.courseChipTextOn]}>{c}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <Text style={styles.meta}>PDF, PNG, JPEG or WebP, up to 10 MB. Shared with signed-in members.</Text>
+              <Text style={styles.meta}>PDF, PNG, JPEG or WebP, up to 10 MB. Lands in Student notes under Resources.</Text>
               {Platform.OS === 'web' ? createElement('input', {
                 type: 'file', accept: 'application/pdf,image/png,image/jpeg,image/webp',
                 'aria-label': 'Choose PDF or image',

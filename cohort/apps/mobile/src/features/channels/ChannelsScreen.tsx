@@ -35,7 +35,7 @@ export function ChannelsPanel() {
     toggleGroup.mutate(
       { groupId: id, member: mine(id) },
       {
-        onError: () => toast.show('Could not update. Try again.', 'error'),
+        onError: (e) => toast.show(e instanceof Error && e.message.includes('full') ? e.message : 'Could not update. Try again.', 'error'),
         onSuccess: () => toast.show(mine(id) ? 'Unfollowed the channel' : 'Following the channel', 'success'),
       },
     );

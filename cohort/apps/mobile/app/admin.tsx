@@ -10,8 +10,9 @@ import { useToast } from '@/components/Toast';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import { createElement, useEffect, useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
@@ -19,7 +20,7 @@ import { Pill, SectionTitle } from '@/components/ScreenBits';
 import {
   useAdminAnalytics,
   timeAgo, useActivityLog, useLiveAdminFeed, useGroups, useJobs, useMyProfile, usePosts, useProfiles, useResources, useTrash,
-  type ActivityRow, type TrashRow,
+  type ActivityRow, type TrashRow, useCreateResource,
 } from '@/lib/data';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/session';
@@ -104,6 +105,11 @@ export default function AdminScreen() {
   const groups = useGroups();
   const jobs = useJobs();
   const resources = useResources();
+  const createResource = useCreateResource();
+  const [newResTitle, setNewResTitle] = useState('');
+  const [newResSubject, setNewResSubject] = useState('');
+  const [newResCourse, setNewResCourse] = useState('CA');
+  const [newResFile, setNewResFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const isAdmin = profile.data?.role === 'admin' && profile.data?.status !== 'suspended';
   const errorLogs = useErrorLogs(!!isAdmin);
   const [activityLimit, setActivityLimit] = useState(200);
@@ -490,6 +496,61 @@ export default function AdminScreen() {
 
       {section === 'Resources' && (
         <View style={{ gap: spacing.sm }}>
+          <Card style={{ gap: spacing.sm }}>
+            <Text style={styles.strong}>Add a resource</Text>
+            <Text style={styles.meta}>Only admins can add main resources. Members share their own files under Student notes in the Resources tab.</Text>
+            <TextInput
+              onChangeText={setNewResTitle}
+              placeholder="Title, e.g. FR revision notes"
+              placeholderTextColor={colors.ink3}
+              style={styles.input}
+              value={newResTitle}
+            />
+            <TextInput
+              onChangeText={setNewResSubject}
+              placeholder="Subject, e.g. Financial Reporting"
+              placeholderTextColor={colors.ink3}
+              style={styles.input}
+              value={newResSubject}
+            />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {['CA', 'CMA', 'CS'].map((c) => (
+                <Pressable accessibilityRole="button" key={c} onPress={() => setNewResCourse(c)} style={[styles.chip, c === newResCourse && styles.chipOn]}>
+                  <Text style={[styles.chipText, c === newResCourse && styles.chipTextOn]}>{c}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.meta}>PDF, PNG, JPEG or WebP, up to 10 MB.</Text>
+            {Platform.OS === 'web' ? createElement('input', {
+              type: 'file', accept: 'application/pdf,image/png,image/jpeg,image/webp',
+              'aria-label': 'Choose PDF or image',
+              onChange: (event: { target: { files: FileList | null } }) => {
+                const file = event.target.files?.[0];
+                if (file) setNewResFile({ uri: URL.createObjectURL(file), name: file.name, lastModified: file.lastModified, size: file.size, mimeType: file.type } as DocumentPicker.DocumentPickerAsset);
+              }, style: { padding: 12, backgroundColor: '#fff', borderRadius: 12 },
+            }) : (
+              <Pressable accessibilityRole="button" onPress={async () => {
+                const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'], copyToCacheDirectory: true });
+                if (!result.canceled) setNewResFile(result.assets[0]);
+              }} style={styles.chip}><Text style={styles.chipText}>{newResFile ? newResFile.name : 'Choose PDF or image'}</Text></Pressable>
+            )}
+            <View>
+              <ActionBtn
+                label={createResource.isPending ? 'Adding…' : 'Add resource'}
+                onPress={() => {
+                  const title = newResTitle.trim();
+                  if (!title || !userId) { toast.show('Name the resource first', 'info'); return; }
+                  createResource.mutate(
+                    { course: newResCourse, file: newResFile, subject: newResSubject.trim(), title, uploadedBy: profile.data?.full_name || 'Admin', userId },
+                    {
+                      onError: (e) => toast.show(e instanceof Error ? e.message : 'Could not add the resource. Try again.', 'error'),
+                      onSuccess: () => { toast.show('Resource added', 'success'); setNewResTitle(''); setNewResSubject(''); setNewResFile(null); },
+                    },
+                  );
+                }}
+              />
+            </View>
+          </Card>
           {(resources.data ?? []).map((r) => (
             <Card key={r.id} style={styles.row}>
               <View style={{ flex: 1 }}>
@@ -731,6 +792,13 @@ const styles = StyleSheet.create({
   title: { ...typeScale.screenTitle, color: colors.ink, textAlign: 'left' },
   meta: { ...typeScale.caption, color: colors.ink3 },
   strong: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
+  chip: {
+    backgroundColor: colors.card, borderColor: colors.lineWarm, borderRadius: radius.pill,
+    borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6,
+  },
+  chipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
+  chipText: { ...typeScale.caption, color: colors.ink2, fontWeight: '600' },
+  chipTextOn: { color: colors.brand },
   input: {
     ...typeScale.body, backgroundColor: colors.card, borderColor: colors.lineWarm,
     borderRadius: radius.input, borderWidth: 1, color: colors.ink,

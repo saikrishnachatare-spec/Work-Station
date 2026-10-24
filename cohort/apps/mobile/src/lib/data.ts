@@ -549,6 +549,59 @@ export function useCreateResource() {
   });
 }
 
+export type StudentNote = {
+  created_at: string; file_name: string | null; file_path: string | null; id: string; meta: string;
+  mime_type: string | null; owner_id: string | null; subject: string; title: string; uploader_name: string;
+};
+
+export function useStudentNotes() {
+  return useQuery({
+    queryKey: ['student-notes'],
+    queryFn: async (): Promise<StudentNote[]> => {
+      const { data, error } = await supabase.from('student_notes').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as StudentNote[];
+    },
+  });
+}
+
+export function useUploadStudentNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ subject = '', title, uploaderName, userId, file }: {
+      file?: { mimeType?: string; name: string; size?: number; uri: string } | null;
+      subject?: string; title: string; uploaderName: string; userId: string;
+    }) => {
+      if (!file) throw new Error('Choose a PDF or image');
+      if ((file.size ?? 0) > 10 * 1024 * 1024) throw new Error('Maximum file size is 10 MB');
+      const mime = file.mimeType || 'application/pdf';
+      if (!['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(mime)) throw new Error('Choose a PDF, PNG, JPEG or WebP');
+      const path = `${userId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const bytes = await (await fetch(file.uri)).arrayBuffer();
+      const { error: uploadError } = await supabase.storage.from('student-notes').upload(path, bytes, { contentType: mime });
+      if (uploadError) throw uploadError;
+      const { error } = await supabase.from('student_notes').insert({
+        file_name: file.name, file_path: path, meta: `${Math.ceil(bytes.byteLength / 1024)} KB`,
+        mime_type: mime, owner_id: userId, subject, title, uploader_name: uploaderName,
+      });
+      if (error) { await supabase.storage.from('student-notes').remove([path]); throw error; }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['student-notes'] }),
+  });
+}
+
+export function useDeleteStudentNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (note: StudentNote) => {
+      const { error } = await supabase.from('student_notes').delete().eq('id', note.id);
+      if (error) throw error;
+      if (note.file_path) await supabase.storage.from('student-notes').remove([note.file_path]);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['student-notes'] }),
+  });
+}
+
 export type JobAlertPref = { user_id: string; keywords: string; last_seen_at: string };
 
 export function useJobAlertPref(userId: string | undefined) {
