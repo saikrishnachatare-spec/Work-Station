@@ -16,6 +16,12 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/session';
 import { colors } from '@/theme';
 
+/** Constant header title container style that keeps SSR HTML and client
+ * hydration identical (fixes React error #418). Untyped in native-stack. */
+const HYDRATION_SAFE_TITLE_CONTAINER = {
+  headerTitleContainerStyle: { maxWidth: '100%' },
+} as Record<string, unknown>;
+
 /** Sends unauthenticated, non-guest users to the login screen. */
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { guest, loading, session } = useAuth();
@@ -92,6 +98,13 @@ export default function RootLayout() {
             headerTintColor: colors.ink,
             headerStyle: { backgroundColor: colors.cream },
             headerTitleStyle: { fontFamily: 'Georgia' },
+            // Hydration safety: react-navigation derives the title container's
+            // maxWidth from the measured layout width, which is 0 in the static
+            // export pass, so the served HTML carries broken negative values and
+            // React hydration mismatches (error #418) on every real page load.
+            // A constant renders identically on server and client. The option is
+            // consumed by the web header but missing from native-stack types.
+            ...HYDRATION_SAFE_TITLE_CONTAINER,
           }}
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

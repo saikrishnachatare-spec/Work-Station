@@ -104,7 +104,7 @@ export default function AdminScreen() {
   const groups = useGroups();
   const jobs = useJobs();
   const resources = useResources();
-  const isAdmin = profile.data?.role === 'admin';
+  const isAdmin = profile.data?.role === 'admin' && profile.data?.status !== 'suspended';
   const errorLogs = useErrorLogs(!!isAdmin);
   const [activityLimit, setActivityLimit] = useState(200);
   const activity = useActivityLog(!!isAdmin, activityLimit);
@@ -149,6 +149,19 @@ export default function AdminScreen() {
         <Text style={styles.meta}>
           {profile.data?.full_name ? `${profile.data.full_name}, your` : 'Your'} account is a normal member
           account. Admin access is granted by an existing admin from inside this panel.
+        </Text>
+      </Centered>
+    );
+  }
+
+  if (profile.data?.role === 'admin' && profile.data?.status === 'suspended') {
+    return (
+      <Centered>
+        <View style={styles.gateIcon}><Ionicons color="#fff" name="shield-outline" size={20} /></View>
+        <Text style={styles.title}>Admin access inactive</Text>
+        <Text style={styles.meta}>
+          This account has the admin role but is currently suspended, so admin data is withheld
+          by the backend. An active admin can reinstate the account from the Members section.
         </Text>
       </Centered>
     );
@@ -505,7 +518,7 @@ export default function AdminScreen() {
           g.count += 1;
           if (e.created_at < g.first) g.first = e.created_at;
           if (e.created_at > g.last) { g.last = e.created_at; g.stack = e.stack; }
-          if (e.user_agent) g.agents.add(e.user_agent.includes('HeadlessChrome') ? 'automated test browser' : e.user_agent.slice(0, 40));
+          if (e.user_agent) g.agents.add(e.user_agent.includes('HeadlessChrome') ? 'headless browser' : e.user_agent.slice(0, 40));
           g.ids.push(e.id);
           groups.set(key, g);
         }
@@ -514,8 +527,8 @@ export default function AdminScreen() {
           <View style={{ gap: spacing.sm }}>
             <Text style={styles.meta}>
               Uncaught errors and failed promises from the app land here automatically. Identical errors are grouped -
-              the count is how many times each happened. Entries from automated test browsers are marked; those come
-              from Cohort's own verification runs, not from members.
+              the count is how many times each happened and which browsers reported them. Headless browsers are
+              often our verification runs, but the reporting browser alone never proves an entry's origin.
             </Text>
             {rows.length === 0 && (
               <Card><Text style={styles.meta}>No errors logged. That is the goal.</Text></Card>
