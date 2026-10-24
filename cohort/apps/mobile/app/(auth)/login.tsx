@@ -18,7 +18,7 @@ type Mode = 'signin' | 'signup' | 'reset';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Collected at signup for contact data only - never verified by SMS.
 // Kept private (owner and admins only), never shown on public profiles.
-const PHONE_REQUIRED = false;
+const PHONE_REQUIRED = true;
 const PHONE_RE = /^\+?\d{8,15}$/;
 const normalizePhone = (raw: string) => raw.replace(/[\s().-]/g, '');
 
@@ -196,7 +196,7 @@ export default function LoginScreen() {
               autoComplete="tel"
               keyboardType="phone-pad"
               onChangeText={setPhone}
-              placeholder={PHONE_REQUIRED ? 'Phone number (with country code)' : 'Phone number (optional, with country code)'}
+              placeholder="Phone number (with country code)"
               placeholderTextColor={colors.ink3}
               style={styles.input}
               value={phone}
