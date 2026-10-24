@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -83,7 +84,12 @@ export function IcaiScreen() {
             onPress={() => setTab(t.id)}
             style={[styles.tab, tab === t.id && styles.tabOn]}
           >
-            <Text style={[styles.tabText, tab === t.id && styles.tabTextOn]}>{t.label}</Text>
+            <Text numberOfLines={3} style={[styles.tabText, tab === t.id && styles.tabTextOn]}>{t.label}</Text>
+            <Ionicons
+              color={tab === t.id ? colors.card : colors.brand}
+              name="chevron-down"
+              size={11}
+            />
           </Pressable>
         ))}
       </View>
@@ -124,15 +130,15 @@ export function IcaiScreen() {
 
 const styles = StyleSheet.create({
   page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 120 },
-  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  tabs: { flexDirection: 'row', flexWrap: 'nowrap', gap: 6 },
   tab: {
-    alignItems: 'center', aspectRatio: 1.3, backgroundColor: colors.card, borderColor: colors.lineWarm,
-    borderRadius: 14, borderWidth: 1, justifyContent: 'center', maxWidth: 112, minWidth: 92,
-    padding: 8, width: '30%',
+    alignItems: 'center', backgroundColor: colors.brandSoft, borderColor: colors.brand,
+    borderRadius: 10, borderWidth: 1, flex: 1, gap: 2, justifyContent: 'center',
+    paddingHorizontal: 2, paddingVertical: 7,
   },
-  tabOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
-  tabText: { ...typeScale.caption, color: colors.ink2, fontWeight: '500', textAlign: 'center' },
-  tabTextOn: { color: colors.brandDeep, fontWeight: '600' },
+  tabOn: { backgroundColor: colors.brand, borderColor: colors.brandDeep },
+  tabText: { color: colors.brandDeep, fontSize: 10, fontWeight: '600', lineHeight: 12, textAlign: 'center' },
+  tabTextOn: { color: colors.card },
   divider: { backgroundColor: colors.lineWarm, height: 1, width: '100%' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   svcCell: { flexGrow: 0, flexShrink: 0, width: '31%' },
