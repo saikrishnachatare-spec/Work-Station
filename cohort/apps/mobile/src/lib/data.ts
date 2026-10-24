@@ -2,7 +2,7 @@
  * Live data layer: every screen reads from and writes to Supabase.
  * Reads are public (RLS); writes need a signed-in user.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { supabase } from '@/lib/supabase';
@@ -361,6 +361,31 @@ export function useActivityLog(enabled: boolean, limit = 200) {
       return data as ActivityRow[];
     },
   });
+}
+
+/**
+ * Live admin feed: listens for new activity_log / error_logs rows over Supabase
+ * Realtime (row-level security still applies, so only admins receive them) and
+ * refreshes the admin queries. A slow poll backs it up if the socket drops.
+ */
+export function useLiveAdminFeed(enabled: boolean) {
+  const qc = useQueryClient();
+  const [live, setLive] = useState(false);
+  useEffect(() => {
+    if (!enabled) return;
+    const refresh = () => {
+      qc.invalidateQueries({ queryKey: ['activity-log'] });
+      qc.invalidateQueries({ queryKey: ['error_logs'] });
+    };
+    const channel = supabase
+      .channel('admin-live-feed')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_log' }, refresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'error_logs' }, refresh)
+      .subscribe((status) => setLive(status === 'SUBSCRIBED'));
+    const poll = setInterval(refresh, 30000);
+    return () => { clearInterval(poll); supabase.removeChannel(channel); setLive(false); };
+  }, [enabled, qc]);
+  return live;
 }
 
 export type TrashRow = {

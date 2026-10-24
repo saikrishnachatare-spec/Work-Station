@@ -10,7 +10,7 @@ import { useToast } from '@/components/Toast';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
@@ -18,7 +18,7 @@ import { Card } from '@/components/Card';
 import { Pill, SectionTitle } from '@/components/ScreenBits';
 import {
   useAdminAnalytics,
-  timeAgo, useActivityLog, useGroups, useJobs, useMyProfile, usePosts, useProfiles, useResources, useTrash,
+  timeAgo, useActivityLog, useLiveAdminFeed, useGroups, useJobs, useMyProfile, usePosts, useProfiles, useResources, useTrash,
   type ActivityRow, type TrashRow,
 } from '@/lib/data';
 import { supabase } from '@/lib/supabase';
@@ -50,7 +50,7 @@ function useErrorLogs(enabled: boolean) {
   });
 }
 
-const SECTIONS = ['Overview', 'Analytics', 'Users', 'Posts', 'Announcements', 'Resources', 'Groups', 'Jobs', 'Reports', 'Errors', 'Activity', 'Trash'] as const;
+const SECTIONS = ['Overview', 'Live', 'Analytics', 'Users', 'Posts', 'Announcements', 'Resources', 'Groups', 'Jobs', 'Reports', 'Errors', 'Activity', 'Trash'] as const;
 
 function ActionBtn({ label, onPress }: { label: string; onPress: () => void }) {
   return (
@@ -109,6 +109,12 @@ export default function AdminScreen() {
   const [activityLimit, setActivityLimit] = useState(200);
   const activity = useActivityLog(!!isAdmin, activityLimit);
   const trash = useTrash(!!isAdmin);
+  const liveConnected = useLiveAdminFeed(!!isAdmin);
+  const [nowMs, setNowMs] = useState(() => new Date().getTime());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(new Date().getTime()), 15000);
+    return () => clearInterval(id);
+  }, []);
   const analytics = useAdminAnalytics(!!isAdmin);
   const reports = useQuery({queryKey:['reports'],enabled:!!isAdmin,queryFn:async()=>{const{data,error}=await supabase.from('content_reports').select('*').order('created_at',{ascending:false});if(error)throw error;return data||[];}});
 
@@ -553,6 +559,48 @@ export default function AdminScreen() {
                 {g.stack ? <Text numberOfLines={3} style={styles.stack}>{g.stack}</Text> : null}
               </Card>
             ))}
+          </View>
+        );
+      })()}
+
+      {section === 'Live' && (() => {
+        const now = nowMs;
+        const all = (activity.data ?? []) as ActivityRow[];
+        const recent = all.filter((a) => now - new Date(a.created_at).getTime() < 5 * 60000 && a.actor_name);
+        const activeNames = Array.from(new Set(recent.map((a) => a.actor_name)));
+        const lastHour = all.filter((a) => now - new Date(a.created_at).getTime() < 3600000);
+        const errs = (errorLogs.data ?? []).filter((e: { created_at: string }) => now - new Date(e.created_at).getTime() < 3600000).length;
+        return (
+          <View style={{ gap: spacing.sm }}>
+            <Text style={styles.strong}>{liveConnected ? '● Live' : '○ Reconnecting (refreshing every 30s)'}</Text>
+            <Text style={styles.meta}>
+              New events appear here as they are recorded: signups, sign-ins, content, hiring, group and moderation actions, and
+              errors. Screen names appear only for members who accepted analytics. Message contents, passwords and typed input
+              are never recorded. Members are counted as recently active from these events only, so someone idle on one screen may not show.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' }}>
+              {([['Active in last 5 min', activeNames.length], ['Events in last hour', lastHour.length], ['Errors in last hour', errs]] as const).map(([k, v]) => (
+                <Card key={k} style={{ padding: spacing.sm }}>
+                  <Text style={styles.strong}>{v}</Text>
+                  <Text style={styles.meta}>{k}</Text>
+                </Card>
+              ))}
+            </View>
+            {activeNames.length > 0 && <Text style={styles.meta}>Recently active: {activeNames.slice(0, 10).join(', ')}</Text>}
+            {all.slice(0, 60).map((a) => (
+              <Card key={a.id} style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>{a.actor_name || (a.action === 'account_deleted' ? 'A member' : 'Someone')} {ACTION_LABELS[a.action] ?? a.action}</Text>
+                  <Text style={styles.meta}>
+                    {a.action === 'screen_view' ? `/${a.entity_id} · ` : ''}
+                    {typeof a.detail?.title === 'string' && a.detail.title ? `${a.detail.title} · ` : ''}
+                    {typeof a.detail?.name === 'string' && a.detail.name ? `${a.detail.name} · ` : ''}
+                    {timeAgo(a.created_at)}
+                  </Text>
+                </View>
+              </Card>
+            ))}
+            {!activity.isLoading && all.length === 0 && <Text style={styles.meta}>No events yet.</Text>}
           </View>
         );
       })()}
