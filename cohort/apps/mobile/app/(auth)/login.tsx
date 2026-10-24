@@ -16,6 +16,11 @@ import { colors, radius, spacing, type as typeScale } from '@/theme';
 type Mode = 'signin' | 'signup' | 'reset';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Collected at signup for contact data only - never verified by SMS.
+// Kept private (owner and admins only), never shown on public profiles.
+const PHONE_REQUIRED = false;
+const PHONE_RE = /^\+?\d{8,15}$/;
+const normalizePhone = (raw: string) => raw.replace(/[\s().-]/g, '');
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -25,6 +30,7 @@ export default function LoginScreen() {
   const [course, setCourse] = useState<'CA' | 'CMA' | 'CS'>('CA');
   const [level, setLevel] = useState('Inter');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -44,6 +50,9 @@ export default function LoginScreen() {
       if (mode === 'signup' && !name.trim()) return 'Tell us your name so people know you.';
       if (mode === 'signup' && acctType !== 'individual' && !orgName.trim()) return 'Tell us your firm or company name.';
       if (mode === 'signup' && acctType === 'individual' && !level) return 'Pick your level, or Member if you are qualified.';
+      if (mode === 'signup' && PHONE_REQUIRED && !phone.trim()) return 'Add your phone number with country code, like +91 98765 43210.';
+      if (mode === 'signup' && phone.trim() && !PHONE_RE.test(normalizePhone(phone)))
+        return 'That phone number does not look right. Use your country code, like +91 98765 43210.';
     }
     return '';
   };
@@ -75,6 +84,7 @@ export default function LoginScreen() {
               org_name: acctType === 'individual' ? '' : orgName.trim(),
               course,
               level: acctType === 'individual' ? level : '',
+              phone: phone.trim() ? normalizePhone(phone) : '',
             },
             emailRedirectTo: 'https://cohort-pi-eight.vercel.app',
           },
@@ -180,6 +190,22 @@ export default function LoginScreen() {
           style={styles.input}
           value={email}
         />
+        {mode === 'signup' && (
+          <>
+            <TextInput
+              autoComplete="tel"
+              keyboardType="phone-pad"
+              onChangeText={setPhone}
+              placeholder={PHONE_REQUIRED ? 'Phone number (with country code)' : 'Phone number (optional, with country code)'}
+              placeholderTextColor={colors.ink3}
+              style={styles.input}
+              value={phone}
+            />
+            <Text style={styles.phoneNote}>
+              We do not verify this number by SMS. It stays private - only you and the admins can see it.
+            </Text>
+          </>
+        )}
         {mode !== 'reset' && (
           <TextInput
             autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
@@ -260,6 +286,7 @@ const styles = StyleSheet.create({
   ctaBusy: { opacity: 0.6 },
   ctaText: { ...typeScale.body, color: '#fff', fontWeight: '600' },
   link: { ...typeScale.caption, color: colors.brand, fontWeight: '600', textAlign: 'center' },
+  phoneNote: { ...typeScale.caption, color: colors.ink3, marginTop: -spacing.sm },
   error: { ...typeScale.caption, color: colors.brandDeep },
   infoText: { ...typeScale.caption, color: '#3f6440' },
   legal: { ...typeScale.caption, color: colors.ink3, marginTop: spacing.lg, textAlign: 'center' },
