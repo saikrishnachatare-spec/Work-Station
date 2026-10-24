@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
@@ -17,6 +18,12 @@ export function JoinGroupScreen({ token }: { token: string }) {
   const userId = session?.user?.id;
   const preview = useInvitePreview(token);
   const join = useJoinByToken(userId);
+  // Hydration safety: the static export pass renders /join without query
+  // params (token ''), while a browser opening /join?token=... has one.
+  // Render the same loading state on both until mounted, so React's first
+  // client render matches the served HTML (fixes React error #418 here).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const doJoin = () => {
     if (!userId) {
@@ -33,7 +40,7 @@ export function JoinGroupScreen({ token }: { token: string }) {
     });
   };
 
-  if (preview.isLoading) {
+  if (preview.isLoading || (!token && !mounted)) {
     return <View style={styles.page}><ListSkeleton count={1} /></View>;
   }
 
