@@ -95,16 +95,19 @@ export function IcaiScreen() {
           </Pressable>
         ))}
       </View>
-      <View style={{ gap: spacing.sm }}>
+      <View style={styles.grid}>
         {active.services.map((s) => (
-          <Pressable accessibilityRole="link" key={s.url} onPress={() => open(s.url)}>
-            <Card style={styles.service}>
-              <View style={{ flex: 1, gap: 3 }}>
-                <Text style={styles.title}>{s.title}</Text>
-                <Text style={styles.note}>{s.note}</Text>
-                <Text style={styles.url}>{s.url.replace('https://', '')}</Text>
-              </View>
-              <View style={styles.badges}>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`${s.title}. ${s.note}`}
+            key={s.url}
+            onPress={() => open(s.url)}
+            style={styles.svcCell}
+          >
+            <Card style={styles.svc}>
+              <Text numberOfLines={3} style={styles.svcTitle}>{s.title}</Text>
+              <Text numberOfLines={4} style={styles.svcNote}>{s.note}</Text>
+              <View style={styles.svcFoot}>
                 {s.login && <Text style={styles.badgeLogin}>ICAI login</Text>}
                 <Text style={styles.badgeOpen}>New tab</Text>
               </View>
@@ -142,12 +145,14 @@ const styles = StyleSheet.create({
   tabOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
   tabText: { ...typeScale.caption, color: colors.ink2, fontWeight: '500', textAlign: 'center' },
   tabTextOn: { color: colors.brandDeep, fontWeight: '600' },
-  service: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  svcCell: { flexGrow: 0, flexShrink: 0, width: '31.8%' },
+  svc: { gap: 4, minHeight: 148, padding: 10 },
+  svcTitle: { ...typeScale.caption, color: colors.ink, fontSize: 12, fontWeight: '600', lineHeight: 16 },
+  svcNote: { ...typeScale.caption, color: colors.ink2, fontSize: 10.5, lineHeight: 14 },
+  svcFoot: { alignItems: 'flex-start', gap: 3, marginTop: 'auto' },
   title: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
-  note: { ...typeScale.caption, color: colors.ink2, lineHeight: 18 },
-  url: { ...typeScale.caption, color: colors.ink3, fontSize: 11 },
   body: { ...typeScale.body, color: colors.ink2, lineHeight: 22 },
-  badges: { alignItems: 'flex-end', gap: 4 },
   badgeLogin: {
     ...typeScale.caption, backgroundColor: colors.brandSoft, borderRadius: radius.pill, color: colors.brandDeep,
     fontSize: 10, fontWeight: '600', overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 3,
