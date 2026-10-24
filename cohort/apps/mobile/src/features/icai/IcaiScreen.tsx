@@ -24,18 +24,18 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    id: 'account', label: 'ICAI account',
-    services: [
-      { title: 'Self Service Portal (SSP)', note: 'Your ICAI account: registration, exam forms, fees, letters and requests.', url: 'https://eservices.icai.org/', login: true },
-      { title: 'ICAI main website', note: 'Institute news, council decisions and official notices.', url: 'https://www.icai.org/' },
-    ],
-  },
-  {
     id: 'training', label: 'Training & skills',
     services: [
       { title: 'ICITSS / Advanced ICITSS', note: 'IT and soft-skills course information and FAQs (PDF).', url: 'https://icai-call-sahayata.icai.org/wp-content/uploads/2025/03/SSEB-ICITSS-AICITSS-faq.pdf' },
       { title: 'Practical training portal (SPMT)', note: 'Articleship and industrial training records through SSP-linked services.', url: 'https://spmt.icai.org/ICAI/LoginAction_input.action', login: true },
       { title: 'ICAI Cloud Campus', note: 'Digital learning environment for ICAI courses.', url: 'https://cloudcampus.icai.org/', login: true },
+    ],
+  },
+  {
+    id: 'account', label: 'ICAI account',
+    services: [
+      { title: 'Self Service Portal (SSP)', note: 'Your ICAI account: registration, exam forms, fees, letters and requests.', url: 'https://eservices.icai.org/', login: true },
+      { title: 'ICAI main website', note: 'Institute news, council decisions and official notices.', url: 'https://www.icai.org/' },
     ],
   },
   {
