@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -32,6 +32,12 @@ function TopReads() {
 export function FeedScreen() {
   const router = useRouter();
   const [filter, setFilter] = useState('All');
+  // The greeting and date are time-of-day dependent, so they must not render
+  // during the static export pass: the served HTML would carry build-time
+  // text and hydration would mismatch (React error #418) for anyone loading
+  // in a different part of the day. Render them only after mount.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const toast = useToast();
   const { session } = useAuth();
   const userId = session?.user?.id;
@@ -53,7 +59,7 @@ export function FeedScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <Text style={styles.greet}><Text style={styles.strong}>{greeting}</Text> · {todayLabel}</Text>
+      <Text style={styles.greet}>{mounted ? <><Text style={styles.strong}>{greeting}</Text> · {todayLabel}</> : ' '}</Text>
       <TopReads />
       <ScrollView horizontal showsHorizontalScrollIndicator={Platform.OS === 'web'} contentContainerStyle={styles.chips}>
         {FEED_FILTERS.map((f) => <Chip key={f} label={f} active={f === filter} onPress={() => setFilter(f)} />)}
