@@ -82,10 +82,11 @@ export function IcaiScreen() {
           23 October 2026.
         </Text>
       </Card>
-      <ScrollView horizontal showsHorizontalScrollIndicator={Platform.OS === 'web'} contentContainerStyle={styles.tabs}>
+      <View style={styles.tabs}>
         {TABS.map((t) => (
           <Pressable
             accessibilityRole="button"
+            accessibilityState={{ selected: tab === t.id }}
             key={t.id}
             onPress={() => setTab(t.id)}
             style={[styles.tab, tab === t.id && styles.tabOn]}
@@ -93,8 +94,7 @@ export function IcaiScreen() {
             <Text style={[styles.tabText, tab === t.id && styles.tabTextOn]}>{t.label}</Text>
           </Pressable>
         ))}
-      </ScrollView>
-      <Text style={styles.tabHint}>Swipe sideways for more topics</Text>
+      </View>
       <View style={{ gap: spacing.sm }}>
         {active.services.map((s) => (
           <Pressable accessibilityRole="link" key={s.url} onPress={() => open(s.url)}>
@@ -133,14 +133,14 @@ export function IcaiScreen() {
 
 const styles = StyleSheet.create({
   page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 120 },
-  tabs: { gap: 8, paddingVertical: 2 },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tab: {
-    backgroundColor: colors.card, borderColor: colors.lineWarm, borderRadius: radius.pill,
-    borderWidth: 1, paddingHorizontal: 12, paddingVertical: 7,
+    alignItems: 'center', aspectRatio: 1, backgroundColor: colors.card, borderColor: colors.lineWarm,
+    borderRadius: 14, borderWidth: 1, justifyContent: 'center', maxWidth: 112, minWidth: 92,
+    padding: 8, width: '30%',
   },
-  tabHint: { ...typeScale.caption, color: colors.ink3, fontSize: 11, marginTop: -6 },
   tabOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
-  tabText: { ...typeScale.caption, color: colors.ink2, fontWeight: '500' },
+  tabText: { ...typeScale.caption, color: colors.ink2, fontWeight: '500', textAlign: 'center' },
   tabTextOn: { color: colors.brandDeep, fontWeight: '600' },
   service: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   title: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
