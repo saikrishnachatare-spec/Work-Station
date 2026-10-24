@@ -14,7 +14,7 @@ type ActionId = 'post' | 'group' | 'job' | 'message' | 'resource';
 const ACTIONS: { id: ActionId; icon: string; label: string; desc: string }[] = [
   { id: 'post', icon: 'document-text-outline', label: 'Create a post', desc: 'Share an update with the community' },
   { id: 'group', icon: 'people-outline', label: 'Create a group', desc: 'Study circle, exam form or professional' },
-  { id: 'job', icon: 'briefcase-outline', label: 'Post a job opening', desc: 'Articleship, job, gig or industrial training' },
+  { id: 'job', icon: 'briefcase-outline', label: 'Post a job opening', desc: 'Jobs, articleship, industrial training, stock audits or gig work' },
   { id: 'message', icon: 'chatbubble-outline', label: 'New message', desc: 'Message a student, mentor or firm' },
   { id: 'resource', icon: 'book-outline', label: 'Share notes', desc: 'Class notes, guides or question papers for everyone' },
 ];
@@ -166,7 +166,7 @@ export default function CreateModal() {
             {action === 'job' && (
               <>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-                  {['Gig work', 'Articleship', 'Jobs', 'Industrial training'].map((c) => {
+                  {['Jobs', 'Articleship', 'Industrial training', 'Stock Audits', 'Gig work'].map((c) => {
                     const locked = c !== 'Gig work' && !profile.data?.verified_at;
                     return (
                       <Pressable

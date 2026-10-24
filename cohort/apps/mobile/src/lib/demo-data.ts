@@ -89,7 +89,7 @@ export const JOBS: Job[] = [
   { id: 'j5', cat: 'Jobs', firm: 'VedaTax Advisors', role: 'Accounts executive, semi-qualified', loc: 'Bengaluru', pay: '₹4.2 LPA', tags: ['CA Inter', 'Full-time'] },
   { id: 'j6', cat: 'Jobs', firm: 'Deccan Pharma', role: 'Costing trainee', loc: 'Hyderabad', pay: '₹3.6 LPA', tags: ['CMA Inter', 'Full-time'] },
 ];
-export const JOB_FILTERS = ['All', 'Articleship', 'Jobs', 'Gig work', 'Industrial training'];
+export const JOB_FILTERS = ['All', 'Jobs', 'Articleship', 'Industrial training', 'Stock Audits', 'Gig work'];
 
 export type Service = { icon: string; label: string; sub: string };
 export const SERVICES: Service[] = [

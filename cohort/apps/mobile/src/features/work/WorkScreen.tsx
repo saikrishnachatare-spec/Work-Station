@@ -66,7 +66,7 @@ export function WorkScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <ScreenHeader sub="Articleship, jobs, gig work and industrial training." title="Work & hiring" />
+      <ScreenHeader sub="Jobs, articleship, industrial training, stock audits and gig work." title="Work & hiring" />
       {userId && (
         <Pressable onPress={() => router.push('/hiring')}>
           <Card style={styles.banner}>
