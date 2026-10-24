@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 
 import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
+import { ListSkeleton } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/Toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,7 +17,7 @@ import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 export default function AccountScreen() {
   const router = useRouter();
-  const { guest, session } = useAuth();
+  const { guest, loading: authLoading, session } = useAuth();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -30,6 +31,14 @@ export default function AccountScreen() {
   useEffect(()=>{if(profile.data?.avatar_path) supabase.storage.from('resources').createSignedUrl(profile.data.avatar_path,3600).then(({data})=>{if(data)setPhotoPreview(data.signedUrl);});},[profile.data?.avatar_path]);
   const toast = useToast();
   const qc = useQueryClient();
+
+  if (authLoading) {
+    return (
+      <View style={styles.center}>
+        <ListSkeleton count={2} />
+      </View>
+    );
+  }
 
   if (guest || !session) {
     return (

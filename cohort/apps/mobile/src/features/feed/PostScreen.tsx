@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { Pill } from '@/components/ScreenBits';
 import { timeAgo, useAddComment, useComments, usePost, useProfiles, useEditOwnContent, useDeleteOwnContent } from '@/lib/data';
+import { itemShareUrl, shareItemLink } from '@/lib/share';
 import { useAuth } from '@/store/session';
 import { useToast } from '@/components/Toast';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -103,6 +104,19 @@ export function PostScreen({ id }: { id: string }) {
           <Text style={styles.meta}>{p.like_count}</Text>
           <Ionicons color={colors.ink3} name="chatbubble-outline" size={13} />
           <Text style={styles.meta}>{p.comment_count}</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              const url = itemShareUrl('post', p.id);
+              void shareItemLink(url, 'Post on Cohort').then((ok) =>
+                toast.show(ok ? (Platform.OS === 'web' ? 'Link copied' : 'Shared') : url, ok ? 'success' : 'info'),
+              );
+            }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+          >
+            <Ionicons color={colors.brand} name="share-social-outline" size={14} />
+            <Text style={styles.shareText}>Share</Text>
+          </Pressable>
         </View>
       </Card>
       {editing && <Card style={{ gap: spacing.sm }}>
@@ -160,6 +174,7 @@ export function PostScreen({ id }: { id: string }) {
 }
 
 const styles = StyleSheet.create({
+  shareText: { ...typeScale.caption, color: colors.brand },
   page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 60 },
   backBtn: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 4, paddingVertical: 4 },
   backText: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },

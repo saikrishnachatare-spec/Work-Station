@@ -8,6 +8,7 @@ import { Pill } from '@/components/ScreenBits';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
 import { useJob, useMyApplications, useToggleApplication } from '@/lib/data';
+import { itemShareUrl, shareItemLink } from '@/lib/share';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
@@ -53,9 +54,21 @@ export function JobScreen({ id }: { id: string }) {
     );
   };
 
+  const share = () => {
+    const url = itemShareUrl('job', j.id);
+    void shareItemLink(url, `${j.role} at ${j.firm} - on Cohort`).then((ok) =>
+      toast.show(ok ? (Platform.OS === 'web' ? 'Link copied' : 'Shared') : url, ok ? 'success' : 'info'),
+    );
+  };
+
   const details = (
     <Card style={[styles.panel, landscape && styles.panelLeft]}>
-      <Text style={styles.cat}>{j.cat}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={[styles.cat, { flex: 1 }]}>{j.cat}</Text>
+        <Pressable accessibilityLabel="Share this opening" accessibilityRole="button" onPress={share}>
+          <Ionicons color={colors.brand} name="share-social-outline" size={18} />
+        </Pressable>
+      </View>
       <Text style={styles.role}>{j.role}</Text>
       <Text style={styles.firm}>{j.firm}</Text>
       <View style={styles.rows}>

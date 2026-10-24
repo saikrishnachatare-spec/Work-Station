@@ -127,7 +127,7 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
     );
   };
 
-  if (adding) {
+  if (adding && canManage) {
     const existing = new Set(members.data ?? []);
     const candidates = (profiles.data ?? []).filter((p) => !existing.has(p.id));
     return (
@@ -253,9 +253,11 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
             <Ionicons color={colors.brand} name="people-outline" size={18} />
           </Pressable>
         )}
-        <Pressable accessibilityLabel="Add people" onPress={() => setAdding(true)} style={styles.iconBtn}>
-          <Ionicons color={colors.brand} name="person-add-outline" size={18} />
-        </Pressable>
+        {canManage && (
+          <Pressable accessibilityLabel="Add people" onPress={() => setAdding(true)} style={styles.iconBtn}>
+            <Ionicons color={colors.brand} name="person-add-outline" size={18} />
+          </Pressable>
+        )}
         <Pressable accessibilityLabel="Share invite link" onPress={shareLink} style={styles.iconBtn}>
           <Ionicons color={colors.brand} name="link-outline" size={18} />
         </Pressable>

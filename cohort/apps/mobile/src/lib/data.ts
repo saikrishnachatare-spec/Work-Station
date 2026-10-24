@@ -217,6 +217,18 @@ export function useResources() {
   });
 }
 
+export function useResource(id: string | undefined) {
+  return useQuery({
+    enabled: !!id,
+    queryKey: ['resource', id],
+    queryFn: async (): Promise<Resource | null> => {
+      const { data, error } = await supabase.from('resources').select('*').eq('id', id!).maybeSingle();
+      if (error) throw error;
+      return (data as Resource) ?? null;
+    },
+  });
+}
+
 export function useProfiles() {
   return useQuery({
     queryKey: ['profiles'],

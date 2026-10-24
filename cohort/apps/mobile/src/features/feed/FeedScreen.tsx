@@ -10,6 +10,7 @@ import { Chip } from '@/components/Chip';
 import { Pill, SectionTitle } from '@/components/ScreenBits';
 import { ListSkeleton } from '@/components/Skeleton';
 import { timeAgo, useMyLikes, useMyProfile, usePosts, useToggleLike } from '@/lib/data';
+import { itemShareUrl, shareItemLink } from '@/lib/share';
 import { useAuth } from '@/store/session';
 import { FEED_FILTERS } from '@/lib/demo-data';
 import { colors, spacing, type as typeScale } from '@/theme';
@@ -122,6 +123,17 @@ export function FeedScreen() {
               </Text>
             </Pressable>
             <Text style={styles.meta}>💬 {f.comment_count}</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                const url = itemShareUrl('post', f.id);
+                void shareItemLink(url, `Post on Cohort`).then((ok) =>
+                  toast.show(ok ? (Platform.OS === 'web' ? 'Link copied' : 'Shared') : url, ok ? 'success' : 'info'),
+                );
+              }}
+            >
+              <Text style={[styles.meta, styles.shareAction]}>Share</Text>
+            </Pressable>
           </View>
         </Card>
         </Pressable>
@@ -155,4 +167,5 @@ const styles = StyleSheet.create({
   postHead: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   actions: { flexDirection: 'row', gap: spacing.lg },
   liked: { color: colors.brand },
+  shareAction: { color: colors.brand },
 });

@@ -12,6 +12,7 @@ import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
 import { JOB_FILTERS } from '@/lib/demo-data';
 import { useJobAlertPref, useJobs, useMyApplications, useSaveJobAlert, useToggleApplication , useMyProfile } from '@/lib/data';
+import { itemShareUrl, shareItemLink } from '@/lib/share';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
@@ -165,6 +166,18 @@ export function WorkScreen() {
           </View>
           <View style={styles.foot}>
             <Text style={styles.meta}>{j.cat}</Text>
+            <Pressable
+              accessibilityLabel={`Share ${j.role}`}
+              accessibilityRole="button"
+              onPress={() => {
+                const url = itemShareUrl('job', j.id);
+                void shareItemLink(url, `${j.role} at ${j.firm} - on Cohort`).then((ok) =>
+                  toast.show(ok ? (Platform.OS === 'web' ? 'Link copied' : 'Shared') : url, ok ? 'success' : 'info'),
+                );
+              }}
+            >
+              <Ionicons color={colors.brand} name="share-social-outline" size={18} />
+            </Pressable>
             <Pressable onPress={() => apply(j.id)} style={[styles.btn, applied && styles.btnDone]}>
               <Text style={[styles.btnText, applied && styles.btnTextDone]}>
                 {applied ? `✓ ${({ reviewed: 'Under review', shortlisted: 'Shortlisted', rejected: 'Not selected' } as Record<string, string>)[applications.data?.get(j.id) ?? ''] ?? 'Applied'}` : 'Apply'}

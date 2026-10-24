@@ -17,7 +17,7 @@ import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 export function MessagesScreen() {
   const toast = useToast();
-  const { session } = useAuth();
+  const { loading: authLoading, session } = useAuth();
   const userId = session?.user?.id;
   const [openId, setOpenId] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
@@ -34,6 +34,14 @@ export function MessagesScreen() {
   }, [openId, openMsgCount]);
   const startThread = useStartThread(userId);
   const sendMessage = useSendMessage(userId);
+
+  if (authLoading) {
+    return (
+      <View style={styles.pageCenter}>
+        <ListSkeleton count={2} />
+      </View>
+    );
+  }
 
   if (!userId) {
     return (

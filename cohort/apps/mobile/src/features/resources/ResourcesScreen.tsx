@@ -11,6 +11,7 @@ import { ListSkeleton } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/Toast';
 import { useResources } from '@/lib/data';
+import { itemShareUrl, shareItemLink } from '@/lib/share';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 export function ResourcesScreen() {
@@ -38,6 +39,18 @@ export function ResourcesScreen() {
         <Text style={styles.strong}>{r.title}</Text>
         <Text style={styles.meta}>{[r.meta, r.subject, r.course].filter(Boolean).join(' \u00b7 ')} · by {r.uploaded_by}</Text>
       </View>
+      <Pressable
+        accessibilityLabel={`Share ${r.title}`}
+        accessibilityRole="button"
+        onPress={() => {
+          const url = itemShareUrl('resource', r.id);
+          void shareItemLink(url, `${r.title} - study resource on Cohort`).then((ok) =>
+            toast.show(ok ? (Platform.OS === 'web' ? 'Link copied' : 'Shared') : url, ok ? 'success' : 'info'),
+          );
+        }}
+      >
+        <Ionicons color={colors.brand} name="share-social-outline" size={20} />
+      </Pressable>
       {r.file_path && <Pressable accessibilityRole="button" accessibilityLabel={`Open ${r.title}`} onPress={() => openResource(r.file_path!)}><Ionicons color={colors.brand} name="download-outline" size={22} /></Pressable>}
     </Card>
   );
