@@ -10,7 +10,7 @@ const SECTIONS: Section[] = [
   {
     id: 'exams', label: 'Exams & results',
     services: [
-      { title: 'Exam results and merit lists', note: 'Foundation, Inter and Final results with announcement dates.', url: 'https://icai.nic.in/' },
+      { title: 'Exam results and merit lists', note: 'Foundation, Inter and Final results with announcement dates.', url: 'https://caresults.icai.org' },
       { title: 'Exam forms and admit cards', note: 'Application forms, corrections and admit cards run through your SSP login.', url: 'https://eservices.icai.org/', login: true },
       { title: 'Exam FAQs', note: 'ICAI answers on exam rules, centres and papers (PDF).', url: 'https://icai-call-sahayata.icai.org/assets/pdf/FAQs-on-Examinations-.pdf' },
     ],
@@ -19,7 +19,6 @@ const SECTIONS: Section[] = [
     id: 'study', label: 'Study',
     services: [
       { title: 'BoS Knowledge Portal', note: 'Syllabus, study material, RTPs, mock tests, live and recorded lectures, student journal.', url: 'https://boslive.icai.org/' },
-      { title: 'Students home on icai.org', note: 'ICAI student announcements and service directory.', url: 'https://www.icai.org/students.shtml' },
       { title: 'Order printed study material (CDS)', note: 'Centralised Distribution System for books at your doorstep.', url: 'https://www.icai.org/post/publication-cds-directorate' },
     ],
   },
@@ -119,7 +118,7 @@ const styles = StyleSheet.create({
   secTitle: { color: colors.ink, fontFamily: font.display, fontSize: 13.5, letterSpacing: -0.2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
   svcCell: { flexGrow: 0, flexShrink: 0, width: '31.8%' },
-  svc: { borderRadius: 12, gap: 2, justifyContent: 'center', minHeight: 46, paddingHorizontal: 5, paddingVertical: 6 },
-  svcTitle: { color: colors.ink, fontSize: 10.5, fontWeight: '600', lineHeight: 13 },
+  svc: { backgroundColor: colors.brandSoft, borderColor: '#e9c4a9', borderRadius: 12, gap: 2, justifyContent: 'center', minHeight: 46, paddingHorizontal: 5, paddingVertical: 6 },
+  svcTitle: { color: colors.brandDeep, fontSize: 10.5, fontWeight: '600', lineHeight: 13 },
   soon: { color: colors.ink3, fontSize: 9.5, lineHeight: 12 },
 });
