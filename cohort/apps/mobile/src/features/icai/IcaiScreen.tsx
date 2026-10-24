@@ -10,7 +10,7 @@ const SERVICES: Service[] = [
   { title: 'Self Service Portal (SSP)', note: 'Your ICAI account: registration, exam forms, fees, letters and requests.', url: 'https://eservices.icai.org/', login: true },
   { title: 'Exam forms and admit cards', note: 'Application forms, corrections and admit cards run through your SSP login.', url: 'https://eservices.icai.org/', login: true },
   { title: 'BoS Knowledge Portal', note: 'Syllabus, study material, RTPs, mock tests, live and recorded lectures, student journal.', url: 'https://boslive.icai.org/' },
-  { title: 'Order printed study material (CDS)', note: 'Centralised Distribution System for books at your doorstep.', url: 'https://www.icai.org/post/publication-cds-directorate' },
+  { title: 'Order printed study material (CDS)', note: 'Centralised Distribution System for books at your doorstep.', url: 'https://cds.icai.org' },
   { title: 'Practical training portal (SPMT)', note: 'Articleship and industrial training records through SSP-linked services.', url: 'https://spmt.icai.org/ICAI/LoginAction_input.action', login: true },
   { title: 'ICITSS / Advanced ICITSS', note: 'IT and soft-skills course information and FAQs (PDF).', url: 'https://icai-call-sahayata.icai.org/wp-content/uploads/2025/03/SSEB-ICITSS-AICITSS-faq.pdf' },
   { title: 'ICAI Cloud Campus', note: 'Digital learning environment for ICAI courses.', url: 'https://cloudcampus.icai.org/', login: true },
