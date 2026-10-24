@@ -37,7 +37,11 @@ export function FeedScreen() {
   // text and hydration would mismatch (React error #418) for anyone loading
   // in a different part of the day. Render them only after mount.
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    // Deferred past the effect body (react-hooks/set-state-in-effect).
+    const id = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(id);
+  }, []);
   const toast = useToast();
   const { session } = useAuth();
   const userId = session?.user?.id;

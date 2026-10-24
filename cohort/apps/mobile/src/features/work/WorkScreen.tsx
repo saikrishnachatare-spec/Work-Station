@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -28,10 +28,13 @@ export function WorkScreen() {
   const alertPref = useJobAlertPref(userId);
   const saveAlert = useSaveJobAlert(userId);
   const [alertText, setAlertText] = useState('');
-  useEffect(() => {
-    if (alertPref.data && !alertText) setAlertText(alertPref.data.keywords);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [alertPref.data]);
+  // Render-time derivation from the loaded preference (React-sanctioned
+  // "adjust state when props change" pattern; no effect needed).
+  const [loadedKeywords, setLoadedKeywords] = useState('');
+  if (alertPref.data && alertPref.data.keywords !== loadedKeywords) {
+    setLoadedKeywords(alertPref.data.keywords);
+    if (!alertText) setAlertText(alertPref.data.keywords);
+  }
 
   const items = (jobs.data ?? []).filter((j) => filter === 'All' || j.cat === filter);
   const total = (jobs.data ?? []).length;

@@ -161,7 +161,7 @@ export default function AdminScreen() {
         <Text style={styles.title}>Admin access inactive</Text>
         <Text style={styles.meta}>
           This account has the admin role but is currently suspended, so admin data is withheld
-          by the backend. An active admin can reinstate the account from the Members section.
+          by the backend. An active admin can reinstate the account from the Users section.
         </Text>
       </Centered>
     );
@@ -263,7 +263,9 @@ export default function AdminScreen() {
               ['Feed posts', regularPosts.length], ['Announcements', announcements.length],
               ['Resources', resources.data?.length ?? 0], ['Groups', groups.data?.length ?? 0],
               ['Job listings', jobs.data?.length ?? 0],
+              // eslint-disable-next-line react-hooks/purity -- display-only recency cutoff; recomputing per render keeps the 7d window current
               ['Sign-ins (7d)', (activity.data ?? []).filter((a: ActivityRow) => a.action === 'sign_in' && Date.now() - new Date(a.created_at).getTime() < 7 * 864e5).length],
+              // eslint-disable-next-line react-hooks/purity -- display-only recency cutoff, same as above
               ['New members (7d)', (activity.data ?? []).filter((a: ActivityRow) => a.action === 'signup' && Date.now() - new Date(a.created_at).getTime() < 7 * 864e5).length],
             ].map(([label, n]) => (
               <Card key={label as string} style={styles.stat}>
@@ -528,7 +530,7 @@ export default function AdminScreen() {
             <Text style={styles.meta}>
               Uncaught errors and failed promises from the app land here automatically. Identical errors are grouped -
               the count is how many times each happened and which browsers reported them. Headless browsers are
-              often our verification runs, but the reporting browser alone never proves an entry's origin.
+              often our verification runs, but the reporting browser alone never proves an entry&apos;s origin.
             </Text>
             {rows.length === 0 && (
               <Card><Text style={styles.meta}>No errors logged. That is the goal.</Text></Card>
@@ -579,7 +581,7 @@ export default function AdminScreen() {
           <View style={{ gap: spacing.sm }}>
             <Text style={styles.meta}>
               Real events only: signups, sign-ins (from auth timestamps, at most one per member per 15 min), content created,
-              moderation and hiring actions. Message contents are never logged. Screen views appear in a member's timeline and under the Screens filter.
+              moderation and hiring actions. Message contents are never logged. Screen views appear in a member&apos;s timeline and under the Screens filter.
             </Text>
             <TextInput
               placeholder="Filter by member name"

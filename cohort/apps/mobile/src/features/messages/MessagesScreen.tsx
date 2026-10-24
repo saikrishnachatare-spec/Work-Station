@@ -27,13 +27,13 @@ export function MessagesScreen() {
   const profiles = useProfiles();
   const messages = useThreadMessages(openId);
   const openMsgCount = (messages.data ?? []).length;
+  const markRead = useMarkThreadRead(userId);
   useEffect(() => {
     if (openId && openMsgCount > 0) markRead.mutate(openId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openId, openMsgCount]);
   const startThread = useStartThread(userId);
   const sendMessage = useSendMessage(userId);
-  const markRead = useMarkThreadRead(userId);
 
   if (!userId) {
     return (

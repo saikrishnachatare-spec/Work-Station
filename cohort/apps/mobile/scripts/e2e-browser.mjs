@@ -12,7 +12,6 @@
 // Never point them at a real user's account: the work-screen test writes a
 // keyword preference row for the signed-in user (cleaned up separately).
 import { spawn } from 'node:child_process';
-import http from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

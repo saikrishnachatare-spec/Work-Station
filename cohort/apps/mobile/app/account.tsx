@@ -171,7 +171,7 @@ export default function AccountScreen() {
         <Card style={{ gap: spacing.sm }}>
           <Text style={styles.body}>
             This permanently removes your account and your profile details. Posts, messages and shared files stay
-            visible to others under "Former member" - personal details you wrote inside that content remain part
+            visible to others under &quot;Former member&quot; - personal details you wrote inside that content remain part
             of it. Job openings you posted close, and groups you created pass to another member or are removed if
             empty. This cannot be undone.
           </Text>

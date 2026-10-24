@@ -23,7 +23,12 @@ export function JoinGroupScreen({ token }: { token: string }) {
   // Render the same loading state on both until mounted, so React's first
   // client render matches the served HTML (fixes React error #418 here).
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    // Deferred past the effect body (react-hooks/set-state-in-effect); the
+    // first client render still matches the static HTML before this fires.
+    const id = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(id);
+  }, []);
 
   const doJoin = () => {
     if (!userId) {

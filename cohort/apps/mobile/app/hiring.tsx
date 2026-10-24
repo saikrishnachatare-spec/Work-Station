@@ -1,7 +1,7 @@
 /** Hiring dashboard: firm/company accounts manage their openings and applicants. */
 import { SeoHead } from '@/components/SeoHead';
 import { useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Avatar } from '@/components/Avatar';
@@ -10,9 +10,8 @@ import { ScreenHeader } from '@/components/ScreenBits';
 import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
-import { timeAgo } from '@/lib/data';
 import { supabase } from '@/lib/supabase';
-import { useApplicationsForJobs, useMyPostedJobs, useMyProfile, useProfiles, useUpdateApplicationStatus } from '@/lib/data';
+import { timeAgo, useApplicationsForJobs, useMyPostedJobs, useMyProfile, useProfiles, useUpdateApplicationStatus } from '@/lib/data';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
