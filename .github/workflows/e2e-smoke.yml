@@ -17,4 +17,5 @@ jobs:
       # gate the new commit. Run scripts/e2e-smoke.mjs against a new deployment
       # URL after deploying to gate it.
       - name: Route and backend smoke test against the live site
+        working-directory: cohort
         run: node apps/mobile/scripts/e2e-smoke.mjs https://cohort-pi-eight.vercel.app

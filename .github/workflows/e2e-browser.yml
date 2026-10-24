@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: 22
       - name: Run click/type browser tests
-        working-directory: apps/mobile
+        working-directory: cohort/apps/mobile
         env:
           COHORT_TEST_EMAIL: ${{ secrets.COHORT_TEST_EMAIL }}
           COHORT_TEST_PASSWORD: ${{ secrets.COHORT_TEST_PASSWORD }}

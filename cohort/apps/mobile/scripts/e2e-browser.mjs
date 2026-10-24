@@ -47,9 +47,19 @@ const ws = new WebSocket(wsUrl);
 await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
 let msgId = 0;
 const pending = new Map();
+const consoleErrors = [];
 ws.onmessage = (ev) => {
   const m = JSON.parse(ev.data);
-  if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
+  if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); return; }
+  if (m.method === 'Runtime.consoleAPICalled' && (m.params.type === 'error' || m.params.type === 'warning')) {
+    const txt = (m.params.args || []).map((a) => a.value ?? a.description ?? '').join(' ');
+    if (/Minified React error #|hydration|did not match/i.test(txt)) consoleErrors.push(txt.slice(0, 300));
+  }
+  if (m.method === 'Runtime.exceptionThrown') {
+    const d = m.params.exceptionDetails || {};
+    const txt = (d.exception && d.exception.description) || d.text || '';
+    if (/Minified React error #|hydration|did not match/i.test(txt)) consoleErrors.push(txt.slice(0, 300));
+  }
 };
 function cdp(method, params = {}, sessionId) {
   const id = ++msgId;
@@ -241,6 +251,12 @@ try {
     try { await waitFor(bodyHas('New message')); ok('messages screen renders'); }
     catch (e) { fail('messages screen renders', e.message); }
   }
+
+  // 10. Durable regression: no React hydration errors (#418 family) or
+  // hook-order errors (#310) on any route visited above. These ship as
+  // minified console errors users never report, so gate on them here.
+  if (consoleErrors.length === 0) ok('no React hydration (#418) or hooks (#310) errors on visited routes');
+  else fail('no React hydration (#418) or hooks (#310) errors on visited routes', consoleErrors[0]);
 } finally {
   chrome.kill('SIGKILL');
   await new Promise((r) => { chrome.on('exit', r); setTimeout(r, 3000); });
