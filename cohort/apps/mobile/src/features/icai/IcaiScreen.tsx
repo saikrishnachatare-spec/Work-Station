@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
   tabText: { ...typeScale.caption, color: colors.ink2, fontWeight: '500', textAlign: 'center' },
   tabTextOn: { color: colors.brandDeep, fontWeight: '600' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  svcCell: { flexGrow: 0, flexShrink: 0, width: '31.8%' },
+  svcCell: { flexGrow: 0, flexShrink: 0, width: '31%' },
   svc: { gap: 4, minHeight: 148, padding: 10 },
   svcTitle: { ...typeScale.caption, color: colors.ink, fontSize: 12, fontWeight: '600', lineHeight: 16 },
   svcNote: { ...typeScale.caption, color: colors.ink2, fontSize: 10.5, lineHeight: 14 },
