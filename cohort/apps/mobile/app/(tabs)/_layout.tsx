@@ -8,6 +8,7 @@ const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   index: 'newspaper-outline',
   resources: 'library-outline',
   community: 'people-outline',
+  channels: 'megaphone-outline',
   work: 'briefcase-outline',
   icai: 'school-outline',
 };
@@ -16,6 +17,7 @@ const TITLES: Record<string, string> = {
   index: 'Feed',
   resources: 'Resources',
   community: 'Community',
+  channels: 'Channels',
   work: 'Work',
   icai: 'ICAI',
 };
@@ -70,6 +72,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="index" />
         <Tabs.Screen name="resources" />
         <Tabs.Screen name="community" />
+        <Tabs.Screen name="channels" />
         <Tabs.Screen name="work" />
         <Tabs.Screen name="icai" />
       </Tabs>

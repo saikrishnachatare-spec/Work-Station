@@ -157,7 +157,7 @@ export function useGroups() {
   return useQuery({
     queryKey: ['groups'],
     queryFn: async (): Promise<Group[]> => {
-      const { data, error } = await supabase.from('groups').select('*').order('member_count', { ascending: false });
+      const { data, error } = await supabase.from('groups').select('*').eq('kind', 'group').order('member_count', { ascending: false });
       if (error) throw error;
       return data as Group[];
     },
@@ -857,10 +857,10 @@ export function useGroup(groupId: string | null) {
   return useQuery({
     enabled: !!groupId,
     queryKey: ['group', groupId],
-    queryFn: async (): Promise<{ id: string; name: string; created_by: string } | null> => {
-      const { data, error } = await supabase.from('groups').select('id, name, created_by').eq('id', groupId!).maybeSingle();
+    queryFn: async (): Promise<{ id: string; name: string; created_by: string; kind: 'group' | 'channel' } | null> => {
+      const { data, error } = await supabase.from('groups').select('id, name, created_by, kind').eq('id', groupId!).maybeSingle();
       if (error) throw error;
-      return data as { id: string; name: string; created_by: string } | null;
+      return data as { id: string; name: string; created_by: string; kind: 'group' | 'channel' } | null;
     },
   });
 }

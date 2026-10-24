@@ -39,8 +39,10 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
   const setMemberRole = useSetGroupMemberRole(groupId);
   const removeMember = useRemoveGroupMember(groupId);
   const isCreator = !!userId && group.data?.created_by === userId;
+  const isChannel = group.data?.kind === 'channel';
   const myRole = (memberRows.data ?? []).find((r) => r.user_id === userId)?.role;
   const canManage = isCreator || myRole === 'admin';
+  const canPost = !isChannel || canManage;
   const addMembers = useAddGroupMembers(userId);
   const leaveGroup = useLeaveGroup(userId);
   const markRead = useMarkThreadRead(userId);
@@ -300,6 +302,10 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
           );
         })}
       </ScrollView>
+      {isChannel && !canPost && (
+        <Text style={styles.meta}>This is a channel - only channel admins can post. You can read every update here.</Text>
+      )}
+      {canPost && (
       <View style={styles.composer}>
         <TextInput
           onChangeText={setDraft}
@@ -314,6 +320,7 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
           <Ionicons color="#fff" name="send" size={15} />
         </Pressable>
       </View>
+      )}
     </View>
   );
 }
