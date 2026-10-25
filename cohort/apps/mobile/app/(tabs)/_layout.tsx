@@ -9,7 +9,6 @@ const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   resources: 'library-outline',
   community: 'people-outline',
   work: 'briefcase-outline',
-  icai: 'school-outline',
 };
 
 const TITLES: Record<string, string> = {
@@ -17,7 +16,6 @@ const TITLES: Record<string, string> = {
   resources: 'Resources',
   community: 'Community',
   work: 'Work',
-  icai: 'ICAI',
 };
 
 export default function TabsLayout() {
@@ -71,7 +69,6 @@ export default function TabsLayout() {
         <Tabs.Screen name="resources" />
         <Tabs.Screen name="community" />
         <Tabs.Screen name="work" />
-        <Tabs.Screen name="icai" />
       </Tabs>
 
       <Link href="/create" asChild><Pressable

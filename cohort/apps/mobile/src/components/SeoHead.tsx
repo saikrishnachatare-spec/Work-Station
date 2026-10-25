@@ -6,7 +6,7 @@ import Head from 'expo-router/head';
 
 export const SITE_URL = 'https://cohort-pi-eight.vercel.app';
 export const SITE_NAME = 'Cohort';
-const DEFAULT_DESC = 'Cohort is the community for CA students and professionals: daily reads, study circles, ICAI updates, jobs and mentorship in one place.';
+const DEFAULT_DESC = 'Cohort is the community for CA students and professionals: daily reads, study circles, jobs and mentorship in one place.';
 
 type SeoHeadProps = {
   /** Prevent indexing (private screens). */

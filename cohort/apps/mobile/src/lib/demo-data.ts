@@ -16,7 +16,7 @@ export type FeedItem = {
 };
 
 export const FEED: FeedItem[] = [
-  { id: 'f1', type: 'announcement', author: 'Board of Studies', role: 'Official', time: '2h ago', pinned: true, text: 'Nov 2026 exam schedule for CA Final and CA Inter is out. Exam forms, dates and admit cards are linked in the ICAI module.', likes: 312, comments: 45 },
+  { id: 'f1', type: 'announcement', author: 'Board of Studies', role: 'Official', time: '2h ago', pinned: true, text: 'Nov 2026 exam schedule for CA Final and CA Inter is out. Exam forms, dates and admit cards are on the ICAI website.', likes: 312, comments: 45 },
   { id: 'f2', type: 'post', author: 'Ananya Reddy', role: 'CA Final', time: '1h ago', text: 'Cleared CA Inter Group 2 today! Uploading my FR and AFM notes to Resources. Happy to help anyone starting their prep.', likes: 214, comments: 38 },
   { id: 'f3', type: 'post', author: 'Rohan Mehta', role: 'CMA Inter', time: '3h ago', text: 'Anyone writing CMA Inter this December from Hyderabad? Starting a weekend study group for Cost Accounting. Message me if you are in.', likes: 56, comments: 21 },
   { id: 'f4', type: 'message', author: 'CA Priya Sharma', role: 'Mentor', time: '5h ago', text: 'Mentor broadcast: free Direct Tax revision marathon this Sunday at 10 AM. The session link is pinned in Resources under Videos.', likes: 98, comments: 12 },
