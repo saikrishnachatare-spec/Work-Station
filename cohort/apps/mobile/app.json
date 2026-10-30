@@ -15,7 +15,7 @@
     "android": {
       "package": "com.cohortcommunity.app",
       "adaptiveIcon": {
-        "backgroundColor": "#FFFAF8",
+        "backgroundColor": "#F7FBFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -32,7 +32,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFAF8",
+          "backgroundColor": "#F7FBFF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }

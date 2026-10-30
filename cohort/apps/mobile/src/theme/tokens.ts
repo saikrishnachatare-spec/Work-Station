@@ -1,31 +1,31 @@
 /**
- * Cohort design tokens - pastel watermelon theme (approved 2026-10-31):
- * soft watermelon pink/rose accents, fresh mint green highlights,
- * warm off-white background, soft rounded cards.
+ * Cohort design tokens - light blue theme (user request 2026-10-31):
+ * soft sky blue accents, fresh mint green highlights,
+ * cool off-white background, soft rounded cards.
  */
 export const colors = {
-  brand: '#E85D7A',
-  brandDeep: '#C24362',
-  brandSoft: '#FFE1E9',
+  brand: '#4D9DE8',
+  brandDeep: '#2F7CC4',
+  brandSoft: '#E3F0FC',
   danger: '#b3261e',
-  cream: '#FFFAF8',
-  lineWarm: '#F8E9E4',
+  cream: '#F7FBFF',
+  lineWarm: '#E1EDF8',
   card: '#ffffff',
 
-  ink: '#2A2126',
-  ink2: '#7A6C72',
-  ink3: '#A79AA1',
+  ink: '#21262E',
+  ink2: '#6A7280',
+  ink3: '#9BA3AE',
   ink4: '#c0bebf',
-  raised: '#FBF3EF',
-  hairline: '#F3E8E4',
+  raised: '#F2F7FC',
+  hairline: '#E6EFF6',
 
-  // Watermelon greens
+  // Fresh greens
   green: '#1E9E63',
   greenSoft: '#DFF6E9',
 
   // Avatar palette: soft tint background + deep ink initials
-  accent: ['#FFE1E9', '#DFF6E9', '#FFF1DB', '#E8EDF9', '#F5E4F0', '#DFF3EE'] as const,
-  accentInk: ['#C24362', '#157A4D', '#A8732A', '#54679B', '#9C4A7E', '#2E7D6B'] as const,
+  accent: ['#E3F0FC', '#DFF6E9', '#FFF1DB', '#E8E4F5', '#F0E4F0', '#DFF3EE'] as const,
+  accentInk: ['#2F7CC4', '#157A4D', '#A8732A', '#5A4FA0', '#9C4A7E', '#2E7D6B'] as const,
 } as const;
 
 export const radius = {

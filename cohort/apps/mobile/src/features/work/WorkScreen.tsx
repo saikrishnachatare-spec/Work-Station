@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 120 },
   banner: {
     alignItems: 'center', backgroundColor: colors.brandSoft,
-    borderColor: '#F3CFD8', flexDirection: 'row', gap: spacing.sm,
+    borderColor: '#CBE2F6', flexDirection: 'row', gap: spacing.sm,
   },
   alertBtn: {
     backgroundColor: colors.brandSoft, borderRadius: radius.input, justifyContent: 'center', paddingHorizontal: 14,
