@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
   },
   you: { alignSelf: 'flex-end', backgroundColor: colors.brandDeep, borderBottomRightRadius: 4, borderBottomLeftRadius: radius.tile },
   them: { alignSelf: 'flex-start', backgroundColor: colors.card, borderBottomLeftRadius: 4, borderBottomRightRadius: radius.tile },
-  youText: { ...typeScale.body, color: colors.brandDeep },
+  youText: { ...typeScale.body, color: '#fff' },
   themText: { ...typeScale.body, color: colors.ink },
   msgTime: { ...typeScale.caption, alignSelf: 'flex-end', fontSize: 10, marginTop: 2 },
   msgTimeYou: { color: 'rgba(255,255,255,0.75)' },
