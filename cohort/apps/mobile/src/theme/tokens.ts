@@ -1,32 +1,38 @@
 /**
- * Cohort design tokens, ported from the clickable prototype (docs/cohort).
- * Warm terracotta on cream, rounded cards.
+ * Cohort design tokens - pastel watermelon theme (approved 2026-10-31):
+ * soft watermelon pink/rose accents, fresh mint green highlights,
+ * warm off-white background, soft rounded cards.
  */
 export const colors = {
-  brand: '#c0562f',
-  brandDeep: '#94401f',
-  brandSoft: '#f7e6da',
+  brand: '#E85D7A',
+  brandDeep: '#C24362',
+  brandSoft: '#FFE1E9',
   danger: '#b3261e',
-  cream: '#faf5f1',
-  lineWarm: '#efe4dc',
+  cream: '#FFFAF8',
+  lineWarm: '#F8E9E4',
   card: '#ffffff',
 
-  ink: '#251f21',
-  ink2: '#585254',
-  ink3: '#969394',
+  ink: '#2A2126',
+  ink2: '#7A6C72',
+  ink3: '#A79AA1',
   ink4: '#c0bebf',
-  raised: '#f4efec',
-  hairline: '#eae9ea',
+  raised: '#FBF3EF',
+  hairline: '#F3E8E4',
 
-  // Avatar / accent palette from the prototype
-  accent: ['#c0562f', '#7a8b6f', '#b98a2f', '#6f7f96', '#96586b', '#4f7a72'] as const,
+  // Watermelon greens
+  green: '#1E9E63',
+  greenSoft: '#DFF6E9',
+
+  // Avatar palette: soft tint background + deep ink initials
+  accent: ['#FFE1E9', '#DFF6E9', '#FFF1DB', '#E8EDF9', '#F5E4F0', '#DFF3EE'] as const,
+  accentInk: ['#C24362', '#157A4D', '#A8732A', '#54679B', '#9C4A7E', '#2E7D6B'] as const,
 } as const;
 
 export const radius = {
-  card: 18,
-  tile: 14,
-  input: 12,
-  sheet: 24,
+  card: 22,
+  tile: 16,
+  input: 14,
+  sheet: 26,
   pill: 999,
 } as const;
 
@@ -39,13 +45,13 @@ export const spacing = {
 } as const;
 
 export const font = {
-  display: 'Georgia', // prototype: "Aime", Georgia, serif
-  text: undefined as string | undefined, // prototype: "KMR Melange Grotesk", system sans
+  display: undefined as string | undefined, // smooth system sans
+  text: undefined as string | undefined,
 } as const;
 
 export const type = {
-  screenTitle: { fontFamily: font.display, fontSize: 21, letterSpacing: -0.4 },
-  sectionTitle: { fontFamily: font.display, fontSize: 17, letterSpacing: -0.3 },
+  screenTitle: { fontFamily: font.display, fontSize: 21, fontWeight: '800' as const, letterSpacing: -0.4 },
+  sectionTitle: { fontFamily: font.display, fontSize: 17, fontWeight: '700' as const, letterSpacing: -0.3 },
   body: { fontSize: 13, lineHeight: 19 },
   caption: { fontSize: 12, lineHeight: 16 },
   pill: { fontSize: 10, fontWeight: '600' as const },

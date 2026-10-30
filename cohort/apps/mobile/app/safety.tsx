@@ -126,8 +126,8 @@ const styles = StyleSheet.create({
     ...typeScale.body, backgroundColor: colors.cream, borderColor: colors.lineWarm,
     borderRadius: radius.input, borderWidth: 1, color: colors.ink, padding: 12,
   },
-  cta: { alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.pill, paddingVertical: 12 },
-  ctaText: { ...typeScale.body, color: '#fff', fontWeight: '600' },
-  ghostCta: { backgroundColor: colors.card, borderColor: colors.brand, borderWidth: 1 },
+  cta: { alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: radius.pill, paddingVertical: 12 },
+  ctaText: { ...typeScale.body, color: colors.brandDeep, fontWeight: '600' },
+  ghostCta: { backgroundColor: colors.card, borderColor: colors.brandSoft, borderWidth: 1 },
   ghostText: { color: colors.brand },
 });

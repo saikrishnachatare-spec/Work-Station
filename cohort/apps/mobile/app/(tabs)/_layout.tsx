@@ -51,7 +51,7 @@ export default function TabsLayout() {
             </View>
           ),
           headerStyle: { backgroundColor: colors.cream },
-          headerTitleStyle: { color: colors.brand, fontFamily: 'Georgia', fontSize: 22 },
+          headerTitleStyle: { color: colors.brand, fontSize: 22, fontWeight: '800' },
           // See app/_layout.tsx: constant maxWidth keeps SSR HTML and client
           // hydration identical (fixes React error #418 on every route).
           headerTitleContainerStyle: { maxWidth: '100%' },
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     alignItems: 'center',
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandDeep,
     borderRadius: radius.pill,
     bottom: 68,
     elevation: 6,

@@ -218,7 +218,7 @@ export default function CreateModal() {
         )}
         {!!done && (
           <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.lg }}>
-            <View style={styles.tick}><Ionicons color="#fff" name="checkmark" size={20} /></View>
+            <View style={styles.tick}><Ionicons color="#157A4D" name="checkmark" size={20} /></View>
             <Text style={styles.doneText}>{done}</Text>
             <Pressable onPress={() => router.back()} style={styles.cta}><Text style={styles.ctaText}>Done</Text></Pressable>
           </View>
@@ -230,9 +230,9 @@ export default function CreateModal() {
 
 const styles = StyleSheet.create({
   catChip: { backgroundColor: colors.card, borderColor: colors.hairline, borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 7 },
-  catChipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
+  catChipActive: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
   catChipText: { ...typeScale.caption, color: colors.ink2 },
-  catChipTextActive: { color: '#fff' },
+  catChipTextActive: { color: colors.brandDeep },
   overlay: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(37,31,33,0.4)' },
   sheet: {
@@ -269,12 +269,12 @@ const styles = StyleSheet.create({
   courseChipText: { color: colors.ink2, fontSize: 13 },
   courseChipTextOn: { color: colors.brandDeep, fontWeight: '600' as const },
   cta: {
-    alignItems: 'center', alignSelf: 'stretch', backgroundColor: colors.brand,
+    alignItems: 'center', alignSelf: 'stretch', backgroundColor: colors.brandSoft,
     borderRadius: radius.pill, paddingVertical: 12,
   },
-  ctaText: { ...typeScale.body, color: '#fff', fontWeight: '600' },
+  ctaText: { ...typeScale.body, color: colors.brandDeep, fontWeight: '600' },
   tick: {
-    alignItems: 'center', backgroundColor: '#5a8a5a', borderRadius: 24,
+    alignItems: 'center', backgroundColor: colors.greenSoft, borderRadius: 24,
     height: 44, justifyContent: 'center', width: 44,
   },
   doneText: { ...typeScale.body, color: colors.ink, textAlign: 'center' },

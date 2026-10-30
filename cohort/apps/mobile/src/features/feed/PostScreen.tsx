@@ -166,7 +166,7 @@ export function PostScreen({ id }: { id: string }) {
           value={draft}
         />
         <Pressable accessibilityLabel="Post comment" onPress={sendComment} style={styles.sendBtn}>
-          <Ionicons color="#fff" name="send" size={15} />
+          <Ionicons color={colors.brandDeep} name="send" size={15} />
         </Pressable>
       </View>
     </ScrollView>
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.input, borderWidth: 1, color: colors.ink, flex: 1, padding: 10,
   },
   sendBtn: {
-    alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.input,
+    alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: radius.input,
     justifyContent: 'center', paddingHorizontal: 14,
   },
 });

@@ -94,10 +94,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 11,
   },
   cta: {
-    alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.pill,
+    alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: radius.pill,
     paddingVertical: 12,
   },
-  ctaText: { ...typeScale.body, color: '#fff', fontWeight: '600' },
+  ctaText: { ...typeScale.body, color: colors.brandDeep, fontWeight: '600' },
   error: { ...typeScale.caption, color: colors.brandDeep },
   info: { ...typeScale.body, color: '#3f6440' },
 });

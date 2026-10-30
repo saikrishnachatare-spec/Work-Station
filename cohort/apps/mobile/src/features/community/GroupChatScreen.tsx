@@ -317,7 +317,7 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
           value={draft}
         />
         <Pressable accessibilityLabel="Send" onPress={send} style={styles.sendBtn}>
-          <Ionicons color="#fff" name="send" size={15} />
+          <Ionicons color={colors.brandDeep} name="send" size={15} />
         </Pressable>
       </View>
       )}
@@ -340,9 +340,9 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4, borderRadius: radius.tile, maxWidth: '80%',
     overflow: 'hidden', paddingHorizontal: 12, paddingVertical: 8,
   },
-  you: { alignSelf: 'flex-end', backgroundColor: colors.brand, borderBottomRightRadius: 4, borderBottomLeftRadius: radius.tile },
+  you: { alignSelf: 'flex-end', backgroundColor: colors.brandDeep, borderBottomRightRadius: 4, borderBottomLeftRadius: radius.tile },
   them: { alignSelf: 'flex-start', backgroundColor: colors.card, borderBottomLeftRadius: 4, borderBottomRightRadius: radius.tile },
-  youText: { ...typeScale.body, color: '#fff' },
+  youText: { ...typeScale.body, color: colors.brandDeep },
   themText: { ...typeScale.body, color: colors.ink },
   msgTime: { ...typeScale.caption, alignSelf: 'flex-end', fontSize: 10, marginTop: 2 },
   msgTimeYou: { color: 'rgba(255,255,255,0.75)' },
@@ -355,15 +355,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.input, borderWidth: 1, color: colors.ink, flex: 1, padding: 10,
   },
   sendBtn: {
-    alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.input,
+    alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: radius.input,
     justifyContent: 'center', paddingHorizontal: 14,
   },
   convo: { alignItems: 'center', flexDirection: 'row', gap: spacing.md },
   primaryBtn: {
-    alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.pill,
+    alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: radius.pill,
     paddingVertical: 12,
   },
-  primaryBtnText: { ...typeScale.body, color: '#fff', fontWeight: '600' },
+  primaryBtnText: { ...typeScale.body, color: colors.brandDeep, fontWeight: '600' },
   strong: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
   meta: { ...typeScale.caption, color: colors.ink3 },
   title: { ...typeScale.screenTitle, color: colors.ink },

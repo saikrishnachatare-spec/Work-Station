@@ -59,10 +59,10 @@ const styles = StyleSheet.create({
   title: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
   meta: { ...typeScale.caption, color: colors.ink3 },
   accept: {
-    backgroundColor: colors.brand, borderRadius: radius.pill,
+    backgroundColor: colors.brandSoft, borderRadius: radius.pill,
     paddingHorizontal: 14, paddingVertical: 8,
   },
-  acceptText: { ...typeScale.caption, color: '#fff', fontWeight: '600' },
+  acceptText: { ...typeScale.caption, color: colors.brandDeep, fontWeight: '600' },
   decline: {
     borderColor: colors.lineWarm, borderRadius: radius.pill, borderWidth: 1,
     paddingHorizontal: 14, paddingVertical: 8,

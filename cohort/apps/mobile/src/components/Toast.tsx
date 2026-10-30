@@ -47,7 +47,7 @@ function ToastCard({ toast, onDone }: { onDone: (id: number) => void; toast: Toa
   }, [onDone, opacity, reducedMotion, toast.id, translate]);
 
   const icon = toast.kind === 'success' ? 'checkmark-circle' : toast.kind === 'error' ? 'alert-circle' : 'information-circle';
-  const tint = toast.kind === 'success' ? '#2f6b3a' : toast.kind === 'error' ? '#a23424' : colors.ink2;
+  const tint = toast.kind === 'success' ? '#1E9E63' : toast.kind === 'error' ? '#a23424' : colors.ink2;
 
   return (
     <Animated.View accessibilityLiveRegion="polite" style={[styles.toast, { opacity, transform: [{ translateY: translate }] }]}>

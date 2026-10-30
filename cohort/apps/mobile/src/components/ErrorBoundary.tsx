@@ -47,8 +47,8 @@ const styles = StyleSheet.create({
   title: { ...typeScale.screenTitle, color: colors.ink },
   meta: { ...typeScale.caption, color: colors.ink3, textAlign: 'center' },
   btn: {
-    backgroundColor: colors.brand, borderRadius: 999,
+    backgroundColor: colors.brandSoft, borderRadius: 999,
     paddingHorizontal: 18, paddingVertical: 10,
   },
-  btnText: { ...typeScale.caption, color: '#fff', fontWeight: '600' },
+  btnText: { ...typeScale.caption, color: colors.brandDeep, fontWeight: '600' },
 });

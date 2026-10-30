@@ -23,7 +23,7 @@ export function Chip({ label, active = false, onPress }: ChipProps) {
 const styles = StyleSheet.create({
   chip: {
     backgroundColor: colors.card,
-    borderColor: '#e7d9cf',
+    borderColor: colors.lineWarm,
     borderRadius: radius.pill,
     borderWidth: 1,
     paddingHorizontal: 14,
@@ -31,7 +31,7 @@ const styles = StyleSheet.create({
   },
   active: {
     backgroundColor: colors.brandSoft,
-    borderColor: colors.brand,
+    borderColor: colors.brandSoft,
   },
   label: {
     ...typeScale.caption,
@@ -40,6 +40,6 @@ const styles = StyleSheet.create({
   },
   activeLabel: {
     color: colors.brandDeep,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

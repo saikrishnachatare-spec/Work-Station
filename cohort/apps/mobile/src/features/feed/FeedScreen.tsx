@@ -20,8 +20,8 @@ function TopReads() {
   const router = useRouter();
   const reads = (posts.data ?? []).filter(p => p.kind === 'post').slice(0, 10);
   if (!reads.length) return null;
-  return <Card style={{ gap: spacing.sm }}>
-    <Text style={styles.strong}>Recent community reads</Text>
+  return <Card style={{ backgroundColor: colors.brandSoft, borderColor: colors.brandSoft, gap: spacing.sm }}>
+    <Text style={[styles.strong, { color: colors.brandDeep }]}>Recent community reads</Text>
     {reads.map(p => <Pressable accessibilityRole="button" key={p.id} onPress={() => router.push({ pathname: '/post', params: { id: p.id } })}>
       <Text style={styles.strong}>{p.author_name}</Text>
       <Text numberOfLines={2} style={styles.body}>{p.body}</Text>

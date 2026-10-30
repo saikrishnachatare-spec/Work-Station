@@ -7,7 +7,7 @@ type AvatarProps = {
   size?: number;
 };
 
-/** Initials avatar; colour picked from the prototype accent palette by name. */
+/** Initials avatar; soft watermelon tint picked by name, deep ink initials. */
 export function Avatar({ name, size = 38 }: AvatarProps) {
   const initials = name
     .split(' ')
@@ -30,7 +30,7 @@ export function Avatar({ name, size = 38 }: AvatarProps) {
         },
       ]}
     >
-      <Text style={[styles.initials, { fontSize: size * 0.38 }]}>{initials}</Text>
+      <Text style={[styles.initials, { color: colors.accentInk[index], fontSize: size * 0.38 }]}>{initials}</Text>
     </View>
   );
 }

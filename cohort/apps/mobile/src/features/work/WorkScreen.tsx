@@ -196,12 +196,12 @@ const styles = StyleSheet.create({
   page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 120 },
   banner: {
     alignItems: 'center', backgroundColor: colors.brandSoft,
-    borderColor: '#eed5c4', flexDirection: 'row', gap: spacing.sm,
+    borderColor: '#F3CFD8', flexDirection: 'row', gap: spacing.sm,
   },
   alertBtn: {
-    backgroundColor: colors.brand, borderRadius: radius.input, justifyContent: 'center', paddingHorizontal: 14,
+    backgroundColor: colors.brandSoft, borderRadius: radius.input, justifyContent: 'center', paddingHorizontal: 14,
   },
-  alertBtnText: { ...typeScale.caption, color: '#fff', fontWeight: '600' },
+  alertBtnText: { ...typeScale.caption, color: colors.brandDeep, fontWeight: '600' },
   alertDismiss: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },
   alertHit: {
     alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: radius.tile,
@@ -222,11 +222,11 @@ const styles = StyleSheet.create({
   },
   foot: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   btn: {
-    backgroundColor: colors.brand, borderColor: colors.brand, borderRadius: radius.pill,
+    backgroundColor: colors.brandSoft, borderColor: colors.brandSoft, borderRadius: radius.pill,
     borderWidth: 1, paddingHorizontal: 16, paddingVertical: 8,
   },
   btnDone: { backgroundColor: colors.card },
-  btnText: { ...typeScale.caption, color: '#fff', fontWeight: '600' },
+  btnText: { ...typeScale.caption, color: colors.brandDeep, fontWeight: '600' },
   btnTextDone: { color: colors.brand },
   strong: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
   meta: { ...typeScale.caption, color: colors.ink3 },

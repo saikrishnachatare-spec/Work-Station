@@ -171,10 +171,10 @@ const styles = StyleSheet.create({
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: spacing.xs },
   applyTitle: { ...typeScale.sectionTitle, color: colors.ink },
   primaryBtn: {
-    alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.pill,
+    alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: radius.pill,
     marginTop: spacing.sm, paddingVertical: 12,
   },
-  primaryBtnText: { ...typeScale.body, color: '#fff', fontWeight: '600' },
+  primaryBtnText: { ...typeScale.body, color: colors.brandDeep, fontWeight: '600' },
   appliedBtn: { backgroundColor: colors.card, borderColor: colors.lineWarm, borderWidth: 1 },
   appliedBtnText: { color: colors.ink },
   meta: { ...typeScale.caption, color: colors.ink3 },

@@ -118,7 +118,7 @@ export function MessagesScreen() {
             value={draft}
           />
           <Pressable accessibilityLabel="Send" onPress={send} style={styles.sendBtn}>
-            <Ionicons color="#fff" name="send" size={15} />
+            <Ionicons color={colors.brandDeep} name="send" size={15} />
           </Pressable>
         </View>
       </View>
@@ -170,7 +170,7 @@ export function MessagesScreen() {
     <ScrollView contentContainerStyle={styles.page}>
       <ScreenHeader sub="Students, mentors and firms, one tap away." title="Messages" />
       <Pressable onPress={() => setPicking(true)} style={styles.newBtn}>
-        <Ionicons color="#fff" name="add" size={15} />
+        <Ionicons color={colors.brandDeep} name="add" size={15} />
         <Text style={styles.newBtnText}>New message</Text>
       </Pressable>
       {threads.isLoading && <ListSkeleton count={2} />}
@@ -217,16 +217,16 @@ const styles = StyleSheet.create({
   page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 60 },
   pageCenter: { flex: 1, justifyContent: 'center', padding: spacing.lg },
   newBtn: {
-    alignItems: 'center', alignSelf: 'flex-start', backgroundColor: colors.brand,
+    alignItems: 'center', alignSelf: 'flex-start', backgroundColor: colors.brandSoft,
     borderRadius: radius.pill, flexDirection: 'row', gap: 6,
     paddingHorizontal: spacing.lg, paddingVertical: 9,
   },
-  newBtnText: { ...typeScale.caption, color: '#fff', fontWeight: '600' },
+  newBtnText: { ...typeScale.caption, color: colors.brandDeep, fontWeight: '600' },
   unread: {
-    alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.pill,
+    alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: radius.pill,
     justifyContent: 'center', minWidth: 20, paddingHorizontal: 5, paddingVertical: 2,
   },
-  unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  unreadText: { color: colors.brandDeep, fontSize: 11, fontWeight: '700' },
   convo: { alignItems: 'center', flexDirection: 'row', gap: spacing.md },
   threadPage: { flex: 1, gap: spacing.sm, padding: spacing.lg },
   backBtn: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 4, paddingVertical: 4 },
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     ...typeScale.body, borderRadius: radius.tile, maxWidth: '80%',
     overflow: 'hidden', paddingHorizontal: 12, paddingVertical: 8,
   },
-  you: { alignSelf: 'flex-end', backgroundColor: colors.brand, color: '#fff' },
+  you: { alignSelf: 'flex-end', backgroundColor: colors.brandDeep, color: '#fff' },
   them: { alignSelf: 'flex-start', backgroundColor: colors.card, color: colors.ink },
   composer: { flexDirection: 'row', gap: spacing.sm },
   input: {
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.input, borderWidth: 1, color: colors.ink, flex: 1, padding: 10,
   },
   sendBtn: {
-    alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.input,
+    alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: radius.input,
     justifyContent: 'center', paddingHorizontal: 14,
   },
   strong: { ...typeScale.body, color: colors.ink, fontWeight: '600' },

@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
   segBtn: { alignItems: 'center', borderRadius: 10, flex: 1, paddingVertical: 8 },
   segOn: { backgroundColor: colors.card },
   segText: { ...typeScale.body, color: colors.ink2, fontWeight: '600' },
-  segTextOn: { color: colors.brand },
+  segTextOn: { color: colors.brandDeep },
   levels: { flexDirection: 'row', gap: spacing.sm },
   level: {
     alignItems: 'center', backgroundColor: colors.card, borderColor: colors.lineWarm,
@@ -306,11 +306,11 @@ const styles = StyleSheet.create({
   addNoteBtn: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 4, paddingVertical: 4 },
   addNoteText: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },
   btn: {
-    backgroundColor: colors.brand, borderColor: colors.brand, borderRadius: radius.pill,
+    backgroundColor: colors.brandSoft, borderColor: colors.brandSoft, borderRadius: radius.pill,
     borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7,
   },
-  btnText: { ...typeScale.caption, color: '#fff', fontWeight: '600' },
-  ghostBtn: { borderColor: colors.brand, borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7 },
+  btnText: { ...typeScale.caption, color: colors.brandDeep, fontWeight: '600' },
+  ghostBtn: { borderColor: colors.brandSoft, borderRadius: radius.pill, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7 },
   ghostBtnText: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },
   pickBtn: { backgroundColor: colors.cream, borderRadius: radius.input, padding: 12 },
   pickBtnText: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },

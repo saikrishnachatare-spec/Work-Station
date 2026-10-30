@@ -208,9 +208,9 @@ const styles = StyleSheet.create({
   badgeOk: { backgroundColor: '#eef4ec', color: '#3f6440' },
   badgeWarn: { backgroundColor: colors.brandSoft, color: colors.brandDeep },
   cta: {
-    alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.pill, paddingVertical: 12,
+    alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: radius.pill, paddingVertical: 12,
   },
-  ctaText: { ...typeScale.body, color: '#fff', fontWeight: '600' },
+  ctaText: { ...typeScale.body, color: colors.brandDeep, fontWeight: '600' },
   label: { ...typeScale.caption, color: colors.ink3 },
   input: {
     ...typeScale.body, backgroundColor: colors.card, borderColor: colors.lineWarm,

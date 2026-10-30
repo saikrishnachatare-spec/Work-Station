@@ -83,8 +83,8 @@ const styles = StyleSheet.create({
   title: { ...typeScale.screenTitle, color: colors.ink },
   meta: { ...typeScale.caption, color: colors.ink3, textAlign: 'center' },
   primaryBtn: {
-    alignItems: 'center', alignSelf: 'stretch', backgroundColor: colors.brand,
+    alignItems: 'center', alignSelf: 'stretch', backgroundColor: colors.brandSoft,
     borderRadius: radius.pill, marginTop: spacing.md, paddingVertical: 12,
   },
-  primaryBtnText: { ...typeScale.body, color: '#fff', fontWeight: '600' },
+  primaryBtnText: { ...typeScale.body, color: colors.brandDeep, fontWeight: '600' },
 });

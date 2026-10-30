@@ -302,11 +302,11 @@ const styles = StyleSheet.create({
   meta: { ...typeScale.caption, color: colors.ink3 },
   tags: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   btn: {
-    backgroundColor: colors.brand, borderColor: colors.brand, borderRadius: radius.pill,
+    backgroundColor: colors.brandSoft, borderColor: colors.brandSoft, borderRadius: radius.pill,
     borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7,
   },
   btnDone: { backgroundColor: colors.card },
-  btnText: { ...typeScale.caption, color: '#fff', fontWeight: '600' },
+  btnText: { ...typeScale.caption, color: colors.brandDeep, fontWeight: '600' },
   btnTextDone: { color: colors.brand },
   chatBtn: { alignItems: 'center', flexDirection: 'row', gap: 4, paddingVertical: 3 },
   chatBtnText: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },

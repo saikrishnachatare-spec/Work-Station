@@ -31,13 +31,13 @@ export function EmptyState({ actionLabel, body, icon = 'file-tray-outline', onAc
 
 const styles = StyleSheet.create({
   action: {
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandSoft,
     borderRadius: radius.pill,
     marginTop: spacing.lg,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
   },
-  actionText: { color: '#fff', fontSize: typeScale.body.fontSize, fontWeight: '600' },
+  actionText: { color: colors.brandDeep, fontSize: typeScale.body.fontSize, fontWeight: '600' },
   body: {
     color: colors.ink2,
     fontSize: typeScale.body.fontSize,

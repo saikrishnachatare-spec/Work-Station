@@ -41,7 +41,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   if (loading && Platform.OS !== 'web') {
     return (
       <View style={{ alignItems: 'center', backgroundColor: colors.cream, flex: 1, justifyContent: 'center' }}>
-        <Text style={{ color: colors.brand, fontFamily: 'Georgia', fontSize: 28 }}>Cohort</Text>
+        <Text style={{ color: colors.brand, fontSize: 28, fontWeight: '800' }}>Cohort</Text>
       </View>
     );
   }
@@ -97,7 +97,7 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: colors.cream },
             headerTintColor: colors.ink,
             headerStyle: { backgroundColor: colors.cream },
-            headerTitleStyle: { fontFamily: 'Georgia' },
+            headerTitleStyle: { fontWeight: '800' },
             // Hydration safety: react-navigation derives the title container's
             // maxWidth from the measured layout width, which is 0 in the static
             // export pass, so the served HTML carries broken negative values and

@@ -785,7 +785,7 @@ export default function AdminScreen() {
 const styles = StyleSheet.create({
   gate: { alignItems: 'center', backgroundColor: colors.cream, flex: 1, justifyContent: 'center', padding: spacing.lg },
   gateIcon: {
-    alignItems: 'center', alignSelf: 'center', backgroundColor: colors.brand,
+    alignItems: 'center', alignSelf: 'center', backgroundColor: colors.brandDeep,
     borderRadius: 22, height: 44, justifyContent: 'center', width: 44,
   },
   page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 60 },
@@ -805,14 +805,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 10,
   },
   cta: {
-    alignItems: 'center', backgroundColor: colors.brand, borderRadius: radius.pill,
+    alignItems: 'center', backgroundColor: colors.brandSoft, borderRadius: radius.pill,
     paddingHorizontal: 16, paddingVertical: 10,
   },
   ctaLink: {
-    backgroundColor: colors.brand, borderRadius: radius.pill,
+    backgroundColor: colors.brandSoft, borderRadius: radius.pill,
     paddingHorizontal: 16, paddingVertical: 10,
   },
-  ctaText: { ...typeScale.caption, color: '#fff', fontWeight: '600' },
+  ctaText: { ...typeScale.caption, color: colors.brandDeep, fontWeight: '600' },
   segBtn: {
     backgroundColor: colors.card, borderColor: '#e7d9cf', borderRadius: radius.pill,
     borderWidth: 1, paddingHorizontal: 14, paddingVertical: 8,

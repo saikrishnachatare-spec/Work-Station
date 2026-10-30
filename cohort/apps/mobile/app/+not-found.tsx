@@ -40,15 +40,15 @@ const styles = StyleSheet.create({
     width: 60,
   },
   link: {
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandSoft,
     borderRadius: radius.pill,
-    color: '#fff',
+    color: colors.brandDeep,
     fontWeight: '600',
     marginTop: spacing.lg,
     overflow: 'hidden',
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
   },
-  title: { color: colors.ink, fontFamily: 'Georgia', fontSize: 24, marginTop: spacing.md },
+  title: { color: colors.ink, fontSize: 24, fontWeight: '800', marginTop: spacing.md },
   wrap: { alignItems: 'center', backgroundColor: colors.cream, flex: 1, justifyContent: 'center', padding: spacing.xl },
 });
