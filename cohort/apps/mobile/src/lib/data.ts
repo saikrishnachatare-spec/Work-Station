@@ -1122,3 +1122,62 @@ export function useAdminAnalytics(enabled: boolean) {
     },
   });
 }
+
+export type Notification = {
+  id: string;
+  kind: 'message' | 'comment' | 'application_status';
+  title: string;
+  body: string;
+  link: string;
+  read_at: string | null;
+  created_at: string;
+};
+
+/** Recent in-app notifications for the signed-in member, newest first. */
+export function useNotifications(userId: string | undefined) {
+  return useQuery({
+    enabled: !!userId,
+    queryKey: ['notifications', userId],
+    queryFn: async (): Promise<Notification[]> => {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('id, kind, title, body, link, read_at, created_at')
+        .eq('user_id', userId!)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data as Notification[];
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+export function useMarkNotificationRead(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (notificationId: string) => {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .eq('id', notificationId)
+        .eq('user_id', userId!);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications', userId] }),
+  });
+}
+
+export function useMarkAllNotificationsRead(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .eq('user_id', userId!)
+        .is('read_at', null);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications', userId] }),
+  });
+}

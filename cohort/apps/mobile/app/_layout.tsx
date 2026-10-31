@@ -111,6 +111,7 @@ export default function RootLayout() {
           <Stack.Screen name="+not-found" options={{ title: 'Not found' }} />
           <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
           <Stack.Screen name="messages" options={{ title: 'Messages' }} />
+          <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
           <Stack.Screen name="search" options={{ title: 'Search' }} />
           <Stack.Screen name="account" options={{ title: 'Account' }} />
           <Stack.Screen name="safety" options={{ title: 'Report and block' }} />
