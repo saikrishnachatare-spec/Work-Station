@@ -81,11 +81,25 @@ export function FeedScreen() {
         />
       )}
       {!posts.isLoading && !posts.isError && items.length === 0 && (
-        <EmptyState
-          body={`Nothing under ${filter} yet. Posts will show up here as your cohort shares them.`}
-          icon="newspaper-outline"
-          title="Nothing here yet"
-        />
+        <View style={{ gap: spacing.sm }}>
+          <EmptyState
+            body={`Nothing under ${filter} yet. Posts will show up here as your cohort shares them.`}
+            icon="newspaper-outline"
+            title="Nothing here yet"
+          />
+          <Card style={{ gap: spacing.sm }}>
+            <Text style={styles.strong}>New here? Three quick starts</Text>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/community')}>
+              <Text style={styles.onboardLink}>Join a study circle in Community</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/search')}>
+              <Text style={styles.onboardLink}>Find people and connect with them</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/create')}>
+              <Text style={styles.onboardLink}>Share your first post</Text>
+            </Pressable>
+          </Card>
+        </View>
       )}
       {items.map((f) => {
         const liked = myLikes.data?.has(f.id) ?? false;
@@ -152,6 +166,7 @@ export function FeedScreen() {
 }
 
 const styles = StyleSheet.create({
+  onboardLink: { color: colors.brandDeep, fontSize: 13, fontWeight: '600', paddingVertical: 2 },
   page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 120 },
   greet: { ...typeScale.caption, color: colors.ink2 },
   chips: { gap: spacing.sm },

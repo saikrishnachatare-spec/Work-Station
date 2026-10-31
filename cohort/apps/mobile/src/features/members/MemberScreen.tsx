@@ -6,11 +6,22 @@ import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'r
 
 import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
+import { ConnectionCta } from '@/features/members/ConnectionCta';
 import { EmptyState } from '@/components/EmptyState';
 import { Pill, SectionTitle } from '@/components/ScreenBits';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
-import { timeAgo, usePosts, useProfile, useStartThread } from '@/lib/data';
+import {
+  timeAgo,
+  useConnectionWith,
+  useMyProfile,
+  usePosts,
+  useProfile,
+  useRemoveConnection,
+  useRespondToConnection,
+  useSendConnectionRequest,
+  useStartThread,
+} from '@/lib/data';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -23,6 +34,15 @@ export function MemberScreen({ id }: { id: string }) {
   const profile = useProfile(id);
   const posts = usePosts();
   const startThread = useStartThread(userId);
+  const connection = useConnectionWith(userId, id);
+  const sendRequest = useSendConnectionRequest(userId);
+  const respond = useRespondToConnection(userId);
+  const removeConnection = useRemoveConnection(userId);
+  const myProfile = useMyProfile(userId);
+  // Admins and firm/enterprise accounts may message without a connection.
+  const canBypassGate =
+    myProfile.data?.role === 'admin' ||
+    (myProfile.data?.account_type !== undefined && myProfile.data.account_type !== 'individual');
   const [signedAvatar, setSignedAvatar] = useState<{ path: string; url: string } | null>(null);
 
   const avatarPath = profile.data?.avatar_path;
@@ -84,7 +104,7 @@ export function MemberScreen({ id }: { id: string }) {
 
   const message = () => {
     startThread.mutate(
-      { firstMessage: 'Hi!', otherUserId: p.id },
+      { firstMessage: '', otherUserId: p.id },
       {
         onError: () => toast.show('Could not start the conversation. Try again.', 'error'),
         onSuccess: () => {
@@ -119,9 +139,38 @@ export function MemberScreen({ id }: { id: string }) {
             <Text style={styles.ctaText}>Edit your profile</Text>
           </Pressable>
         ) : (
-          <Pressable disabled={startThread.isPending} onPress={message} style={styles.cta}>
-            <Text style={styles.ctaText}>{startThread.isPending ? 'Starting…' : 'Message'}</Text>
-          </Pressable>
+          <ConnectionCta
+            canBypassGate={canBypassGate}
+            connection={connection.data ?? null}
+            onAccept={() => {
+              if (!connection.data) return;
+              respond.mutate(
+                { accept: true, connectionId: connection.data.id },
+                { onError: () => toast.show('Could not accept. Try again.', 'error') },
+              );
+            }}
+            onConnect={() =>
+              sendRequest.mutate(p.id, {
+                onError: (err) => toast.show(err instanceof Error ? err.message : 'Could not send the request. Try again.', 'error'),
+              })
+            }
+            onDecline={() => {
+              if (!connection.data) return;
+              respond.mutate(
+                { accept: false, connectionId: connection.data.id },
+                { onError: () => toast.show('Could not decline. Try again.', 'error') },
+              );
+            }}
+            onMessage={message}
+            onWithdraw={() => {
+              if (!connection.data) return;
+              removeConnection.mutate(connection.data.id, {
+                onError: () => toast.show('Could not update. Try again.', 'error'),
+              });
+            }}
+            pending={startThread.isPending || sendRequest.isPending || respond.isPending || removeConnection.isPending}
+            userId={userId}
+          />
         )}
       </Card>
 

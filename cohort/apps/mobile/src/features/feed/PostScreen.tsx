@@ -8,7 +8,7 @@ import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { Pill } from '@/components/ScreenBits';
-import { timeAgo, useAddComment, useComments, usePost, useProfiles, useEditOwnContent, useDeleteOwnContent } from '@/lib/data';
+import { timeAgo, useAddComment, useComments, useMyLikes, usePost, useProfiles, useToggleLike, useEditOwnContent, useDeleteOwnContent } from '@/lib/data';
 import { itemShareUrl, shareItemLink } from '@/lib/share';
 import { useAuth } from '@/store/session';
 import { useToast } from '@/components/Toast';
@@ -32,6 +32,8 @@ export function PostScreen({ id }: { id: string }) {
   const editComment = useEditOwnContent('comments', userId);
   const deletePost = useDeleteOwnContent('posts', userId);
   const deleteComment = useDeleteOwnContent('comments', userId);
+  const myLikes = useMyLikes(userId);
+  const toggleLike = useToggleLike(userId);
   const startEdit = (table: 'posts' | 'comments', id: string, body: string) => { setEditing({ table, id }); setEditText(body); };
   const saveEdit = () => {
     if (!editing || !editText.trim()) return;
@@ -78,6 +80,7 @@ export function PostScreen({ id }: { id: string }) {
   }
 
   const p = post.data;
+  const liked = myLikes.data?.has(p.id) ?? false;
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <Pressable onPress={() => router.back()} style={styles.backBtn}>
@@ -108,8 +111,27 @@ export function PostScreen({ id }: { id: string }) {
           <Pressable accessibilityRole="button" onPress={() => setDeleting({ table: 'posts', id: p.id })}><Text style={styles.backText}>Delete post</Text></Pressable>
         </View>}
         <View style={styles.footRow}>
-          <Ionicons color={colors.ink3} name="heart-outline" size={14} />
-          <Text style={styles.meta}>{p.like_count}</Text>
+          <Pressable
+            accessibilityLabel={liked ? 'Unlike this post' : 'Like this post'}
+            accessibilityRole="button"
+            onPress={() => {
+              if (!userId) {
+                toast.show('Sign in to like posts', 'info');
+                return;
+              }
+              toggleLike.mutate(
+                { liked, postId: p.id },
+                {
+                  onError: () => toast.show('Could not update the like. Try again.', 'error'),
+                  onSuccess: () => toast.show(liked ? 'Removed from your likes' : 'Added to your likes', 'success'),
+                },
+              );
+            }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+          >
+            <Ionicons color={liked ? colors.brand : colors.ink3} name={liked ? 'heart' : 'heart-outline'} size={14} />
+            <Text style={styles.meta}>{p.like_count}</Text>
+          </Pressable>
           <Ionicons color={colors.ink3} name="chatbubble-outline" size={13} />
           <Text style={styles.meta}>{p.comment_count}</Text>
           <Pressable

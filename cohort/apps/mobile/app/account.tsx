@@ -2,7 +2,7 @@
 import { SeoHead } from '@/components/SeoHead';
 import { createElement, useEffect, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
-import { type ProfileEducation, type ProfileExperience, useMyProfile } from '@/lib/data';
+import { type ProfileEducation, type ProfileExperience, useMyProfile, useMyVerificationRequest, useRequestVerification } from '@/lib/data';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -24,6 +24,8 @@ export default function AccountScreen() {
   const [nameDraft, setNameDraft] = useState('');
   const [savingName, setSavingName] = useState(false);
   const profile = useMyProfile(session?.user.id);
+  const verificationRequest = useMyVerificationRequest(session?.user.id);
+  const requestVerification = useRequestVerification(session?.user.id);
   const [courseDraft, setCourseDraft] = useState('');
   const [levelDraft, setLevelDraft] = useState('');
   const [photo, setPhoto] = useState<{uri:string;name:string;mimeType?:string;size?:number}|null>(null);
@@ -256,9 +258,44 @@ export default function AccountScreen() {
         </Pressable>
       )}
 
+      {!profile.data?.verified_at ? (
+        <Card style={{ gap: spacing.sm }}>
+          <Text style={styles.body}>
+            {verificationRequest.data?.status === 'pending'
+              ? 'Your verification request is with the Cohort team. You will get a notification when it is reviewed.'
+              : verificationRequest.data?.status === 'rejected'
+                ? 'Your last verification request was declined. Add more detail to your profile and request again.'
+                : 'Verified professionals get a badge and can post job openings. Request a review once your profile is complete.'}
+          </Text>
+          {verificationRequest.data?.status !== 'pending' ? (
+            <Pressable
+              disabled={requestVerification.isPending}
+              onPress={() =>
+                requestVerification.mutate('', {
+                  onError: () => toast.show('Could not send the request. Try again.', 'error'),
+                  onSuccess: () => toast.show('Verification request sent', 'success'),
+                })
+              }
+              style={styles.cta}
+            >
+              <Text style={styles.ctaText}>{requestVerification.isPending ? 'Sending…' : 'Request verification'}</Text>
+            </Pressable>
+          ) : null}
+        </Card>
+      ) : null}
+
       <Pressable onPress={doSignOut} style={styles.cta}>
         <Text style={styles.ctaText}>Sign out</Text>
       </Pressable>
+
+      <View style={{ flexDirection: 'row', gap: spacing.lg, justifyContent: 'center' }}>
+        <Pressable accessibilityRole="link" onPress={() => router.push('/terms')}>
+          <Text style={styles.legalLink}>Terms of use</Text>
+        </Pressable>
+        <Pressable accessibilityRole="link" onPress={() => router.push('/privacy')}>
+          <Text style={styles.legalLink}>Privacy policy</Text>
+        </Pressable>
+      </View>
 
       {!confirming ? (
         <Pressable onPress={() => setConfirming(true)}>
@@ -304,6 +341,7 @@ const styles = StyleSheet.create({
     ...typeScale.body, backgroundColor: colors.card, borderColor: colors.lineWarm,
     borderRadius: radius.input, borderWidth: 1, color: colors.ink, padding: 10,
   },
+  legalLink: { ...typeScale.caption, color: colors.brand, fontWeight: '600' as const },
   danger: { ...typeScale.caption, color: colors.brandDeep, fontWeight: '600', textAlign: 'center' },
   dangerBtn: {
     alignItems: 'center', backgroundColor: colors.brandDeep, borderRadius: radius.pill,

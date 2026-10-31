@@ -20,6 +20,9 @@ const KIND_ICONS: Record<Notification['kind'], keyof typeof Ionicons.glyphMap> =
   message: 'chatbubble-ellipses-outline',
   comment: 'chatbox-outline',
   application_status: 'briefcase-outline',
+  connection_request: 'person-add-outline',
+  connection_accepted: 'people-outline',
+  job_match: 'briefcase-outline',
 };
 
 export function NotificationsScreen() {

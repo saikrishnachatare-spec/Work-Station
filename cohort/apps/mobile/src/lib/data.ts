@@ -1125,7 +1125,7 @@ export function useAdminAnalytics(enabled: boolean) {
 
 export type Notification = {
   id: string;
-  kind: 'message' | 'comment' | 'application_status';
+  kind: 'message' | 'comment' | 'application_status' | 'connection_request' | 'connection_accepted' | 'job_match';
   title: string;
   body: string;
   link: string;
@@ -1179,5 +1179,219 @@ export function useMarkAllNotificationsRead(userId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications', userId] }),
+  });
+}
+
+export type Connection = {
+  id: string;
+  requester_id: string;
+  addressee_id: string;
+  status: 'pending' | 'accepted' | 'declined';
+  created_at: string;
+};
+
+/** The connection row between me and another member, either direction. */
+export function useConnectionWith(userId: string | undefined, otherId: string | undefined) {
+  return useQuery({
+    enabled: !!userId && !!otherId && userId !== otherId,
+    queryKey: ['connection', userId, otherId],
+    queryFn: async (): Promise<Connection | null> => {
+      const { data, error } = await supabase
+        .from('connections')
+        .select('*')
+        .or(`and(requester_id.eq.${userId},addressee_id.eq.${otherId}),and(requester_id.eq.${otherId},addressee_id.eq.${userId})`)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as Connection) ?? null;
+    },
+  });
+}
+
+/** Accepted connections in both directions, newest first. */
+export function useMyConnections(userId: string | undefined) {
+  return useQuery({
+    enabled: !!userId,
+    queryKey: ['connections', userId],
+    queryFn: async (): Promise<Connection[]> => {
+      const { data, error } = await supabase
+        .from('connections')
+        .select('*')
+        .eq('status', 'accepted')
+        .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as Connection[];
+    },
+  });
+}
+
+/** Pending requests others sent me (to answer) and I sent (still open). */
+export function useConnectionRequests(userId: string | undefined) {
+  return useQuery({
+    enabled: !!userId,
+    queryKey: ['connection-requests', userId],
+    queryFn: async (): Promise<{ incoming: Connection[]; outgoing: Connection[] }> => {
+      const { data, error } = await supabase
+        .from('connections')
+        .select('*')
+        .eq('status', 'pending')
+        .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      const rows = data as Connection[];
+      return {
+        incoming: rows.filter((r) => r.addressee_id === userId),
+        outgoing: rows.filter((r) => r.requester_id === userId),
+      };
+    },
+    refetchInterval: 60_000,
+  });
+}
+
+export function useSendConnectionRequest(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (addresseeId: string) => {
+      if (!userId) throw new Error('Sign in to connect');
+      const { error } = await supabase.from('connections').insert({ addressee_id: addresseeId, requester_id: userId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['connection'] });
+      qc.invalidateQueries({ queryKey: ['connection-requests', userId] });
+    },
+  });
+}
+
+export function useRespondToConnection(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ accept, connectionId }: { accept: boolean; connectionId: string }) => {
+      const { error } = await supabase
+        .from('connections')
+        .update({ status: accept ? 'accepted' : 'declined' })
+        .eq('id', connectionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['connection'] });
+      qc.invalidateQueries({ queryKey: ['connections', userId] });
+      qc.invalidateQueries({ queryKey: ['connection-requests', userId] });
+    },
+  });
+}
+
+/** Withdraw an outgoing request or end an accepted connection. */
+export function useRemoveConnection(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (connectionId: string) => {
+      const { error } = await supabase.from('connections').delete().eq('id', connectionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['connection'] });
+      qc.invalidateQueries({ queryKey: ['connections', userId] });
+      qc.invalidateQueries({ queryKey: ['connection-requests', userId] });
+    },
+  });
+}
+
+export type SearchResults = { groups: Group[]; jobs: Job[]; people: Profile[]; posts: Post[]; resources: Resource[] };
+
+/** Server-side global search: one ilike query per content type, 20 rows each. */
+export function useSearch(rawQuery: string) {
+  const q = rawQuery.trim().replace(/[%_,().\\]/g, ' ').replace(/\s+/g, ' ').trim();
+  return useQuery({
+    enabled: q.length >= 2,
+    queryKey: ['search', q],
+    queryFn: async (): Promise<SearchResults> => {
+      const like = `%${q}%`;
+      const [posts, resources, groups, jobs, people] = await Promise.all([
+        supabase.from('posts').select('*').or(`body.ilike.${like},author_name.ilike.${like}`).order('created_at', { ascending: false }).limit(20),
+        supabase.from('resources').select('*').or(`title.ilike.${like},uploaded_by.ilike.${like},course.ilike.${like},cat.ilike.${like}`).order('created_at', { ascending: false }).limit(20),
+        supabase.from('groups').select('*').eq('kind', 'group').or(`name.ilike.${like},description.ilike.${like},purpose.ilike.${like}`).limit(20),
+        supabase.from('jobs').select('*').or(`role.ilike.${like},firm.ilike.${like},loc.ilike.${like}`).order('created_at', { ascending: false }).limit(20),
+        supabase.from('profiles').select('*').or(`full_name.ilike.${like},role.ilike.${like}`).limit(20),
+      ]);
+      for (const r of [posts, resources, groups, jobs, people]) if (r.error) throw r.error;
+      return {
+        groups: groups.data as Group[],
+        jobs: jobs.data as Job[],
+        people: people.data as Profile[],
+        posts: posts.data as Post[],
+        resources: resources.data as Resource[],
+      };
+    },
+  });
+}
+
+export type VerificationRequest = {
+  id: string;
+  user_id: string;
+  note: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+};
+
+/** My latest verification request, if any. */
+export function useMyVerificationRequest(userId: string | undefined) {
+  return useQuery({
+    enabled: !!userId,
+    queryKey: ['verification-request', userId],
+    queryFn: async (): Promise<VerificationRequest | null> => {
+      const { data, error } = await supabase
+        .from('verification_requests')
+        .select('*')
+        .eq('user_id', userId!)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return (data as VerificationRequest) ?? null;
+    },
+  });
+}
+
+export function useRequestVerification(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (note: string) => {
+      if (!userId) throw new Error('Sign in first');
+      const { error } = await supabase.from('verification_requests').insert({ note, user_id: userId });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['verification-request', userId] }),
+  });
+}
+
+/** Pending verification requests, for the admin panel. */
+export function usePendingVerificationRequests(isAdmin: boolean) {
+  return useQuery({
+    enabled: isAdmin,
+    queryKey: ['verification-requests-pending'],
+    queryFn: async (): Promise<VerificationRequest[]> => {
+      const { data, error } = await supabase
+        .from('verification_requests')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data as VerificationRequest[];
+    },
+  });
+}
+
+export function useReviewVerificationRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ approve, requestId }: { approve: boolean; requestId: string }) => {
+      const { error } = await supabase.rpc('review_verification_request', { p_approve: approve, p_id: requestId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['verification-requests-pending'] });
+      qc.invalidateQueries({ queryKey: ['profiles'] });
+    },
   });
 }

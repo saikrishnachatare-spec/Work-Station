@@ -11,7 +11,19 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
 import { supabase } from '@/lib/supabase';
-import { timeAgo, useApplicationsForJobs, useMyPostedJobs, useMyProfile, useProfiles, useUpdateApplicationStatus } from '@/lib/data';
+import {
+  timeAgo,
+  useApplicationsForJobs,
+  useConnectionRequests,
+  useMyConnections,
+  useMyPostedJobs,
+  useMyProfile,
+  useProfiles,
+  useRespondToConnection,
+  useSendConnectionRequest,
+  useStartThread,
+  useUpdateApplicationStatus,
+} from '@/lib/data';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
@@ -28,6 +40,79 @@ export default function HiringScreen() {
   const [closing, setClosing] = useState('');
 
   const updateStatus = useUpdateApplicationStatus();
+  const connections = useMyConnections(userId);
+  const requests = useConnectionRequests(userId);
+  const sendRequest = useSendConnectionRequest(userId);
+  const respond = useRespondToConnection(userId);
+  const startThread = useStartThread(userId);
+
+  /** Connection state with an applicant, for the contact chip. */
+  const contactState = (otherId: string): 'connected' | 'incoming' | 'outgoing' | 'none' => {
+    if ((connections.data ?? []).some((c) => c.requester_id === otherId || c.addressee_id === otherId)) return 'connected';
+    if ((requests.data?.incoming ?? []).some((c) => c.requester_id === otherId)) return 'incoming';
+    if ((requests.data?.outgoing ?? []).some((c) => c.addressee_id === otherId)) return 'outgoing';
+    return 'none';
+  };
+
+  const viewerBypassesGate =
+    profile.data?.role === 'admin' ||
+    (profile.data?.account_type !== undefined && profile.data.account_type !== 'individual');
+
+  const contactChip = (otherId: string) => {
+    const state = contactState(otherId);
+    if (viewerBypassesGate || state === 'connected') {
+      return (
+        <Pressable
+          disabled={startThread.isPending}
+          onPress={() =>
+            startThread.mutate(
+              { firstMessage: '', otherUserId: otherId },
+              {
+                onError: () => toast.show('Could not start the conversation. Try again.', 'error'),
+                onSuccess: () => router.push('/messages'),
+              },
+            )
+          }
+          style={styles.actionChip}
+        >
+          <Text style={styles.actionChipText}>Message</Text>
+        </Pressable>
+      );
+    }
+    if (state === 'incoming') {
+      const req = (requests.data?.incoming ?? []).find((c) => c.requester_id === otherId);
+      return (
+        <Pressable
+          disabled={respond.isPending}
+          onPress={() => req && respond.mutate({ accept: true, connectionId: req.id }, { onError: () => toast.show('Could not accept. Try again.', 'error') })}
+          style={styles.actionChip}
+        >
+          <Text style={styles.actionChipText}>Accept request</Text>
+        </Pressable>
+      );
+    }
+    if (state === 'outgoing') {
+      return (
+        <View style={styles.actionChip}>
+          <Text style={styles.actionChipText}>Request sent</Text>
+        </View>
+      );
+    }
+    return (
+      <Pressable
+        disabled={sendRequest.isPending}
+        onPress={() =>
+          sendRequest.mutate(otherId, {
+            onError: () => toast.show('Could not send the request. Try again.', 'error'),
+            onSuccess: () => toast.show('Connection request sent', 'success'),
+          })
+        }
+        style={styles.actionChip}
+      >
+        <Text style={styles.actionChipText}>Connect</Text>
+      </Pressable>
+    );
+  };
 
   const openResume = async (path: string, name?: string | null) => {
     const { data, error } = await supabase.storage.from('resumes').createSignedUrl(path, 300);
@@ -125,6 +210,7 @@ export default function HiringScreen() {
                     </View>
                   </View>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+                    {contactChip(a.user_id)}
                     {a.resume_path ? (
                       <Pressable onPress={() => openResume(a.resume_path!, a.resume_name)} style={styles.actionChip}>
                         <Text style={styles.actionChipText}>Resume{a.resume_name ? ` (${a.resume_name})` : ''}</Text>

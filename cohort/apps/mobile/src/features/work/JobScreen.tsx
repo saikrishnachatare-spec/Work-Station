@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { createElement, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
@@ -52,13 +52,23 @@ export function JobScreen({ id }: { id: string }) {
       return;
     }
     if (applied) {
-      toggleApplication.mutate(
-        { applied, jobId: j.id },
-        {
-          onError: () => toast.show('Could not update your application. Try again.', 'error'),
-          onSuccess: () => toast.show('Application withdrawn', 'success'),
-        },
-      );
+      const doWithdraw = () =>
+        toggleApplication.mutate(
+          { applied, jobId: j.id },
+          {
+            onError: () => toast.show('Could not update your application. Try again.', 'error'),
+            onSuccess: () => toast.show('Application withdrawn', 'success'),
+          },
+        );
+      const prompt = 'Withdraw this application? Your cover note and resume are removed from this opening.';
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined' && window.confirm(prompt)) doWithdraw();
+      } else {
+        Alert.alert('Withdraw application', prompt, [
+          { style: 'cancel', text: 'Keep it' },
+          { style: 'destructive', text: 'Withdraw', onPress: doWithdraw },
+        ]);
+      }
       return;
     }
     applyToJob.mutate(

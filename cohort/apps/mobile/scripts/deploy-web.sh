@@ -7,6 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 npx expo export --platform web
 node scripts/fix-web-assets.mjs
+cp -r web-static/. dist/
 cp vercel.dist.json dist/vercel.json
 cp -r .vercel dist/.vercel
 (cd dist && npx --yes vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN")

@@ -50,6 +50,7 @@ export function CommunityScreen() {
       <ScreenHeader sub="Groups with fellow students, mentors or anyone. Start a new one from the + button." title="Community" />
       <View style={styles.chips}>
         {['Groups', 'Discover', 'Communities', 'Channels'].map((v) => <Chip key={v} label={v} active={v === view} onPress={() => setView(v)} />)}
+        <Chip label="Connections" active={false} onPress={() => router.push('/connections')} />
       </View>
       {view === 'Communities' && <CommunitiesPanel userId={userId} />}
       {view === 'Channels' && <ChannelsPanel />}

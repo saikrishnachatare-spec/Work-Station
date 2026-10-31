@@ -225,7 +225,7 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
                     >
                       <Text style={styles.primaryBtnText}>{r.role === 'admin' ? 'Remove admin' : 'Make admin'}</Text>
                     </Pressable>
-                    <Pressable disabled={removeMember.isPending} onPress={() => remove(r.user_id)} style={styles.iconBtn}>
+                    <Pressable accessibilityLabel={`Remove ${nameOf(r.user_id)} from the group`} accessibilityRole="button" disabled={removeMember.isPending} onPress={() => remove(r.user_id)} style={styles.iconBtn}>
                       <Ionicons color={colors.danger} name="person-remove-outline" size={18} />
                     </Pressable>
                   </>

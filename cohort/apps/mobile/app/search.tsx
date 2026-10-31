@@ -2,7 +2,7 @@
 import { SeoHead } from '@/components/SeoHead';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
@@ -10,33 +10,17 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { Card } from '@/components/Card';
 import { Pill, SectionTitle } from '@/components/ScreenBits';
-import { useGroups, useJobs, usePosts, useProfiles, useResources } from '@/lib/data';
+import { useSearch } from '@/lib/data';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
-
-const match = (hay: string, q: string) => hay.toLowerCase().includes(q);
 
 export default function SearchScreen() {
   const [q, setQ] = useState('');
   const router = useRouter();
   const [searching, setSearching] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const posts = usePosts();
-  const resources = useResources();
-  const groups = useGroups();
-  const jobs = useJobs();
-  const profiles = useProfiles();
-  const query = q.trim().toLowerCase();
-
-  const results = useMemo(() => {
-    if (query.length < 2) return null;
-    return {
-      posts: (posts.data ?? []).filter((f) => match(`${f.body} ${f.author_name}`, query)),
-      resources: (resources.data ?? []).filter((r) => match(`${r.title} ${r.uploaded_by} ${r.course} ${r.cat}`, query)),
-      groups: (groups.data ?? []).filter((g) => match(`${g.name} ${g.description} ${g.purpose}`, query)),
-      jobs: (jobs.data ?? []).filter((j) => match(`${j.role} ${j.firm} ${j.loc} ${j.tags.join(' ')}`, query)),
-      people: (profiles.data ?? []).filter((p) => match(`${p.full_name} ${p.role}`, query)),
-    };
-  }, [groups.data, jobs.data, posts.data, profiles.data, query, resources.data]);
+  const query = q.trim();
+  const search = useSearch(query);
+  const results = query.length >= 2 && search.data ? search.data : null;
 
   useEffect(() => {
     if (!searching) return;
@@ -72,7 +56,7 @@ export default function SearchScreen() {
       {!results && (
         <Text style={styles.meta}>Type at least 2 characters to search everything in Cohort.</Text>
       )}
-      {searching && <ListSkeleton count={2} />}
+      {(searching || search.isFetching) && <ListSkeleton count={2} />}
       {!searching && results && total === 0 && (
         <EmptyState
           body={`Nothing in Cohort matches "${q.trim()}". Try a subject, a course code, a name or a firm.`}
@@ -85,13 +69,15 @@ export default function SearchScreen() {
         <View style={{ gap: spacing.sm }}>
           <SectionTitle first title={`Posts (${results.posts.length})`} />
           {results.posts.map((f) => (
-            <Card key={f.id} style={styles.row}>
-              <Avatar name={f.author_name} size={32} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.strong}>{f.author_name}</Text>
-                <Text numberOfLines={2} style={styles.meta}>{f.body}</Text>
-              </View>
-            </Card>
+            <Pressable accessibilityRole="button" key={f.id} onPress={() => router.push({ params: { id: f.id }, pathname: '/post' })}>
+              <Card style={styles.row}>
+                <Avatar name={f.author_name} size={32} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>{f.author_name}</Text>
+                  <Text numberOfLines={2} style={styles.meta}>{f.body}</Text>
+                </View>
+              </Card>
+            </Pressable>
           ))}
         </View>
       )}
@@ -100,12 +86,14 @@ export default function SearchScreen() {
         <View style={{ gap: spacing.sm }}>
           <SectionTitle first title={`Resources (${results.resources.length})`} />
           {results.resources.map((r) => (
-            <Card key={r.id} style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.strong}>{r.title}</Text>
-                <Text style={styles.meta}>{r.cat} · {r.course} · by {r.uploaded_by}</Text>
-              </View>
-            </Card>
+            <Pressable accessibilityRole="button" key={r.id} onPress={() => router.push({ params: { id: r.id }, pathname: '/resource' })}>
+              <Card style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>{r.title}</Text>
+                  <Text style={styles.meta}>{r.cat} · {r.course} · by {r.uploaded_by}</Text>
+                </View>
+              </Card>
+            </Pressable>
           ))}
         </View>
       )}
@@ -114,12 +102,14 @@ export default function SearchScreen() {
         <View style={{ gap: spacing.sm }}>
           <SectionTitle first title={`Groups (${results.groups.length})`} />
           {results.groups.map((g) => (
-            <Card key={g.id} style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.strong}>{g.name}</Text>
-                <Text style={styles.meta}>{g.purpose} · {g.member_count.toLocaleString('en-IN')} members</Text>
-              </View>
-            </Card>
+            <Pressable accessibilityRole="button" key={g.id} onPress={() => router.push({ params: { group: g.id, name: g.name }, pathname: '/group-chat' })}>
+              <Card style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>{g.name}</Text>
+                  <Text style={styles.meta}>{g.purpose} · {g.member_count.toLocaleString('en-IN')} members</Text>
+                </View>
+              </Card>
+            </Pressable>
           ))}
         </View>
       )}
@@ -128,13 +118,15 @@ export default function SearchScreen() {
         <View style={{ gap: spacing.sm }}>
           <SectionTitle first title={`Work (${results.jobs.length})`} />
           {results.jobs.map((j) => (
-            <Card key={j.id} style={styles.row}>
-              <Avatar name={j.firm} size={32} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.strong}>{j.role}</Text>
-                <Text style={styles.meta}>{j.firm} · {j.loc} · {j.pay}</Text>
-              </View>
-            </Card>
+            <Pressable accessibilityRole="button" key={j.id} onPress={() => router.push({ params: { id: j.id }, pathname: '/job' })}>
+              <Card style={styles.row}>
+                <Avatar name={j.firm} size={32} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>{j.role}</Text>
+                  <Text style={styles.meta}>{j.firm} · {j.loc} · {j.pay}</Text>
+                </View>
+              </Card>
+            </Pressable>
           ))}
         </View>
       )}

@@ -17,7 +17,6 @@ DEFAULT_DESC = ('Cohort is the community for CA students and professionals: '
 ROUTES = {
   'index.html':           ('/', f'{NAME} - community for CA students', DEFAULT_DESC, False),
   'community.html':       ('/community', f'Community - {NAME}', 'Study circles, groups and peers preparing for CA together.', False),
-  'icai.html':            ('/icai', f'ICAI updates - {NAME}', 'ICAI announcements, exam dates, results and official updates.', False),
   'work.html':            ('/work', f'Work - {NAME}', 'Articleships, jobs and firm openings for CA students and professionals.', False),
   'resources.html':       ('/resources', f'Resources - {NAME}', 'Notes, papers and study resources shared by the community.', False),
   'login.html':           ('/login', f'Log in - {NAME}', 'Log in or create your Cohort account.', False),

@@ -21,6 +21,7 @@ import {
   useAdminAnalytics,
   timeAgo, useActivityLog, useLiveAdminFeed, useGroups, useJobs, useMyProfile, usePosts, useProfiles, useResources, useTrash,
   type ActivityRow, type TrashRow, useCreateResource,
+  usePendingVerificationRequests, useReviewVerificationRequest,
 } from '@/lib/data';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/session';
@@ -93,6 +94,8 @@ export default function AdminScreen() {
   const { loading, session } = useAuth();
   const userId = session?.user.id;
   const profile = useMyProfile(userId);
+  const verificationRequests = usePendingVerificationRequests(profile.data?.role === 'admin');
+  const reviewVerification = useReviewVerificationRequest();
   const qc = useQueryClient();
   const [section, setSection] = useState<(typeof SECTIONS)[number]>('Overview');
   const toast = useToast();
@@ -286,7 +289,49 @@ export default function AdminScreen() {
               </Card>
             ))}
           </View>
-          <SectionTitle first title="Admins" />
+          <SectionTitle first title="Verification requests" />
+          {(verificationRequests.data ?? []).length === 0 ? (
+            <Text style={styles.meta}>No pending verification requests.</Text>
+          ) : null}
+          {(verificationRequests.data ?? []).map((r) => {
+            const member = (profiles.data ?? []).find((u) => u.id === r.user_id);
+            return (
+              <Card key={r.id} style={styles.row}>
+                <Avatar name={member?.full_name || '?'} size={34} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>{member?.full_name || 'Unnamed'}</Text>
+                  <Text style={styles.meta}>
+                    {[member?.headline, member?.course, member?.city].filter(Boolean).join(' · ') || 'No profile details'} · asked {timeAgo(r.created_at)}
+                  </Text>
+                </View>
+                <Pressable
+                  disabled={reviewVerification.isPending}
+                  onPress={() =>
+                    reviewVerification.mutate(
+                      { approve: true, requestId: r.id },
+                      { onError: () => toast.show('Could not verify. Try again.', 'error'), onSuccess: () => { toast.show('Verified.', 'success'); refresh(); } },
+                    )
+                  }
+                  style={styles.smallBtn}
+                >
+                  <Text style={styles.smallBtnText}>Verify</Text>
+                </Pressable>
+                <Pressable
+                  disabled={reviewVerification.isPending}
+                  onPress={() =>
+                    reviewVerification.mutate(
+                      { approve: false, requestId: r.id },
+                      { onError: () => toast.show('Could not decline. Try again.', 'error'), onSuccess: () => refresh() },
+                    )
+                  }
+                  style={styles.smallBtn}
+                >
+                  <Text style={styles.smallBtnText}>Decline</Text>
+                </Pressable>
+              </Card>
+            );
+          })}
+          <SectionTitle title="Admins" />
           {admins.map((u) => (
             <Card key={u.id} style={styles.row}>
               <Avatar name={u.full_name || '?'} size={34} />
@@ -783,6 +828,8 @@ export default function AdminScreen() {
 }
 
 const styles = StyleSheet.create({
+  smallBtn: { backgroundColor: colors.brandSoft, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6 },
+  smallBtnText: { color: colors.brandDeep, fontSize: 12, fontWeight: '700' },
   gate: { alignItems: 'center', backgroundColor: colors.cream, flex: 1, justifyContent: 'center', padding: spacing.lg },
   gateIcon: {
     alignItems: 'center', alignSelf: 'center', backgroundColor: colors.brandDeep,

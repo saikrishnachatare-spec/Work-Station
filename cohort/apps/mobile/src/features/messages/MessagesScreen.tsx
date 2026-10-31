@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -10,7 +10,7 @@ import { ScreenHeader } from '@/components/ScreenBits';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
 import {
-  timeAgo, useMarkThreadRead, useProfiles, useSendMessage, useStartThread, useThreadMessages, useThreads,
+  timeAgo, useMarkThreadRead, useMyConnections, useProfiles, useSendMessage, useStartThread, useThreadMessages, useThreads,
 } from '@/lib/data';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -20,11 +20,20 @@ export function MessagesScreen() {
   const { loading: authLoading, session } = useAuth();
   const userId = session?.user?.id;
   const [openId, setOpenId] = useState<string | null>(null);
+  const { thread } = useLocalSearchParams<{ thread?: string }>();
+  const [seenThread, setSeenThread] = useState<string | null>(null);
+  // Deep link from a notification: adopt the thread param when it changes
+  // (render-time state adjustment; avoids a setState-in-effect cascade).
+  if (typeof thread === 'string' && thread && thread !== seenThread) {
+    setSeenThread(thread);
+    setOpenId(thread);
+  }
   const [picking, setPicking] = useState(false);
   const [draft, setDraft] = useState('');
 
   const threads = useThreads(userId);
   const profiles = useProfiles();
+  const connections = useMyConnections(userId);
   const messages = useThreadMessages(openId);
   const openMsgCount = (messages.data ?? []).length;
   const markRead = useMarkThreadRead(userId);
@@ -69,7 +78,7 @@ export function MessagesScreen() {
   };
 
   const startWith = (otherId: string, name: string) => {
-    const body = draft.trim() || 'Hi!';
+    const body = draft.trim();
     setDraft('');
     startThread.mutate(
       { firstMessage: body, otherUserId: otherId },
@@ -125,16 +134,19 @@ export function MessagesScreen() {
     );
   }
 
-  // Member picker for a new conversation
+  // Connection picker for a new conversation: only connected members can be messaged.
   if (picking) {
-    const others = (profiles.data ?? []).filter((p) => p.id !== userId);
+    const connectedIds = new Set(
+      (connections.data ?? []).map((c) => (c.requester_id === userId ? c.addressee_id : c.requester_id)),
+    );
+    const others = (profiles.data ?? []).filter((p) => p.id !== userId && connectedIds.has(p.id));
     return (
       <ScrollView contentContainerStyle={styles.page}>
         <Pressable onPress={() => setPicking(false)} style={styles.backBtn}>
           <Ionicons color={colors.brand} name="chevron-back" size={16} />
           <Text style={styles.backText}>Back to messages</Text>
         </Pressable>
-        <ScreenHeader sub="Pick someone to write to. Your first message says Hi - you can edit it next." title="New message" />
+        <ScreenHeader sub="Pick a connection to write to. Connect with members from their profiles first." title="New message" />
         <TextInput
           onChangeText={setDraft}
           placeholder="First message (optional)…"
@@ -144,9 +156,9 @@ export function MessagesScreen() {
         />
         {others.length === 0 && (
           <EmptyState
-            body="No other members have joined yet. When they do, you can message them here."
+            body="Only connected members can be messaged. Visit a member's profile and tap Connect, or check your requests."
             icon="people-outline"
-            title="No members yet"
+            title="No connections to message yet"
           />
         )}
         {others.map((p) => (

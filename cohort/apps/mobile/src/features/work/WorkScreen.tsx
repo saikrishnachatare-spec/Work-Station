@@ -11,7 +11,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
 import { JOB_FILTERS } from '@/lib/demo-data';
-import { useJobAlertPref, useJobs, useMyApplications, useSaveJobAlert, useToggleApplication , useMyProfile } from '@/lib/data';
+import { useJobAlertPref, useJobs, useMyApplications, useSaveJobAlert, useMyProfile } from '@/lib/data';
 import { itemShareUrl, shareItemLink } from '@/lib/share';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -25,7 +25,6 @@ export function WorkScreen() {
   const userId = session?.user?.id;
   const jobs = useJobs();
   const applications = useMyApplications(userId);
-  const toggleApplication = useToggleApplication(userId);
   const alertPref = useJobAlertPref(userId);
   const saveAlert = useSaveJobAlert(userId);
   const [alertText, setAlertText] = useState('');
@@ -49,19 +48,11 @@ export function WorkScreen() {
     return isNew && keywords.some((k) => hay.includes(k));
   });
 
-  const apply = (jobId: string) => {
-    if (!userId) {
-      toast.show('Sign in to apply', 'info');
-      return;
-    }
-    const applied = applications.data?.has(jobId) ?? false;
-    toggleApplication.mutate(
-      { applied, jobId },
-      {
-        onError: () => toast.show('Could not save your application. Try again.', 'error'),
-        onSuccess: () => toast.show(applied ? 'Application withdrawn' : 'Application saved', 'success'),
-      },
-    );
+  // The list never applies or withdraws inline: applying needs the cover note
+  // and resume form on the job page, and withdrawing is confirmed there too.
+  const openJob = (jobId: string) => {
+    if (!userId) toast.show('Sign in to apply', 'info');
+    router.push({ params: { id: jobId }, pathname: '/job' });
   };
 
   return (
@@ -178,7 +169,7 @@ export function WorkScreen() {
             >
               <Ionicons color={colors.brand} name="share-social-outline" size={18} />
             </Pressable>
-            <Pressable onPress={() => apply(j.id)} style={[styles.btn, applied && styles.btnDone]}>
+            <Pressable accessibilityRole="button" onPress={(e) => { e.stopPropagation?.(); openJob(j.id); }} style={[styles.btn, applied && styles.btnDone]}>
               <Text style={[styles.btnText, applied && styles.btnTextDone]}>
                 {applied ? `✓ ${({ reviewed: 'Under review', shortlisted: 'Shortlisted', rejected: 'Not selected' } as Record<string, string>)[applications.data?.get(j.id)?.status ?? ''] ?? 'Applied'}` : 'Apply'}
               </Text>

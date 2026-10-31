@@ -5,3 +5,5 @@ allowBuilds:
   unrs-resolver: true
   dtrace-provider: true
   protobufjs: true
+overrides:
+  node-forge: ">=1.4.1"
