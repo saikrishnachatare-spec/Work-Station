@@ -55,6 +55,7 @@ export default function CompanyScreen() {
   const [jobCat, setJobCat] = useState('Jobs');
   const [jobLoc, setJobLoc] = useState('');
   const [jobPay, setJobPay] = useState('');
+  const [jobOpenings, setJobOpenings] = useState('');
   const [jobDeadline, setJobDeadline] = useState('');
   const [jobDesc, setJobDesc] = useState('');
 
@@ -178,16 +179,24 @@ export default function CompanyScreen() {
       toast.show('Job openings need a verified profile. Gig work is open to everyone.', 'info');
       return;
     }
+    let openingsN: number | undefined;
+    if (jobOpenings.trim()) {
+      openingsN = Number(jobOpenings.trim());
+      if (!Number.isInteger(openingsN) || openingsN < 1) {
+        toast.show('Number of openings must be a whole number of 1 or more', 'error');
+        return;
+      }
+    }
     createJob.mutate(
       {
         cat: jobCat, deadline: jobDeadline.trim(), description: jobDesc.trim(),
-        firm: orgName || 'Your organisation', loc: jobLoc.trim(), pay: jobPay.trim(), role: r, userId,
+        firm: orgName || 'Your organisation', loc: jobLoc.trim(), openings: openingsN, pay: jobPay.trim(), role: r, userId,
       },
       {
         onError: (e) => toast.show(e instanceof Error ? e.message : 'Could not post. Try again.', 'error'),
         onSuccess: () => {
           toast.show(`"${r}" is live under Work & hiring.`, 'success');
-          setRole(''); setJobLoc(''); setJobPay(''); setJobDeadline(''); setJobDesc('');
+          setRole(''); setJobLoc(''); setJobPay(''); setJobOpenings(''); setJobDeadline(''); setJobDesc('');
           setSection('Openings');
         },
       },
@@ -379,6 +388,7 @@ export default function CompanyScreen() {
           </View>
           <TextInput onChangeText={setJobLoc} placeholder="Location, e.g. Hyderabad or Remote" placeholderTextColor={colors.ink3} style={styles.input} value={jobLoc} />
           <TextInput onChangeText={setJobPay} placeholder="Pay / stipend, e.g. ₹8,000 per month" placeholderTextColor={colors.ink3} style={styles.input} value={jobPay} />
+          <TextInput keyboardType="number-pad" onChangeText={setJobOpenings} placeholder="Number of openings (optional)" placeholderTextColor={colors.ink3} style={styles.input} value={jobOpenings} />
           <TextInput onChangeText={setJobDeadline} placeholder="Deadline YYYY-MM-DD (optional)" placeholderTextColor={colors.ink3} style={styles.input} value={jobDeadline} />
           <TextInput
             multiline

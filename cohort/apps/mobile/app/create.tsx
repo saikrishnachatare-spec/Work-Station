@@ -39,6 +39,7 @@ export default function CreateModal() {
   const [jobDeadline, setJobDeadline] = useState('');
   const [jobLoc, setJobLoc] = useState('');
   const [jobPay, setJobPay] = useState('');
+  const [jobOpenings, setJobOpenings] = useState('');
   const form = action ? FORMS[action] : null;
   const toast = useToast();
   const { session } = useAuth();
@@ -88,10 +89,18 @@ export default function CreateModal() {
         toast.show('Job openings need a verified professional profile. Gig work is open to everyone.', 'info');
         return;
       }
+      let openingsN: number | undefined;
+      if (jobOpenings.trim()) {
+        openingsN = Number(jobOpenings.trim());
+        if (!Number.isInteger(openingsN) || openingsN < 1) {
+          toast.show('Number of openings must be a whole number of 1 or more', 'error');
+          return;
+        }
+      }
       createJob.mutate(
         {
           cat: jobCat, deadline: jobDeadline.trim(), description: jobDesc.trim(), firm: b || 'Your firm',
-          loc: jobLoc.trim(), pay: jobPay.trim(), role: a, userId,
+          loc: jobLoc.trim(), openings: openingsN, pay: jobPay.trim(), role: a, userId,
         },
         { onError, onSuccess: () => setDone(`"${a}"${b ? ' at ' + b : ''} is live under Work & hiring.`) },
       );
@@ -246,6 +255,14 @@ export default function CreateModal() {
                   placeholderTextColor={colors.ink3}
                   style={styles.input}
                   value={jobPay}
+                />
+                <TextInput
+                  keyboardType="number-pad"
+                  onChangeText={setJobOpenings}
+                  placeholder="Number of openings (optional)"
+                  placeholderTextColor={colors.ink3}
+                  style={styles.input}
+                  value={jobOpenings}
                 />
               </>
             )}

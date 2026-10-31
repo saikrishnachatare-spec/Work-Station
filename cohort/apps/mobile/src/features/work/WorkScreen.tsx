@@ -152,7 +152,7 @@ export function WorkScreen() {
             <Avatar name={j.firm} size={42} />
             <View style={{ flex: 1 }}>
               <Text style={styles.strong}>{j.role}</Text>
-              <Text style={styles.meta}>{j.firm} · {j.loc}</Text>
+              <Text style={styles.meta}>{j.firm} · {j.loc}{j.openings ? ` · Hiring ${j.openings}` : ''}</Text>
             </View>
           </View>
           <View style={styles.tagsRow}>

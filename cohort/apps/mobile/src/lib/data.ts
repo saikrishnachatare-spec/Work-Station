@@ -42,6 +42,7 @@ export type Job = {
   tags: string[];
   description: string;
   deadline: string | null;
+  openings?: number | null;
   created_at?: string;
 };
 
@@ -503,18 +504,22 @@ export function useCreateJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({
-      cat = 'Jobs', deadline = '', description = '', firm, loc = '', pay = '', role, userId,
+      cat = 'Jobs', deadline = '', description = '', firm, loc = '', openings, pay = '', role, userId,
     }: {
-      cat?: string; deadline?: string; description?: string; firm: string; loc?: string; pay?: string; role: string; userId: string;
+      cat?: string; deadline?: string; description?: string; firm: string; loc?: string; openings?: number; pay?: string; role: string; userId: string;
     }) => {
       const row: Record<string, unknown> = {
         cat, description, firm, loc, pay, posted_by: userId, role, tags: [],
       };
       if (deadline) row.deadline = deadline;
+      if (openings) row.openings = openings;
       const { error } = await supabase.from('jobs').insert(row);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['jobs'] });
+      qc.invalidateQueries({ queryKey: ['my-jobs'] });
+    },
   });
 }
 

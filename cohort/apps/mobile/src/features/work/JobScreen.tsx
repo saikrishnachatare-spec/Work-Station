@@ -107,6 +107,15 @@ export function JobScreen({ id }: { id: string }) {
             </View>
           </View>
         )}
+        {!!j.openings && (
+          <View style={styles.row}>
+            <Ionicons color={colors.ink3} name="people-outline" size={15} />
+            <View>
+              <Text style={styles.rowLabel}>Openings</Text>
+              <Text style={styles.rowValue}>Hiring {j.openings} {j.openings === 1 ? 'person' : 'people'}</Text>
+            </View>
+          </View>
+        )}
         {!!j.pay && (
           <View style={styles.row}>
             <Ionicons color={colors.ink3} name="cash-outline" size={15} />
