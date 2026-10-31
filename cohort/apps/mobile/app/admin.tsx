@@ -307,14 +307,16 @@ export default function AdminScreen() {
         <View style={{ gap: spacing.md }}>
           <View style={styles.statGrid}>
             {[
-              ['Members', profiles.data?.length ?? 0], ['Admins', admins.length],
+              ['Members', analytics.data?.totals.members ?? (profiles.data ?? []).filter((p) => (p.status as string) !== 'deleted').length], ['Admins', admins.length],
               ['Feed posts', regularPosts.length], ['Announcements', announcements.length],
               ['Resources', resources.data?.length ?? 0], ['Groups', groups.data?.length ?? 0],
               ['Job listings', jobs.data?.length ?? 0],
-              // eslint-disable-next-line react-hooks/purity -- display-only recency cutoff; recomputing per render keeps the 7d window current
-              ['Sign-ins (7d)', (activity.data ?? []).filter((a: ActivityRow) => a.action === 'sign_in' && Date.now() - new Date(a.created_at).getTime() < 7 * 864e5).length],
-              // eslint-disable-next-line react-hooks/purity -- display-only recency cutoff, same as above
-              ['New members (7d)', (activity.data ?? []).filter((a: ActivityRow) => a.action === 'signup' && Date.now() - new Date(a.created_at).getTime() < 7 * 864e5).length],
+              ['Sign-ins (7d)', analytics.data?.active_members.signin_7d ??
+                // eslint-disable-next-line react-hooks/purity -- fallback recency cutoff while analytics load; recomputing per render keeps the 7d window current
+                (activity.data ?? []).filter((a: ActivityRow) => a.action === 'sign_in' && Date.now() - new Date(a.created_at).getTime() < 7 * 864e5).length],
+              ['New members (7d)', analytics.data ? analytics.data.by_day.slice(-7).reduce((n, d) => n + d.new_members, 0) :
+                // eslint-disable-next-line react-hooks/purity -- fallback recency cutoff while analytics load, same as above
+                (activity.data ?? []).filter((a: ActivityRow) => a.action === 'signup' && Date.now() - new Date(a.created_at).getTime() < 7 * 864e5).length],
             ].map(([label, n]) => {
               const target = ({
                 Members: 'Users', Admins: 'Users', 'Feed posts': 'Posts', Announcements: 'Announcements',
@@ -337,6 +339,11 @@ export default function AdminScreen() {
               );
             })}
           </View>
+          {analytics.data && (
+            <Text style={styles.meta}>
+              Member and sign-in counts exclude {analytics.data.totals.controlled_test_accounts ?? 0} controlled test accounts and deleted member placeholders. The Users section still lists every profile row, including former members.
+            </Text>
+          )}
           <SectionTitle first title="Verification requests" />
           {(verificationRequests.data ?? []).length === 0 ? (
             <Text style={styles.meta}>No pending verification requests.</Text>

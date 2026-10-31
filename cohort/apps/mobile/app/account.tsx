@@ -3,6 +3,7 @@ import { SeoHead } from '@/components/SeoHead';
 import { createElement, useEffect, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { type ProfileEducation, type ProfileExperience, useMyProfile, useMyVerificationRequest, useRequestVerification } from '@/lib/data';
+import { LEVELS } from '@/lib/demo-data';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -250,7 +251,7 @@ export default function AccountScreen() {
           <Text style={styles.label}>Course</Text>
           <View style={{ flexDirection:'row',gap:8 }}>{['CA','CMA','CS'].map(c=><Pressable key={c} onPress={()=>setCourseDraft(c)} style={styles.ghostBtn}><Text>{courseDraft===c?'✓ ':''}{c}</Text></Pressable>)}</View>
           <Text style={styles.label}>Level</Text>
-          <View style={{ flexDirection:'row',gap:8 }}>{['Foundation','Inter','Final'].map(c=><Pressable key={c} onPress={()=>setLevelDraft(c)} style={styles.ghostBtn}><Text>{levelDraft===c?'✓ ':''}{c}</Text></Pressable>)}</View>
+          <View style={{ flexDirection:'row',gap:8,flexWrap:'wrap' }}>{(()=>{const opts=[...(LEVELS[courseDraft]??['Foundation','Inter','Final']),'Member'];if(levelDraft&&!opts.includes(levelDraft))opts.push(levelDraft);return opts.map(c=><Pressable key={c} onPress={()=>setLevelDraft(c)} style={styles.ghostBtn}><Text>{levelDraft===c?'✓ ':''}{c}</Text></Pressable>);})()}</View>
           <Text style={styles.label}>Profile photo (PNG, JPEG, WebP, up to 5 MB)</Text>
           {Platform.OS==='web' ? createElement('input',{type:'file',accept:'image/png,image/jpeg,image/webp','aria-label':'Profile photo',onChange:(e:{target:{files:FileList|null}})=>{const f=e.target.files?.[0];if(f)setPhoto({uri:URL.createObjectURL(f),name:f.name,mimeType:f.type,size:f.size})}}) : <Pressable onPress={async()=>{const r=await DocumentPicker.getDocumentAsync({type:['image/png','image/jpeg','image/webp']});if(!r.canceled)setPhoto(r.assets[0]);}}><Text>Choose photo</Text></Pressable>}
           {photo && <Text style={styles.meta}>{photo.name}</Text>}

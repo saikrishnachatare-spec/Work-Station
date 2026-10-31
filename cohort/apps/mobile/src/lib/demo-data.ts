@@ -60,7 +60,7 @@ export const COURSES = ['CA', 'CMA', 'CS'];
 export const LEVELS: Record<string, string[]> = {
   CA: ['Foundation', 'Inter', 'Final'],
   CMA: ['Foundation', 'Inter', 'Final'],
-  CS: ['Foundation', 'Executive', 'Professional'],
+  CS: ['CSEET', 'Executive', 'Professional'],
 };
 export const SUBJECTS: Record<string, SubjectGroup[][]> = {
   CA: [
