@@ -180,7 +180,7 @@ export function WorkScreen() {
             </Pressable>
             <Pressable onPress={() => apply(j.id)} style={[styles.btn, applied && styles.btnDone]}>
               <Text style={[styles.btnText, applied && styles.btnTextDone]}>
-                {applied ? `✓ ${({ reviewed: 'Under review', shortlisted: 'Shortlisted', rejected: 'Not selected' } as Record<string, string>)[applications.data?.get(j.id) ?? ''] ?? 'Applied'}` : 'Apply'}
+                {applied ? `✓ ${({ reviewed: 'Under review', shortlisted: 'Shortlisted', rejected: 'Not selected' } as Record<string, string>)[applications.data?.get(j.id)?.status ?? ''] ?? 'Applied'}` : 'Apply'}
               </Text>
             </Pressable>
           </View>

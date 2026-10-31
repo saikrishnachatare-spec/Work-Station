@@ -1,7 +1,7 @@
 /** Hiring dashboard: firm/company accounts manage their openings and applicants. */
 import { SeoHead } from '@/components/SeoHead';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Avatar } from '@/components/Avatar';
@@ -28,6 +28,15 @@ export default function HiringScreen() {
   const [closing, setClosing] = useState('');
 
   const updateStatus = useUpdateApplicationStatus();
+
+  const openResume = async (path: string, name?: string | null) => {
+    const { data, error } = await supabase.storage.from('resumes').createSignedUrl(path, 300);
+    if (error || !data) {
+      toast.show('Could not open the resume. Try again.', 'error');
+      return;
+    }
+    Linking.openURL(data.signedUrl).catch(() => toast.show('Could not open the resume. Try again.', 'error'));
+  };
   const nameOf = (id: string) => (profiles.data ?? []).find((p) => p.id === id)?.full_name || 'Member';
   const profileOf = (id: string) => (profiles.data ?? []).find((p) => p.id === id);
 
@@ -99,9 +108,11 @@ export default function HiringScreen() {
                   <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
                     <Avatar name={nameOf(a.user_id)} size={28} />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.body}>
-                        {nameOf(a.user_id)} <Text style={styles.meta}>· applied {timeAgo(a.created_at ?? new Date().toISOString())}</Text>
-                      </Text>
+                      <Pressable accessibilityRole="button" onPress={() => router.push({ params: { id: a.user_id }, pathname: '/member/[id]' })}>
+                        <Text style={styles.body}>
+                          {nameOf(a.user_id)} <Text style={styles.meta}>· applied {timeAgo(a.created_at ?? new Date().toISOString())}</Text>
+                        </Text>
+                      </Pressable>
                       {(() => {
                         const ap = profileOf(a.user_id);
                         const cred = [ap?.course, ap?.level].filter(Boolean).join(' · ');
@@ -110,9 +121,15 @@ export default function HiringScreen() {
                       <Text style={[styles.meta, a.status === 'shortlisted' && { color: colors.brandDeep }, a.status === 'rejected' && { color: colors.danger }]}>
                         {statusLabel}
                       </Text>
+                      {a.cover_note ? <Text style={styles.meta}>Note: {a.cover_note}</Text> : null}
                     </View>
                   </View>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+                    {a.resume_path ? (
+                      <Pressable onPress={() => openResume(a.resume_path!, a.resume_name)} style={styles.actionChip}>
+                        <Text style={styles.actionChipText}>Resume{a.resume_name ? ` (${a.resume_name})` : ''}</Text>
+                      </Pressable>
+                    ) : null}
                     {a.status !== 'shortlisted' && (
                       <Pressable disabled={updateStatus.isPending} onPress={() => updateStatus.mutate({ applicationId: a.id, status: 'shortlisted' })} style={styles.actionChip}>
                         <Text style={styles.actionChipText}>Shortlist</Text>

@@ -1,13 +1,15 @@
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { createElement, useState } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
 import { Pill } from '@/components/ScreenBits';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
-import { useJob, useMyApplications, useToggleApplication } from '@/lib/data';
+import { type ResumeFile, useApplyToJob, useJob, useMyApplications, useToggleApplication } from '@/lib/data';
 import { itemShareUrl, shareItemLink } from '@/lib/share';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -24,6 +26,9 @@ export function JobScreen({ id }: { id: string }) {
   const job = useJob(id);
   const applications = useMyApplications(userId);
   const toggleApplication = useToggleApplication(userId);
+  const applyToJob = useApplyToJob(userId);
+  const [coverNote, setCoverNote] = useState('');
+  const [resume, setResume] = useState<ResumeFile | null>(null);
   const { width } = useWindowDimensions();
   const landscape = Platform.OS === 'web' && width >= 720;
 
@@ -40,16 +45,27 @@ export function JobScreen({ id }: { id: string }) {
 
   const j = job.data;
   const applied = applications.data?.has(j.id) ?? false;
+  const mine = applications.data?.get(j.id);
   const apply = () => {
     if (!userId) {
       toast.show('Sign in to apply', 'info');
       return;
     }
-    toggleApplication.mutate(
-      { applied, jobId: j.id },
+    if (applied) {
+      toggleApplication.mutate(
+        { applied, jobId: j.id },
+        {
+          onError: () => toast.show('Could not update your application. Try again.', 'error'),
+          onSuccess: () => toast.show('Application withdrawn', 'success'),
+        },
+      );
+      return;
+    }
+    applyToJob.mutate(
+      { coverNote, jobId: j.id, resume },
       {
-        onError: () => toast.show('Could not update your application. Try again.', 'error'),
-        onSuccess: () => toast.show(applied ? 'Application withdrawn' : 'Application sent', 'success'),
+        onError: (e) => toast.show(e instanceof Error ? e.message : 'Could not send your application. Try again.', 'error'),
+        onSuccess: () => toast.show('Application sent', 'success'),
       },
     );
   };
@@ -119,22 +135,99 @@ export function JobScreen({ id }: { id: string }) {
   const applyPanel = (
     <Card style={[styles.panel, landscape && styles.panelRight]}>
       <Text style={styles.applyTitle}>Your application</Text>
-      <Text style={styles.meta}>
-        {applied
-          ? 'You have applied to this opening. The firm can see your Cohort profile and message you directly.'
-          : userId
-            ? 'Apply with one tap. The firm sees your Cohort profile and can message you directly.'
-            : 'Sign in to apply for this opening.'}
-      </Text>
-      <Pressable
-        disabled={toggleApplication.isPending}
-        onPress={apply}
-        style={[styles.primaryBtn, applied && styles.appliedBtn]}
-      >
-        <Text style={[styles.primaryBtnText, applied && styles.appliedBtnText]}>
-          {toggleApplication.isPending ? 'Updating…' : applied ? '✓ Applied - withdraw' : userId ? 'Apply now' : 'Sign in to apply'}
-        </Text>
-      </Pressable>
+      {applied ? (
+        <>
+          <Text style={styles.meta}>
+            You have applied to this opening. The firm can see your Cohort profile
+            {mine?.resume_name ? ', your resume' : ''} and message you directly.
+          </Text>
+          {mine?.cover_note ? (
+            <View style={{ gap: 4 }}>
+              <Text style={styles.rowLabel}>Your cover note</Text>
+              <Text style={styles.desc}>{mine.cover_note}</Text>
+            </View>
+          ) : null}
+          {mine?.resume_name ? (
+            <View style={styles.resumeRow}>
+              <Ionicons color={colors.brandDeep} name="document-text-outline" size={15} />
+              <Text style={styles.resumeName}>{mine.resume_name}</Text>
+            </View>
+          ) : null}
+          <Pressable
+            disabled={toggleApplication.isPending}
+            onPress={apply}
+            style={[styles.primaryBtn, styles.appliedBtn]}
+          >
+            <Text style={[styles.primaryBtnText, styles.appliedBtnText]}>
+              {toggleApplication.isPending ? 'Updating…' : '✓ Applied - withdraw'}
+            </Text>
+          </Pressable>
+        </>
+      ) : userId ? (
+        <>
+          <Text style={styles.meta}>
+            The firm sees your Cohort profile, your note and resume if you add them, and can message you directly.
+          </Text>
+          <Text style={styles.rowLabel}>Cover note (optional)</Text>
+          <TextInput
+            maxLength={2000}
+            multiline
+            onChangeText={setCoverNote}
+            placeholder="A few lines on why you fit this opening…"
+            placeholderTextColor={colors.ink3}
+            style={styles.noteInput}
+            value={coverNote}
+          />
+          <Text style={styles.rowLabel}>Resume (PDF, up to 5 MB, optional)</Text>
+          {Platform.OS === 'web'
+            ? createElement('input', {
+                accept: 'application/pdf',
+                'aria-label': 'Resume PDF',
+                onChange: (e: { target: { files: FileList | null } }) => {
+                  const f = e.target.files?.[0];
+                  if (f) setResume({ mimeType: f.type, name: f.name, size: f.size, uri: URL.createObjectURL(f) });
+                },
+                type: 'file',
+              })
+            : (
+              <Pressable
+                accessibilityRole="button"
+                onPress={async () => {
+                  const r = await DocumentPicker.getDocumentAsync({ type: ['application/pdf'] });
+                  if (!r.canceled) setResume(r.assets[0]);
+                }}
+                style={styles.resumePick}
+              >
+                <Text style={styles.resumePickText}>{resume ? 'Change PDF' : 'Choose PDF'}</Text>
+              </Pressable>
+            )}
+          {resume && (
+            <View style={styles.resumeRow}>
+              <Ionicons color={colors.brandDeep} name="document-text-outline" size={15} />
+              <Text style={styles.resumeName}>{resume.name}</Text>
+              <Pressable accessibilityLabel="Remove resume" accessibilityRole="button" onPress={() => setResume(null)}>
+                <Ionicons color={colors.ink3} name="close" size={15} />
+              </Pressable>
+            </View>
+          )}
+          <Pressable
+            disabled={applyToJob.isPending}
+            onPress={apply}
+            style={styles.primaryBtn}
+          >
+            <Text style={styles.primaryBtnText}>
+              {applyToJob.isPending ? 'Sending…' : 'Apply now'}
+            </Text>
+          </Pressable>
+        </>
+      ) : (
+        <>
+          <Text style={styles.meta}>Sign in to apply for this opening.</Text>
+          <Pressable onPress={apply} style={styles.primaryBtn}>
+            <Text style={styles.primaryBtnText}>Sign in to apply</Text>
+          </Pressable>
+        </>
+      )}
     </Card>
   );
 
@@ -178,5 +271,15 @@ const styles = StyleSheet.create({
   appliedBtn: { backgroundColor: colors.card, borderColor: colors.lineWarm, borderWidth: 1 },
   appliedBtnText: { color: colors.ink },
   meta: { ...typeScale.caption, color: colors.ink3 },
+  noteInput: {
+    ...typeScale.body, backgroundColor: colors.card, borderColor: colors.lineWarm,
+    borderRadius: radius.input, borderWidth: 1, color: colors.ink, minHeight: 90, padding: 10, textAlignVertical: 'top',
+  },
+  resumeRow: { alignItems: 'center', flexDirection: 'row', gap: 6 },
+  resumeName: { ...typeScale.caption, color: colors.ink, flex: 1 },
+  resumePick: {
+    alignItems: 'center', borderColor: colors.lineWarm, borderRadius: radius.pill, borderWidth: 1, paddingVertical: 10,
+  },
+  resumePickText: { ...typeScale.caption, color: colors.ink2, fontWeight: '600' },
   desc: { ...typeScale.body, color: colors.ink, lineHeight: 21 },
 });

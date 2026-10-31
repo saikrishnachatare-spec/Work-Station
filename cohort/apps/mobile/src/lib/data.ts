@@ -368,15 +368,60 @@ export function useMyProfile(userId: string | undefined) {
   });
 }
 
+export type MyApplication = { cover_note: string; resume_name: string | null; resume_path: string | null; status: string };
+
 export function useMyApplications(userId: string | undefined) {
   return useQuery({
     enabled: !!userId,
     queryKey: ['applications', userId],
-    queryFn: async (): Promise<Map<string, string>> => {
-      const { data, error } = await supabase.from('applications').select('job_id, status').eq('user_id', userId!);
+    queryFn: async (): Promise<Map<string, MyApplication>> => {
+      const { data, error } = await supabase
+        .from('applications')
+        .select('job_id, status, cover_note, resume_name, resume_path')
+        .eq('user_id', userId!);
       if (error) throw error;
-      return new Map((data as { job_id: string; status: string }[]).map((r) => [r.job_id, r.status]));
+      return new Map(
+        (data as ({ job_id: string } & MyApplication)[]).map((r) => [
+          r.job_id,
+          { cover_note: r.cover_note, resume_name: r.resume_name, resume_path: r.resume_path, status: r.status },
+        ]),
+      );
     },
+  });
+}
+
+export type ResumeFile = { mimeType?: string; name: string; size?: number; uri: string };
+
+/** Upload a resume PDF and return its storage path. */
+async function uploadResume(userId: string, jobId: string, resume: ResumeFile): Promise<string> {
+  if (resume.mimeType !== 'application/pdf') throw new Error('Resumes must be PDF files');
+  if ((resume.size ?? 0) > 5 * 1024 * 1024) throw new Error('Resume PDF must be under 5 MB');
+  const safeName = resume.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-60);
+  const path = `${userId}/${jobId}-${Date.now()}-${safeName}`;
+  const bytes = await (await fetch(resume.uri)).arrayBuffer();
+  const { error } = await supabase.storage.from('resumes').upload(path, bytes, { contentType: 'application/pdf' });
+  if (error) throw error;
+  return path;
+}
+
+/** Apply to an opening with an optional cover note and resume PDF. */
+export function useApplyToJob(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ coverNote, jobId, resume }: { coverNote: string; jobId: string; resume: ResumeFile | null }) => {
+      if (!userId) throw new Error('Sign in to apply');
+      let resumePath: string | null = null;
+      if (resume) resumePath = await uploadResume(userId, jobId, resume);
+      const { error } = await supabase.from('applications').insert({
+        cover_note: coverNote.trim().slice(0, 2000),
+        job_id: jobId,
+        resume_name: resume?.name ?? null,
+        resume_path: resumePath,
+        user_id: userId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['applications', userId] }),
   });
 }
 
@@ -386,8 +431,16 @@ export function useToggleApplication(userId: string | undefined) {
     mutationFn: async ({ applied, jobId }: { applied: boolean; jobId: string }) => {
       if (!userId) throw new Error('Sign in to apply');
       if (applied) {
+        // Withdraw: remove the row, then best-effort remove the uploaded resume.
+        const { data: row } = await supabase
+          .from('applications')
+          .select('resume_path')
+          .eq('job_id', jobId)
+          .eq('user_id', userId)
+          .maybeSingle();
         const { error } = await supabase.from('applications').delete().eq('job_id', jobId).eq('user_id', userId);
         if (error) throw error;
+        if (row?.resume_path) await supabase.storage.from('resumes').remove([row.resume_path]);
       } else {
         const { error } = await supabase.from('applications').insert({ job_id: jobId, user_id: userId });
         if (error) throw error;
@@ -448,7 +501,7 @@ export function useMyPostedJobs(userId?: string) {
   });
 }
 
-export type Application = { id: string; job_id: string; user_id: string; created_at: string; status: 'new' | 'reviewed' | 'shortlisted' | 'rejected' };
+export type Application = { id: string; job_id: string; user_id: string; created_at: string; status: 'new' | 'reviewed' | 'shortlisted' | 'rejected'; cover_note?: string; resume_name?: string | null; resume_path?: string | null };
 
 export function useUpdateApplicationStatus() {
   const qc = useQueryClient();
