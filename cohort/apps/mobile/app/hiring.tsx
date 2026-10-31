@@ -108,7 +108,7 @@ export default function HiringScreen() {
                   <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
                     <Avatar name={nameOf(a.user_id)} size={28} />
                     <View style={{ flex: 1 }}>
-                      <Pressable accessibilityRole="button" onPress={() => router.push({ params: { id: a.user_id }, pathname: '/member/[id]' })}>
+                      <Pressable accessibilityRole="button" onPress={() => router.push({ params: { id: a.user_id }, pathname: '/member' })}>
                         <Text style={styles.body}>
                           {nameOf(a.user_id)} <Text style={styles.meta}>· applied {timeAgo(a.created_at ?? new Date().toISOString())}</Text>
                         </Text>

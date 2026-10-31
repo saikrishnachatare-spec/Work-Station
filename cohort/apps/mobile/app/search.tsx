@@ -143,7 +143,7 @@ export default function SearchScreen() {
         <View style={{ gap: spacing.sm }}>
           <SectionTitle first title={`People (${results.people.length})`} />
           {results.people.map((p) => (
-            <Pressable key={p.id} accessibilityRole="button" onPress={() => router.push({ params: { id: p.id }, pathname: '/member/[id]' })}>
+            <Pressable key={p.id} accessibilityRole="button" onPress={() => router.push({ params: { id: p.id }, pathname: '/member' })}>
               <Card style={styles.row}>
                 <Avatar name={p.full_name || '?'} size={32} />
                 <View style={{ flex: 1 }}>

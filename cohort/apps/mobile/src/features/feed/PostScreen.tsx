@@ -90,7 +90,7 @@ export function PostScreen({ id }: { id: string }) {
             accessibilityLabel={`View ${p.author_name}'s profile`}
             accessibilityRole="button"
             disabled={!p.author_id}
-            onPress={() => p.author_id && router.push({ params: { id: p.author_id }, pathname: '/member/[id]' })}
+            onPress={() => p.author_id && router.push({ params: { id: p.author_id }, pathname: '/member' })}
             style={{ alignItems: 'center', flex: 1, flexDirection: 'row', gap: spacing.sm }}
           >
             <Avatar name={p.author_name} />
@@ -152,13 +152,13 @@ export function PostScreen({ id }: { id: string }) {
           <Pressable
             accessibilityLabel={`View ${nameOf(c.author_id)}'s profile`}
             accessibilityRole="button"
-            onPress={() => router.push({ params: { id: c.author_id }, pathname: '/member/[id]' })}
+            onPress={() => router.push({ params: { id: c.author_id }, pathname: '/member' })}
           >
             <Avatar name={nameOf(c.author_id)} />
           </Pressable>
           <View style={{ flex: 1 }}>
             <View style={styles.commentHead}>
-              <Pressable accessibilityRole="button" onPress={() => router.push({ params: { id: c.author_id }, pathname: '/member/[id]' })}>
+              <Pressable accessibilityRole="button" onPress={() => router.push({ params: { id: c.author_id }, pathname: '/member' })}>
                 <Text style={styles.strong}>{nameOf(c.author_id)}</Text>
               </Pressable>
               <Text style={styles.meta}>{timeAgo(c.created_at)}</Text>

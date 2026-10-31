@@ -98,7 +98,7 @@ export function FeedScreen() {
               accessibilityLabel={`View ${f.author_name}'s profile`}
               accessibilityRole="button"
               disabled={!f.author_id}
-              onPress={(e) => { e.stopPropagation?.(); if (f.author_id) router.push({ params: { id: f.author_id }, pathname: '/member/[id]' }); }}
+              onPress={(e) => { e.stopPropagation?.(); if (f.author_id) router.push({ params: { id: f.author_id }, pathname: '/member' }); }}
               style={{ alignItems: 'center', flex: 1, flexDirection: 'row', gap: spacing.sm }}
             >
               <Avatar name={f.author_name} />
