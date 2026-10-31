@@ -106,7 +106,6 @@ export const SERVICES: Service[] = [
   { icon: 'briefcase-outline', label: 'Articleship', sub: 'Registration, transfer' },
   { icon: 'ribbon-outline', label: 'Membership', sub: 'Join, renew, certificate' },
   { icon: 'location-outline', label: 'Exam centres', sub: 'Choose or change' },
-  { icon: 'help-circle-outline', label: 'Helpdesk', sub: 'Raise a query' },
 ];
 
 export type GroupItem = { id: string; name: string; purpose: string; members: number; desc: string; mine: boolean };

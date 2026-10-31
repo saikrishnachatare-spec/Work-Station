@@ -140,7 +140,7 @@ export function MemberScreen({ id }: { id: string }) {
           </Pressable>
         ) : (
           <ConnectionCta
-            canBypassGate={canBypassGate}
+            canBypassGate={canBypassGate || p.role === 'admin'}
             connection={connection.data ?? null}
             onAccept={() => {
               if (!connection.data) return;

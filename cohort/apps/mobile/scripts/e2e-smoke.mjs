@@ -10,7 +10,7 @@
  */
 const base = process.argv[2] || 'https://cohort-pi-eight.vercel.app';
 const routes = [
-  '/', '/resources', '/community', '/work', '/icai', '/messages',
+  '/', '/resources', '/community', '/work', '/messages',
   '/account', '/login', '/privacy', '/terms', '/search', '/create',
   '/admin', '/safety?type=user&id=test', '/join?token=bogus',
   '/post?id=bogus', '/job?id=bogus', '/group-chat?group=bogus',

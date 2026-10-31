@@ -14,7 +14,7 @@ const SECTIONS: [string, string][] = [
   ['7. Data retention', 'We keep account data while your account is active. Backups roll off on a fixed schedule (currently 7 days on our free database tier).'],
   ['8. Security', 'Passwords are hashed by our auth provider and never stored in plain text. Access to production data is limited to admins and protected by row-level security.'],
   ['9. Changes', 'We will update this policy as the app evolves and note the date above. Material changes will be announced in the app.'],
-  ['10. Contact', 'Privacy questions or deletion requests: reach the team through the Helpdesk section in the app.'],
+  ['10. Contact', 'Privacy questions or deletion requests: message the admin team from the Messages tab in the app.'],
 ];
 
 export default function PrivacyScreen() {

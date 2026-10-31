@@ -11,7 +11,7 @@ SITE = 'https://cohort-pi-eight.vercel.app'
 NAME = 'Cohort'
 OG_IMG = f'{SITE}/og-image.png'
 DEFAULT_DESC = ('Cohort is the community for CA students and professionals: '
-                'daily reads, study circles, ICAI updates, jobs and mentorship in one place.')
+                'daily reads, study circles, jobs and mentorship in one place.')
 
 # html file -> (path, title, description, noindex)
 ROUTES = {

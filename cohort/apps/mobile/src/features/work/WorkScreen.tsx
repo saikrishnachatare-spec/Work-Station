@@ -81,7 +81,7 @@ export function WorkScreen() {
         <Card style={{ gap: spacing.sm }}>
           <Text style={styles.strong}>Vacancy alerts</Text>
           <Text style={styles.meta}>
-            Get a note here when a new opening matches your keywords. Alerts appear when you open Cohort - no emails or push yet.
+            Save keywords and matching openings land in your notifications bell. No emails - everything stays in the app.
           </Text>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <TextInput

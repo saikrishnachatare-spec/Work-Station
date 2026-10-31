@@ -34,7 +34,7 @@ export function ConnectionCta({ canBypassGate, connection, onAccept, onConnect, 
     if (connection.requester_id === userId) {
       return (
         <Pressable accessibilityLabel="Withdraw connection request" disabled={pending} onPress={onWithdraw} style={[styles.secondary, pending && styles.disabled]}>
-          <Text style={styles.secondaryText}>Request sent — withdraw</Text>
+          <Text style={styles.secondaryText}>Request sent - withdraw</Text>
         </Pressable>
       );
     }

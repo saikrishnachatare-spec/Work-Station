@@ -23,6 +23,7 @@ export default function AccountScreen() {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [savingName, setSavingName] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const profile = useMyProfile(session?.user.id);
   const verificationRequest = useMyVerificationRequest(session?.user.id);
   const requestVerification = useRequestVerification(session?.user.id);
@@ -136,11 +137,20 @@ export default function AccountScreen() {
       const { error } = await supabase.storage.from('resources').remove(avatars);
       return !error;
     };
+    const removeResumes = async () => {
+      const { data: files, error: listError } = await supabase.storage.from('resumes').list(user.id);
+      if (listError) return false;
+      const resumes = (files ?? []).map((f) => `${user.id}/${f.name}`);
+      if (!resumes.length) return true;
+      const { error } = await supabase.storage.from('resumes').remove(resumes);
+      return !error;
+    };
+    const removeFiles = async () => (await removeAvatar()) && (await removeResumes());
     try {
-      if (!(await removeAvatar())) throw new Error('Could not remove your files. Check your connection and try again.');
+      if (!(await removeFiles())) throw new Error('Could not remove your files. Check your connection and try again.');
       let { error } = await supabase.rpc('delete_my_account');
-      if (error && /avatar_cleanup_required/i.test(error.message)) {
-        if (!(await removeAvatar())) throw new Error('Could not remove your files. Check your connection and try again.');
+      if (error && /cleanup_required/i.test(error.message)) {
+        if (!(await removeFiles())) throw new Error('Could not remove your files. Check your connection and try again.');
         ({ error } = await supabase.rpc('delete_my_account'));
       }
       if (error) throw error;
@@ -151,6 +161,50 @@ export default function AccountScreen() {
       toast.show(error instanceof Error ? error.message : 'Could not delete the account. Try again.', 'error');
       setDeleting(false);
       setConfirming(false);
+    }
+  };
+
+  const exportMyData = async () => {
+    setExporting(true);
+    try {
+      const uid = user.id;
+      const [profileRow, posts, applications, connections, messages, resources, alertPrefs] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
+        supabase.from('posts').select('*').eq('author_id', uid),
+        supabase.from('applications').select('*').eq('user_id', uid),
+        supabase.from('connections').select('*').or(`requester_id.eq.${uid},addressee_id.eq.${uid}`),
+        supabase.from('messages').select('*').eq('sender_id', uid),
+        supabase.from('resources').select('*').eq('owner_id', uid),
+        supabase.from('job_alert_prefs').select('*').eq('user_id', uid),
+      ]);
+      for (const r of [profileRow, posts, applications, connections, messages, resources, alertPrefs]) {
+        if (r.error) throw r.error;
+      }
+      const payload = {
+        exported_at: new Date().toISOString(),
+        profile: profileRow.data,
+        posts: posts.data,
+        applications: applications.data,
+        connections: connections.data,
+        messages_sent: messages.data,
+        resources_uploaded: resources.data,
+        job_alert_prefs: alertPrefs.data,
+      };
+      if (Platform.OS !== 'web') {
+        toast.show('Data export is available on the web app for now.', 'info');
+        return;
+      }
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `cohort-data-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast.show('Your data export downloaded.', 'success');
+    } catch {
+      toast.show('Could not export your data. Try again.', 'error');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -296,6 +350,15 @@ export default function AccountScreen() {
           <Text style={styles.legalLink}>Privacy policy</Text>
         </Pressable>
       </View>
+
+      <Card style={{ gap: spacing.sm }}>
+        <Text style={styles.body}>
+          Download everything Cohort holds about you: profile, posts, applications, connections, messages and uploads.
+        </Text>
+        <Pressable disabled={exporting} onPress={exportMyData} style={styles.cta}>
+          <Text style={styles.ctaText}>{exporting ? 'Preparing…' : 'Download my data'}</Text>
+        </Pressable>
+      </Card>
 
       {!confirming ? (
         <Pressable onPress={() => setConfirming(true)}>

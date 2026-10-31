@@ -1,0 +1,71 @@
+name: Database backup
+
+on:
+  schedule:
+    # 19:30 UTC = 01:00 IST, daily
+    - cron: '30 19 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    services:
+      # Throwaway Postgres used to prove the dump actually restores.
+      verify:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: verify
+          POSTGRES_DB: verifydb
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d verifydb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Dump production database
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          FILE="cohort-backup-$(date -u +%Y%m%d-%H%M).sql"
+          echo "file=$FILE" >> "$GITHUB_ENV"
+          docker run --rm -e PGPASSWORD postgres:17 pg_dump             --no-owner --no-privileges             "postgresql://postgres.ghjerdyubgjtfihumzhb@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require" \
+            > "$FILE"
+          gzip -9 "$FILE"
+          ls -lh "$FILE.gz"
+
+      - name: Verify the dump restores and row counts match
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -uo pipefail
+          gunzip -k cohort-backup-*.sql.gz
+          FILE=$(ls cohort-backup-*.sql)
+          LIVE="postgresql://postgres.ghjerdyubgjtfihumzhb@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require"
+          # Restore into the throwaway instance. DDL referencing Supabase-internal
+          # schemas (auth, storage, extensions) may log errors; data restore is
+          # what we verify below, so don't stop on errors here.
+          PGPASSWORD=verify psql -h localhost -p 5433 -U postgres -d verifydb \
+            -f "$FILE" > restore.log 2>&1 || true
+          grep -c '^ERROR' restore.log || true
+          FAILED=0
+          for T in profiles posts comments messages applications jobs connections; do
+            SRC=$(docker run --rm -e PGPASSWORD postgres:17 \
+              psql "$LIVE" -t -A -c "select count(*) from public.$T")
+            DST=$(PGPASSWORD=verify psql -h localhost -p 5433 -U postgres -d verifydb \
+              -t -A -c "select count(*) from public.$T" 2>/dev/null || echo MISSING)
+            echo "$T: live=$SRC restored=$DST"
+            if [ "$SRC" != "$DST" ]; then FAILED=1; fi
+          done
+          if [ "$FAILED" = "1" ]; then
+            echo "RESTORE VERIFICATION FAILED"; exit 1
+          fi
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cohort-db-backup-${{ github.run_id }}
+          path: cohort-backup-*.sql.gz
+          retention-days: 14

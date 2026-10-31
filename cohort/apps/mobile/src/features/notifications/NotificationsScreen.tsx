@@ -23,6 +23,7 @@ const KIND_ICONS: Record<Notification['kind'], keyof typeof Ionicons.glyphMap> =
   connection_request: 'person-add-outline',
   connection_accepted: 'people-outline',
   job_match: 'briefcase-outline',
+  system: 'warning-outline',
 };
 
 export function NotificationsScreen() {

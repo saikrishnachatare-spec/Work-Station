@@ -85,7 +85,7 @@ export default function TabsLayout() {
           title: TITLES[route.name] ?? route.name,
         })}
       >
-        <Tabs.Screen name="index" />
+        <Tabs.Screen name="index" options={{ title: 'Cohort', tabBarLabel: 'Feed' }} />
         <Tabs.Screen name="resources" />
         <Tabs.Screen name="community" />
         <Tabs.Screen name="work" />

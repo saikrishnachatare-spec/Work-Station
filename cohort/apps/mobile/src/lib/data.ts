@@ -1125,7 +1125,7 @@ export function useAdminAnalytics(enabled: boolean) {
 
 export type Notification = {
   id: string;
-  kind: 'message' | 'comment' | 'application_status' | 'connection_request' | 'connection_accepted' | 'job_match';
+  kind: 'message' | 'comment' | 'application_status' | 'connection_request' | 'connection_accepted' | 'job_match' | 'system';
   title: string;
   body: string;
   link: string;
@@ -1200,9 +1200,10 @@ export function useConnectionWith(userId: string | undefined, otherId: string | 
         .from('connections')
         .select('*')
         .or(`and(requester_id.eq.${userId},addressee_id.eq.${otherId}),and(requester_id.eq.${otherId},addressee_id.eq.${userId})`)
-        .maybeSingle();
+        .order('created_at', { ascending: false })
+        .limit(1);
       if (error) throw error;
-      return (data as Connection) ?? null;
+      return ((data as Connection[])[0]) ?? null;
     },
   });
 }

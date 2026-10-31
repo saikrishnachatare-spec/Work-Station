@@ -12,6 +12,8 @@ import { Card } from '@/components/Card';
 import { supabase } from '@/lib/supabase';
 import { continueAsGuest } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
+import { Turnstile } from '@/components/Turnstile';
+import { env } from '@/lib/env';
 
 type Mode = 'signin' | 'signup' | 'reset';
 
@@ -30,6 +32,8 @@ export default function LoginScreen() {
   const [course, setCourse] = useState<'CA' | 'CMA' | 'CS'>('CA');
   const [level, setLevel] = useState('Inter');
   const [email, setEmail] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -41,6 +45,8 @@ export default function LoginScreen() {
     setMode(next);
     setError('');
     setInfo('');
+    setCaptchaToken(null);
+    setCaptchaReset((n) => n + 1);
   };
 
   const validate = (): string => {
@@ -66,11 +72,17 @@ export default function LoginScreen() {
     setBusy(true);
     setError('');
     setInfo('');
+    if (env.turnstileSiteKey && !captchaToken) {
+      setBusy(false);
+      setError('Please complete the bot check first.');
+      return;
+    }
     try {
       if (mode === 'signin') {
         const { error: err } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password,
+          options: captchaToken ? { captchaToken } : undefined,
         });
         if (err) throw err;
         router.replace('/');
@@ -78,6 +90,7 @@ export default function LoginScreen() {
         const { data, error: err } = await supabase.auth.signUp({
           email: email.trim(),
           options: {
+            captchaToken: captchaToken ?? undefined,
             data: {
               full_name: name.trim(),
               account_type: acctType,
@@ -101,11 +114,14 @@ export default function LoginScreen() {
       } else {
         const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
           redirectTo: 'https://cohort-pi-eight.vercel.app/reset-password',
+          captchaToken: captchaToken ?? undefined,
         });
         if (err) throw err;
         setInfo('Password reset link sent. Check your email.');
       }
     } catch (err) {
+      setCaptchaToken(null);
+      setCaptchaReset((n) => n + 1);
       const message = err instanceof Error ? err.message : 'Something went wrong. Try again.';
       setError(
         message.includes('Invalid login credentials')
@@ -221,6 +237,9 @@ export default function LoginScreen() {
         {!!error && <Text style={styles.error}>{error}</Text>}
         {!!info && <Text style={styles.infoText}>{info}</Text>}
 
+        {env.turnstileSiteKey ? (
+          <Turnstile siteKey={env.turnstileSiteKey} onToken={setCaptchaToken} resetSignal={captchaReset} />
+        ) : null}
         <Pressable disabled={busy} onPress={submit} style={[styles.cta, busy && styles.ctaBusy]}>
           <Text style={styles.ctaText}>
             {busy

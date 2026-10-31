@@ -19,4 +19,7 @@ export const env = {
     'EXPO_PUBLIC_SUPABASE_ANON_KEY',
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
   ),
+  /** Optional: Cloudflare Turnstile site key. When set (and CAPTCHA is enabled
+   * in Supabase auth settings), auth screens show the bot check. */
+  turnstileSiteKey: process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY ?? '',
 };
