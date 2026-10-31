@@ -16,21 +16,6 @@ import { useAuth } from '@/store/session';
 import { FEED_FILTERS } from '@/lib/demo-data';
 import { colors, spacing, type as typeScale } from '@/theme';
 
-function TopReads() {
-  const posts = usePosts();
-  const router = useRouter();
-  const reads = (posts.data ?? []).filter(p => p.kind === 'post').slice(0, 10);
-  if (!reads.length) return null;
-  return <Card style={{ backgroundColor: colors.brandSoft, borderColor: colors.brandSoft, gap: spacing.sm }}>
-    <Text style={[styles.strong, { color: colors.brandDeep }]}>Recent community reads</Text>
-    {reads.map(p => <Pressable accessibilityRole="button" key={p.id} onPress={() => router.push({ pathname: '/post', params: { id: p.id } })}>
-      <Text style={styles.strong}>{p.author_name}</Text>
-      <Text numberOfLines={2} style={styles.body}>{p.body}</Text>
-      <Text style={styles.meta}>{timeAgo(p.created_at)} · Open post</Text>
-    </Pressable>)}
-  </Card>;
-}
-
 export function FeedScreen() {
   const router = useRouter();
   const [filter, setFilter] = useState('All');
@@ -66,7 +51,6 @@ export function FeedScreen() {
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <Text style={styles.greet}>{mounted ? <><Text style={styles.strong}>{greeting}</Text> · {todayLabel}</> : ' '}</Text>
-      <TopReads />
       <ScrollView horizontal showsHorizontalScrollIndicator={Platform.OS === 'web'} contentContainerStyle={styles.chips}>
         {FEED_FILTERS.map((f) => <Chip key={f} label={f} active={f === filter} onPress={() => setFilter(f)} />)}
       </ScrollView>
