@@ -14,6 +14,7 @@ export type Post = {
   author_role: string;
   kind: 'post' | 'announcement' | 'message';
   body: string;
+  image_path?: string | null;
   pinned: boolean;
   like_count: number;
   comment_count: number;
@@ -151,14 +152,40 @@ export function useToggleLike(userId: string | undefined) {
   });
 }
 
+export type PostImageFile = { uri: string; name: string; mimeType?: string; size?: number; lastModified?: number };
+
+/** Upload a post image (PNG/JPEG/WebP, max 10 MB like other member uploads) and return its storage path. */
+async function uploadPostImage(userId: string, image: PostImageFile): Promise<string> {
+  const mime = image.mimeType || 'image/jpeg';
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(mime)) throw new Error('Images must be PNG, JPEG or WebP');
+  if ((image.size ?? 0) > 10 * 1024 * 1024) throw new Error('Image must be under 10 MB');
+  const safeName = image.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-60);
+  const path = `${userId}/${Date.now()}-${safeName}`;
+  const bytes = await (await fetch(image.uri)).arrayBuffer();
+  const { error } = await supabase.storage.from('post-images').upload(path, bytes, { contentType: mime });
+  if (error) throw error;
+  return path;
+}
+
+/** Public URL for a post image. The post-images bucket is public, matching the posts themselves (posts_read is public). */
+export function postImageUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  return supabase.storage.from('post-images').getPublicUrl(path).data.publicUrl;
+}
+
 export function useCreatePost() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ authorId, authorName, body }: { authorId: string; authorName: string; body: string }) => {
+    mutationFn: async ({ authorId, authorName, body, image }: { authorId: string; authorName: string; body: string; image?: PostImageFile | null }) => {
+      let imagePath: string | null = null;
+      if (image) imagePath = await uploadPostImage(authorId, image);
       const { error } = await supabase
         .from('posts')
-        .insert({ author_id: authorId, author_name: authorName, author_role: '', body, kind: 'post' });
-      if (error) throw error;
+        .insert({ author_id: authorId, author_name: authorName, author_role: '', body, image_path: imagePath, kind: 'post' });
+      if (error) {
+        if (imagePath) await supabase.storage.from('post-images').remove([imagePath]);
+        throw error;
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['posts'] }),
   });
@@ -1090,8 +1117,14 @@ export function useDeleteOwnContent(table: 'posts' | 'comments', userId: string 
   return useMutation({
     mutationFn: async (id: string) => {
       if (!userId) throw new Error('Sign in first');
+      let imagePath: string | null = null;
+      if (table === 'posts') {
+        const { data: row } = await supabase.from('posts').select('image_path').eq('id', id).eq('author_id', userId).maybeSingle();
+        imagePath = (row as { image_path?: string | null } | null)?.image_path ?? null;
+      }
       const { data, error } = await supabase.from(table).delete().eq('id', id).eq('author_id', userId).select('id').single();
       if (error || !data) throw error || new Error('Nothing deleted');
+      if (imagePath) await supabase.storage.from('post-images').remove([imagePath]);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['posts'] }); qc.invalidateQueries({ queryKey: ['post'] }); qc.invalidateQueries({ queryKey: ['comments'] }); },
   });

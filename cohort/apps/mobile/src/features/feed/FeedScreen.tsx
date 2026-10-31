@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
@@ -9,11 +9,11 @@ import { Card } from '@/components/Card';
 import { Chip } from '@/components/Chip';
 import { Pill, SectionTitle } from '@/components/ScreenBits';
 import { ListSkeleton } from '@/components/Skeleton';
-import { timeAgo, useMyLikes, useMyProfile, usePosts, useToggleLike } from '@/lib/data';
+import { postImageUrl, timeAgo, useMyLikes, useMyProfile, usePosts, useToggleLike } from '@/lib/data';
 import { itemShareUrl, shareItemLink } from '@/lib/share';
 import { useAuth } from '@/store/session';
 import { FEED_FILTERS } from '@/lib/demo-data';
-import { colors, spacing, type as typeScale } from '@/theme';
+import { colors, radius, spacing, type as typeScale } from '@/theme';
 
 function TopReads() {
   const posts = usePosts();
@@ -123,6 +123,7 @@ export function FeedScreen() {
             </Pressable>
             {f.author_role ? <Pill label={f.author_role} /> : null}
           </View>
+          {f.image_path ? <Image accessibilityLabel={`Image attached to ${f.author_name}'s post`} source={{ uri: postImageUrl(f.image_path)! }} style={styles.postImage} /> : null}
           <Text style={styles.body}>{f.body}</Text>
           <View style={styles.actions}>
             <Pressable
@@ -172,6 +173,7 @@ const styles = StyleSheet.create({
   chips: { gap: spacing.sm },
   strong: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
   body: { ...typeScale.body, color: colors.ink2 },
+  postImage: { backgroundColor: colors.brandSoft, borderRadius: radius.tile, height: 220, width: '100%' },
   meta: { ...typeScale.caption, color: colors.ink3 },
   readsHead: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   pdfBadge: { backgroundColor: colors.brandSoft, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },

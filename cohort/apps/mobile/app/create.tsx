@@ -5,7 +5,7 @@ import { createElement, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useToast } from '@/components/Toast';
-import { useCreateGroup, useCreateJob, useCreatePost, useMyProfile, useUploadStudentNote } from '@/lib/data';
+import { useCreateGroup, useCreateJob, useCreatePost, useMyProfile, useUploadStudentNote, type PostImageFile } from '@/lib/data';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
@@ -33,6 +33,7 @@ export default function CreateModal() {
   const [text, setText] = useState('');
   const [text2, setText2] = useState('');
   const [resourceFile, setResourceFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [postImage, setPostImage] = useState<PostImageFile | null>(null);
   const [jobCat, setJobCat] = useState('Gig work');
   const [jobDesc, setJobDesc] = useState('');
   const [jobDeadline, setJobDeadline] = useState('');
@@ -54,6 +55,7 @@ export default function CreateModal() {
       router.push('/messages');
       return;
     }
+    setPostImage(null);
     setAction(id);
   };
 
@@ -69,7 +71,7 @@ export default function CreateModal() {
     const onError = (error: Error) => toast.show(error.message || 'Could not save. Try again.', 'error');
     if (action === 'post') {
       createPost.mutate(
-        { authorId: userId, authorName, body: a },
+        { authorId: userId, authorName, body: a, image: postImage },
         { onError, onSuccess: () => setDone('Posted to the feed. Everyone can see it now.') },
       );
     } else if (action === 'group') {
@@ -149,6 +151,21 @@ export default function CreateModal() {
                 value={text2}
               />
             )}
+            {action === 'post' && <>
+              <Text style={styles.meta}>Add an image if you like - PNG, JPEG or WebP, up to 10 MB. It shows above your text.</Text>
+              {Platform.OS === 'web' ? createElement('input', {
+                type: 'file', accept: 'image/png,image/jpeg,image/webp',
+                'aria-label': 'Choose an image (optional)',
+                onChange: (event: { target: { files: FileList | null } }) => {
+                  const file = event.target.files?.[0];
+                  if (file) setPostImage({ uri: URL.createObjectURL(file), name: file.name, lastModified: file.lastModified, size: file.size, mimeType: file.type });
+                }, style: { padding: 12, backgroundColor: '#fff', borderRadius: 12 },
+              }) : <Pressable accessibilityRole="button" onPress={async () => {
+                const result = await DocumentPicker.getDocumentAsync({ type: ['image/png', 'image/jpeg', 'image/webp'], copyToCacheDirectory: true });
+                if (!result.canceled) setPostImage(result.assets[0]);
+              }} style={styles.cta}><Text style={styles.ctaText}>{postImage ? postImage.name : 'Choose an image (optional)'}</Text></Pressable>}
+              {Platform.OS === 'web' && postImage ? <Text style={styles.meta}>{postImage.name}</Text> : null}
+            </>}
             {action === 'resource' && <>
               <Text style={styles.meta}>PDF, PNG, JPEG or WebP, up to 10 MB. Lands in Student notes under Resources.</Text>
               {Platform.OS === 'web' ? createElement('input', {
