@@ -10,7 +10,6 @@ import { useRouter } from 'expo-router';
 
 import { Card } from '@/components/Card';
 import { supabase } from '@/lib/supabase';
-import { continueAsGuest } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 import { Turnstile } from '@/components/Turnstile';
 import { env } from '@/lib/env';
@@ -263,15 +262,6 @@ export default function LoginScreen() {
           </Text>
         </Pressable>
       </Card>
-
-      <Pressable
-        onPress={() => {
-          continueAsGuest();
-          router.replace('/');
-        }}
-      >
-        <Text style={styles.link}>Browse without an account</Text>
-      </Pressable>
 
       <Text style={styles.legal}>
         By continuing you agree to our <Text style={styles.legalLink} onPress={() => router.push('/terms')}>Terms</Text> and{' '}
