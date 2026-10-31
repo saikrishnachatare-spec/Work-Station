@@ -5,7 +5,7 @@
 import { SeoHead } from '@/components/SeoHead';
 import { createElement, useEffect, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
-import { type ProfileEducation, type ProfileExperience, useMyProfile, useMyVerificationRequest, useRequestVerification } from '@/lib/data';
+import { type ProfileEducation, type ProfileExperience, timeAgo, useMyPostedJobs, useMyProfile, useMyVerificationRequest, usePosts, useRequestVerification, useResources, useStudentNotes } from '@/lib/data';
 import { LEVELS } from '@/lib/demo-data';
 import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -13,6 +13,7 @@ import { Tabs, useRouter } from 'expo-router';
 
 import { Avatar } from '@/components/Avatar';
 import { HeaderButtons } from '@/components/HeaderButtons';
+import { SectionTitle } from '@/components/ScreenBits';
 import { Card } from '@/components/Card';
 import { ListSkeleton } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
@@ -32,6 +33,13 @@ export default function ProfileScreen() {
   const [exporting, setExporting] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const profile = useMyProfile(session?.user.id);
+  const posts = usePosts();
+  const resources = useResources();
+  const notes = useStudentNotes();
+  const myJobs = useMyPostedJobs(session?.user.id);
+  const myPosts = (posts.data ?? []).filter((p) => p.author_id === session?.user.id && p.kind !== 'message');
+  const myResources = (resources.data ?? []).filter((r) => r.owner_id === session?.user.id);
+  const myNotes = (notes.data ?? []).filter((n) => n.owner_id === session?.user.id);
   const verificationRequest = useMyVerificationRequest(session?.user.id);
   const requestVerification = useRequestVerification(session?.user.id);
   const [courseDraft, setCourseDraft] = useState('');
@@ -375,6 +383,52 @@ export default function ProfileScreen() {
         </Card>
       ) : null}
 
+      <SectionTitle title="Your posts" />
+      {myPosts.length === 0 ? (
+        <Text style={styles.meta}>No posts yet. Your posts will show here.</Text>
+      ) : myPosts.map((p) => (
+        <Pressable accessibilityRole="button" key={p.id} onPress={() => router.push({ params: { id: p.id }, pathname: '/post' })}>
+          <Card style={{ gap: 4 }}>
+            <Text numberOfLines={2} style={styles.strong}>{p.body}</Text>
+            <Text style={styles.meta}>{timeAgo(p.created_at)} · Open post</Text>
+          </Card>
+        </Pressable>
+      ))}
+
+      <SectionTitle title="Your resources" />
+      {myResources.length + myNotes.length === 0 ? (
+        <Text style={styles.meta}>No uploads yet. Files you share will show here.</Text>
+      ) : (
+        <>
+          {myResources.map((r) => (
+            <Pressable accessibilityRole="button" key={r.id} onPress={() => router.push({ params: { id: r.id }, pathname: '/resource' })}>
+              <Card style={{ gap: 4 }}>
+                <Text style={styles.strong}>{r.title}</Text>
+                <Text style={styles.meta}>{[r.course, r.subject].filter(Boolean).join(' · ')}{r.created_at ? ` · ${timeAgo(r.created_at)}` : ''}</Text>
+              </Card>
+            </Pressable>
+          ))}
+          {myNotes.map((n) => (
+            <Card key={n.id} style={{ gap: 4 }}>
+              <Text style={styles.strong}>{n.title}</Text>
+              <Text style={styles.meta}>{n.subject} · {timeAgo(n.created_at)}</Text>
+            </Card>
+          ))}
+        </>
+      )}
+
+      <SectionTitle title="Your listings" />
+      {(myJobs.data ?? []).length === 0 ? (
+        <Text style={styles.meta}>No openings posted yet. Job openings you post will show here.</Text>
+      ) : (myJobs.data ?? []).map((j) => (
+        <Pressable accessibilityRole="button" key={j.id} onPress={() => router.push({ params: { id: j.id }, pathname: '/job' })}>
+          <Card style={{ gap: 4 }}>
+            <Text style={styles.strong}>{j.role}</Text>
+            <Text style={styles.meta}>{j.firm} · {j.loc}{j.status === 'closed' ? ' · Closed' : ''}</Text>
+          </Card>
+        </Pressable>
+      ))}
+
       {confirming ? (
         <Card style={{ gap: spacing.sm }}>
           <Text style={styles.body}>
@@ -450,6 +504,7 @@ const styles = StyleSheet.create({
   page: { gap: spacing.md, padding: spacing.lg },
   center: { alignItems: 'center', flex: 1, gap: spacing.md, justifyContent: 'center', padding: spacing.lg },
   name: { ...typeScale.sectionTitle, color: colors.ink },
+  strong: { ...typeScale.body, color: colors.ink, fontWeight: '700' },
   meta: { ...typeScale.caption, color: colors.ink3 },
   body: { ...typeScale.body, color: colors.ink2 },
   badge: { ...typeScale.caption, borderRadius: radius.pill, fontWeight: '600', overflow: 'hidden', paddingHorizontal: 10, paddingVertical: 4 },

@@ -64,6 +64,8 @@ export type Resource = {
   mime_type?: string | null;
   meta: string;
   subject?: string;
+  owner_id?: string | null;
+  created_at?: string;
 };
 
 export type ProfileLink = { label: string; url: string };
