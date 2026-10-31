@@ -224,6 +224,18 @@ export default function AccountScreen() {
         ) : null}
       </Card>
 
+      {(profile.data?.account_type === 'firm' || profile.data?.account_type === 'enterprise') && (
+        <Pressable accessibilityRole="button" onPress={() => router.push('/company')}>
+          <Card style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>{profile.data?.org_name || 'Your organisation'}</Text>
+              <Text style={styles.meta}>Open the company panel: openings, applicants and the company profile.</Text>
+            </View>
+            <Text style={styles.meta}>›</Text>
+          </Card>
+        </Pressable>
+      )}
+
       {editingName ? (
         <Card style={{ gap: spacing.sm }}>
           <Text style={styles.label}>Your name (shown to other members)</Text>

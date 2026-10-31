@@ -79,13 +79,18 @@ export default function LoginScreen() {
     }
     try {
       if (mode === 'signin') {
-        const { error: err } = await supabase.auth.signInWithPassword({
+        const { data: signInData, error: err } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password,
           options: captchaToken ? { captchaToken } : undefined,
         });
         if (err) throw err;
-        router.replace('/');
+        // Firm and company accounts get the company panel as their home,
+        // not the individual member feed.
+        const { data: prof } = signInData.user
+          ? await supabase.from('profiles').select('account_type').eq('id', signInData.user.id).maybeSingle()
+          : { data: null };
+        router.replace(prof && prof.account_type && prof.account_type !== 'individual' ? '/company' : '/');
       } else if (mode === 'signup') {
         const { data, error: err } = await supabase.auth.signUp({
           email: email.trim(),

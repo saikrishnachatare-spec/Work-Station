@@ -118,6 +118,7 @@ export default function RootLayout() {
           <Stack.Screen name="safety" options={{ title: 'Report and block' }} />
           <Stack.Screen name="admin" options={{ title: 'Cohort admin' }} />
           <Stack.Screen name="hiring" options={{ title: 'Hiring dashboard' }} />
+          <Stack.Screen name="company" options={{ title: 'Company panel' }} />
           <Stack.Screen name="terms" options={{ title: 'Terms of use' }} />
           <Stack.Screen name="privacy" options={{ title: 'Privacy policy' }} />
           <Stack.Screen name="reset-password" options={{ title: 'Reset password' }} />

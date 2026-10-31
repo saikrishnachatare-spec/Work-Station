@@ -59,12 +59,16 @@ export function WorkScreen() {
     <ScrollView contentContainerStyle={styles.page}>
       <ScreenHeader sub="Jobs, articleship, industrial training, stock audits and gig work." title="Work & hiring" />
       {userId && (
-        <Pressable onPress={() => router.push('/hiring')}>
+        <Pressable onPress={() => router.push(profile.data?.account_type && profile.data.account_type !== 'individual' ? '/company' : '/hiring')}>
           <Card style={styles.banner}>
             <Ionicons color={colors.brandDeep} name="briefcase-outline" size={18} />
             <View style={{ flex: 1 }}>
               <Text style={styles.strong}>{profile.data?.org_name || 'Your openings'}</Text>
-              <Text style={styles.meta}>Manage your openings and applicants.</Text>
+              <Text style={styles.meta}>
+                {profile.data?.account_type && profile.data.account_type !== 'individual'
+                  ? 'Open your company panel: openings, applicants and company profile.'
+                  : 'Manage your openings and applicants.'}
+              </Text>
             </View>
             <Ionicons color={colors.ink3} name="chevron-forward" size={15} />
           </Card>

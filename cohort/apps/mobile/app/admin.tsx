@@ -52,7 +52,7 @@ function useErrorLogs(enabled: boolean) {
   });
 }
 
-const SECTIONS = ['Overview', 'Live', 'Analytics', 'Users', 'Posts', 'Announcements', 'Resources', 'Groups', 'Jobs', 'Reports', 'Errors', 'Activity', 'Trash'] as const;
+const SECTIONS = ['Overview', 'Live', 'Analytics', 'Users', 'Posts', 'Announcements', 'Resources', 'Groups', 'Jobs', 'Reports', 'Errors', 'Activity', 'Trash', 'Database'] as const;
 
 function ActionBtn({ label, onPress }: { label: string; onPress: () => void }) {
   return (
@@ -126,6 +126,25 @@ export default function AdminScreen() {
   }, []);
   const analytics = useAdminAnalytics(!!isAdmin);
   const reports = useQuery({queryKey:['reports'],enabled:!!isAdmin,queryFn:async()=>{const{data,error}=await supabase.from('content_reports').select('*').order('created_at',{ascending:false});if(error)throw error;return data||[];}});
+  const dbOverview = useQuery({
+    queryKey: ['admin-db-overview'],
+    enabled: !!isAdmin,
+    queryFn: async (): Promise<{ table: string; rows: number }[]> => {
+      const { data, error } = await supabase.rpc('admin_db_overview');
+      if (error) throw error;
+      return (data as { table: string; rows: number }[]) ?? [];
+    },
+  });
+  const [dbTable, setDbTable] = useState<string>('');
+  const dbRecent = useQuery({
+    queryKey: ['admin-db-recent', dbTable],
+    enabled: !!isAdmin && !!dbTable,
+    queryFn: async (): Promise<Record<string, unknown>[]> => {
+      const { data, error } = await supabase.rpc('admin_db_recent', { p_table: dbTable });
+      if (error) throw error;
+      return (data as Record<string, unknown>[]) ?? [];
+    },
+  });
 
   const refresh = () => {
     for (const key of ['profiles', 'posts', 'groups', 'jobs', 'resources', 'error_logs', 'activity-log', 'trash', 'admin-analytics']) {
@@ -229,6 +248,20 @@ export default function AdminScreen() {
     toast.show('Deleted permanently.', 'success');
     refresh();
   };
+  /** One precise line naming the exact target of an action, when recorded. */
+  const activityTarget = (a: ActivityRow): string => {
+    const d = (a.detail ?? {}) as Record<string, unknown>;
+    const str = (k: string) => (typeof d[k] === 'string' && d[k] ? String(d[k]) : '');
+    if (a.action === 'screen_view') return `/${a.entity_id}`;
+    const parts: string[] = [];
+    if (str('applicant')) parts.push(`applicant ${str('applicant')}`);
+    if (str('role')) parts.push(str('firm') ? `${str('role')} · ${str('firm')}` : str('role'));
+    if (str('title')) parts.push(str('title'));
+    if (str('name')) parts.push(str('name'));
+    if (str('member') && !str('applicant')) parts.push(str('group') ? `${str('member')} · ${str('group')}` : str('member'));
+    if (str('excerpt')) parts.push(`"${str('excerpt')}"`);
+    return parts.join(' · ');
+  };
   const ACTION_LABELS: Record<string, string> = {
     signup: 'signed up', sign_in: 'signed in', post_created: 'created a post', opening_posted: 'posted an opening',
     resource_shared: 'shared a resource', group_created: 'created a group', group_removed: 'removed a group',
@@ -282,12 +315,27 @@ export default function AdminScreen() {
               ['Sign-ins (7d)', (activity.data ?? []).filter((a: ActivityRow) => a.action === 'sign_in' && Date.now() - new Date(a.created_at).getTime() < 7 * 864e5).length],
               // eslint-disable-next-line react-hooks/purity -- display-only recency cutoff, same as above
               ['New members (7d)', (activity.data ?? []).filter((a: ActivityRow) => a.action === 'signup' && Date.now() - new Date(a.created_at).getTime() < 7 * 864e5).length],
-            ].map(([label, n]) => (
-              <Card key={label as string} style={styles.stat}>
-                <Text style={styles.statNum}>{n}</Text>
-                <Text style={styles.meta}>{label}</Text>
-              </Card>
-            ))}
+            ].map(([label, n]) => {
+              const target = ({
+                Members: 'Users', Admins: 'Users', 'Feed posts': 'Posts', Announcements: 'Announcements',
+                Resources: 'Resources', Groups: 'Groups', 'Job listings': 'Jobs',
+                'Sign-ins (7d)': 'Activity', 'New members (7d)': 'Activity',
+              } as Record<string, (typeof SECTIONS)[number]>)[label as string] ?? 'Overview';
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  key={label as string}
+                  onPress={() => setSection(target)}
+                  style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                >
+                  <Card style={styles.stat}>
+                    <Text style={styles.statNum}>{n}</Text>
+                    <Text style={styles.meta}>{label}</Text>
+                    <Text style={[styles.meta, { color: colors.brand }]}>Open {target} ›</Text>
+                  </Card>
+                </Pressable>
+              );
+            })}
           </View>
           <SectionTitle first title="Verification requests" />
           {(verificationRequests.data ?? []).length === 0 ? (
@@ -362,20 +410,32 @@ export default function AdminScreen() {
               Screen views are counted only since {a.screen_tracking_since ? new Date(a.screen_tracking_since).toLocaleString() : 'not yet recorded'},
               only for signed-in members who accepted analytics in the consent note, screen names only. Message contents are never tracked.
             </Text>
-            <View style={styles.statGrid}>
-              {[
-                ['Active members (7d)', a.active_members.signin_7d], ['Active members (30d)', a.active_members.signin_30d],
+            {([
+              ['Members', [
                 ['Members', a.totals.members], ['Verified', a.totals.verified], ['Suspended', a.totals.suspended],
-                ['Posts', a.totals.posts], ['Openings (open)', a.totals.jobs_open], ['Openings (closed)', a.totals.jobs_closed],
-                ['Applications', a.totals.applications], ['Resources', a.totals.resources], ['Groups', a.totals.groups],
+                ['Active (7d)', a.active_members.signin_7d], ['Active (30d)', a.active_members.signin_30d],
+              ]],
+              ['Content', [
+                ['Posts', a.totals.posts], ['Resources', a.totals.resources], ['Groups', a.totals.groups],
                 ['Messages sent', a.totals.messages],
-              ].map(([label, n]) => (
-                <Card key={label as string} style={styles.stat}>
-                  <Text style={styles.statNum}>{n}</Text>
-                  <Text style={styles.meta}>{label}</Text>
-                </Card>
-              ))}
-            </View>
+              ]],
+              ['Hiring', [
+                ['Openings (open)', a.totals.jobs_open], ['Openings (closed)', a.totals.jobs_closed],
+                ['Applications', a.totals.applications],
+              ]],
+            ] as [string, [string, number][]][]).map(([group, stats]) => (
+              <View key={group} style={{ gap: spacing.xs }}>
+                <Text style={styles.strong}>{group}</Text>
+                <View style={styles.statGrid}>
+                  {stats.map(([label, n]) => (
+                    <Card key={label} style={styles.stat}>
+                      <Text style={styles.statNum}>{n}</Text>
+                      <Text style={styles.meta}>{label}</Text>
+                    </Card>
+                  ))}
+                </View>
+              </View>
+            ))}
             <Text style={styles.meta}>{a.basis}</Text>
 
             <SectionTitle first title="Last 14 days" />
@@ -698,10 +758,7 @@ export default function AdminScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.strong}>{a.actor_name || (a.action === 'account_deleted' ? 'A member' : 'Someone')} {ACTION_LABELS[a.action] ?? a.action}</Text>
                   <Text style={styles.meta}>
-                    {a.action === 'screen_view' ? `/${a.entity_id} · ` : ''}
-                    {typeof a.detail?.title === 'string' && a.detail.title ? `${a.detail.title} · ` : ''}
-                    {typeof a.detail?.name === 'string' && a.detail.name ? `${a.detail.name} · ` : ''}
-                    {timeAgo(a.created_at)}
+                    {activityTarget(a) ? `${activityTarget(a)} · ` : ''}{timeAgo(a.created_at)}
                   </Text>
                 </View>
               </Card>
@@ -765,13 +822,7 @@ export default function AdminScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.strong}>{a.actor_name || (a.action === 'account_deleted' ? 'A member' : 'Someone')} {ACTION_LABELS[a.action] ?? a.action}</Text>
                   <Text style={styles.meta}>
-                    {typeof a.detail?.title === 'string' && a.detail.title ? `${a.detail.title} · ` : ''}
-                    {typeof a.detail?.role === 'string' && a.detail.role ? `${a.detail.role} · ` : ''}
-                    {typeof a.detail?.name === 'string' && a.detail.name ? `${a.detail.name} · ` : ''}
-                    {typeof a.detail?.member === 'string' && a.detail.member ? `${a.detail.member} · ` : ''}
-                    {typeof a.detail?.group === 'string' && a.detail.group ? `${a.detail.group} · ` : ''}
-                    {a.action === 'screen_view' ? `/${a.entity_id} · ` : ''}
-                    {timeAgo(a.created_at)}
+                    {activityTarget(a) ? `${activityTarget(a)} · ` : ''}{timeAgo(a.created_at)}
                   </Text>
                 </View>
               </Card>
@@ -807,6 +858,64 @@ export default function AdminScreen() {
             </Card>
           ))}
           {trash.data && trash.data.length === 0 && <Text style={styles.meta}>Trash is empty.</Text>}
+        </View>
+      )}
+      {section === 'Database' && (
+        <View style={{ gap: spacing.sm }}>
+          <Text style={styles.meta}>
+            A read-only window into the live database: exact row counts for every table, and the 25 most
+            recent rows for the tables listed below. Sensitive data is never shown here - no passwords,
+            tokens, phone numbers or private message contents. Counts come straight from the database.
+          </Text>
+          {dbOverview.isLoading && <Text style={styles.meta}>Loading…</Text>}
+          {dbOverview.isError && (
+            <Text style={styles.meta}>
+              Could not load the database overview. The admin database functions ship with the next backend
+              migration - until it is applied this section cannot read counts.
+            </Text>
+          )}
+          <View style={styles.statGrid}>
+            {(dbOverview.data ?? []).map((t) => (
+              <Pressable
+                accessibilityRole="button"
+                key={t.table}
+                onPress={() => setDbTable(t.table)}
+                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Card style={[styles.stat, dbTable === t.table && { borderColor: colors.brand, borderWidth: 1 }]}>
+                  <Text style={styles.statNum}>{t.rows}</Text>
+                  <Text style={styles.meta}>{t.table}</Text>
+                </Card>
+              </Pressable>
+            ))}
+          </View>
+          {dbTable ? (
+            <View style={{ gap: spacing.sm }}>
+              <SectionTitle title={`${dbTable} - latest rows`} />
+              {dbRecent.isLoading && <Text style={styles.meta}>Loading…</Text>}
+              {dbRecent.isError && (
+                <Text style={styles.meta}>
+                  This table is not available in the read-only viewer (only whitelisted tables with safe
+                  columns are shown).
+                </Text>
+              )}
+              {(dbRecent.data ?? []).map((row, i) => (
+                <Card key={String(row.id ?? i)} style={{ gap: 2 }}>
+                  {Object.entries(row)
+                    .filter(([k]) => k !== 'id')
+                    .map(([k, v]) => (
+                      <Text key={k} style={styles.meta} numberOfLines={3}>
+                        <Text style={{ fontWeight: '700' }}>{k}: </Text>
+                        {v === null || v === '' ? '(empty)' : typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                      </Text>
+                    ))}
+                </Card>
+              ))}
+              {dbRecent.data && dbRecent.data.length === 0 && <Text style={styles.meta}>No rows yet.</Text>}
+            </View>
+          ) : (
+            <Text style={styles.meta}>Tap a table above to see its latest rows.</Text>
+          )}
         </View>
       )}
       {section === 'Jobs' && (
