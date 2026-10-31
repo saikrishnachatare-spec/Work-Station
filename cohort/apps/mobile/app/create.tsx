@@ -2,7 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { createElement, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useToast } from '@/components/Toast';
 import { useCreateGroup, useCreateJob, useCreatePost, useMyProfile, useUploadStudentNote, type PostImageFile } from '@/lib/data';
@@ -152,19 +152,38 @@ export default function CreateModal() {
               />
             )}
             {action === 'post' && <>
-              <Text style={styles.meta}>Add an image if you like - PNG, JPEG or WebP, up to 10 MB. It shows above your text.</Text>
               {Platform.OS === 'web' ? createElement('input', {
                 type: 'file', accept: 'image/png,image/jpeg,image/webp',
                 'aria-label': 'Choose an image (optional)',
+                id: 'post-image-input',
                 onChange: (event: { target: { files: FileList | null } }) => {
                   const file = event.target.files?.[0];
                   if (file) setPostImage({ uri: URL.createObjectURL(file), name: file.name, lastModified: file.lastModified, size: file.size, mimeType: file.type });
-                }, style: { padding: 12, backgroundColor: '#fff', borderRadius: 12 },
-              }) : <Pressable accessibilityRole="button" onPress={async () => {
-                const result = await DocumentPicker.getDocumentAsync({ type: ['image/png', 'image/jpeg', 'image/webp'], copyToCacheDirectory: true });
-                if (!result.canceled) setPostImage(result.assets[0]);
-              }} style={styles.cta}><Text style={styles.ctaText}>{postImage ? postImage.name : 'Choose an image (optional)'}</Text></Pressable>}
-              {Platform.OS === 'web' && postImage ? <Text style={styles.meta}>{postImage.name}</Text> : null}
+                }, style: { display: 'none' },
+              }) : null}
+              {postImage ? (
+                <View style={styles.imgRow}>
+                  <Image accessibilityLabel="Selected image preview" source={{ uri: postImage.uri }} style={styles.imgThumb} />
+                  <Text numberOfLines={1} style={[styles.meta, { flex: 1 }]}>{postImage.name}</Text>
+                  <Pressable accessibilityLabel="Remove image" accessibilityRole="button" onPress={() => setPostImage(null)}>
+                    <Ionicons color={colors.ink3} name="close-circle" size={20} />
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={async () => {
+                    if (Platform.OS === 'web') { document.getElementById('post-image-input')?.click(); return; }
+                    const result = await DocumentPicker.getDocumentAsync({ type: ['image/png', 'image/jpeg', 'image/webp'], copyToCacheDirectory: true });
+                    if (!result.canceled) setPostImage(result.assets[0]);
+                  }}
+                  style={styles.imgBtn}
+                >
+                  <Ionicons color={colors.brand} name="image-outline" size={16} />
+                  <Text style={styles.imgBtnText}>Add an image</Text>
+                </Pressable>
+              )}
+              <Text style={styles.meta}>PNG, JPEG or WebP, up to 10 MB. Shows above your text.</Text>
             </>}
             {action === 'resource' && <>
               <Text style={styles.meta}>PDF, PNG, JPEG or WebP, up to 10 MB. Lands in Student notes under Resources.</Text>
@@ -285,6 +304,10 @@ const styles = StyleSheet.create({
   courseChipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
   courseChipText: { color: colors.ink2, fontSize: 13 },
   courseChipTextOn: { color: colors.brandDeep, fontWeight: '600' as const },
+  imgRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  imgThumb: { backgroundColor: colors.brandSoft, borderRadius: radius.input, height: 44, width: 44 },
+  imgBtn: { alignItems: 'center', alignSelf: 'flex-start', backgroundColor: colors.brandSoft, borderRadius: radius.pill, flexDirection: 'row', gap: spacing.sm, paddingHorizontal: 12, paddingVertical: 8 },
+  imgBtnText: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },
   cta: {
     alignItems: 'center', alignSelf: 'stretch', backgroundColor: colors.brandSoft,
     borderRadius: radius.pill, paddingVertical: 12,

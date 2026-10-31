@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { Card } from '@/components/Card';
@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { Pill } from '@/components/ScreenBits';
 import { timeAgo, useAddComment, useComments, useMyLikes, usePost, useProfiles, useToggleLike, useEditOwnContent, useDeleteOwnContent, postImageUrl } from '@/lib/data';
+import { PostImage } from '@/components/PostImage';
 import { itemShareUrl, shareItemLink } from '@/lib/share';
 import { useAuth } from '@/store/session';
 import { useToast } from '@/components/Toast';
@@ -105,7 +106,7 @@ export function PostScreen({ id }: { id: string }) {
           {p.author_role ? <Pill label={p.author_role} /> : null}
         </View>
         {p.kind === 'announcement' && <Text style={styles.announcement}>Official announcement</Text>}
-        {p.image_path ? <Image accessibilityLabel={`Image attached to ${p.author_name}'s post`} source={{ uri: postImageUrl(p.image_path)! }} style={styles.postImage} /> : null}
+        {p.image_path ? <PostImage label={`Image attached to ${p.author_name}'s post`} uri={postImageUrl(p.image_path)!} /> : null}
         <Text style={styles.body}>{p.body}</Text>
         {p.author_id === userId && <View style={styles.footRow}>
           <Pressable accessibilityRole="button" onPress={() => startEdit('posts', p.id, p.body)}><Text style={styles.backText}>Edit post</Text></Pressable>
@@ -221,7 +222,6 @@ const styles = StyleSheet.create({
   headRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.md },
   announcement: { ...typeScale.caption, color: colors.brand, fontWeight: '600' },
   body: { ...typeScale.body, color: colors.ink, lineHeight: 22 },
-  postImage: { backgroundColor: colors.brandSoft, borderRadius: radius.tile, height: 260, width: '100%' },
   footRow: { alignItems: 'center', flexDirection: 'row', gap: 6 },
   strong: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
   meta: { ...typeScale.caption, color: colors.ink3 },
