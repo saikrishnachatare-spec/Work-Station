@@ -1,8 +1,9 @@
 /** Global search across the app's content: posts, resources, groups, jobs, people. */
 import { SeoHead } from '@/components/SeoHead';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { EmptyState } from '@/components/EmptyState';
@@ -16,6 +17,7 @@ const match = (hay: string, q: string) => hay.toLowerCase().includes(q);
 
 export default function SearchScreen() {
   const [q, setQ] = useState('');
+  const router = useRouter();
   const [searching, setSearching] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const posts = usePosts();
@@ -141,14 +143,16 @@ export default function SearchScreen() {
         <View style={{ gap: spacing.sm }}>
           <SectionTitle first title={`People (${results.people.length})`} />
           {results.people.map((p) => (
-            <Card key={p.id} style={styles.row}>
-              <Avatar name={p.full_name || '?'} size={32} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.strong}>{p.full_name || 'Unnamed member'}</Text>
-                <Text style={styles.meta}>Member</Text>
-              </View>
-              {p.role === 'admin' ? <Pill label="Admin" /> : null}
-            </Card>
+            <Pressable key={p.id} accessibilityRole="button" onPress={() => router.push({ params: { id: p.id }, pathname: '/member/[id]' })}>
+              <Card style={styles.row}>
+                <Avatar name={p.full_name || '?'} size={32} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.strong}>{p.full_name || 'Unnamed member'}</Text>
+                  <Text style={styles.meta}>{p.headline || 'Member'}</Text>
+                </View>
+                {p.role === 'admin' ? <Pill label="Admin" /> : null}
+              </Card>
+            </Pressable>
           ))}
         </View>
       )}

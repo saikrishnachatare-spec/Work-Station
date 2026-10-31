@@ -122,6 +122,7 @@ export default function RootLayout() {
           <Stack.Screen name="group-chat" options={{ title: 'Group chat' }} />
           <Stack.Screen name="join" options={{ title: 'Join a group' }} />
           <Stack.Screen name="post" options={{ title: 'Post' }} />
+          <Stack.Screen name="member/[id]" options={{ title: 'Member profile' }} />
           <Stack.Screen name="job" options={{ title: 'Opening' }} />
           <Stack.Screen
             name="create"

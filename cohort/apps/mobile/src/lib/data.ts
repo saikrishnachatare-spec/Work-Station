@@ -65,6 +65,10 @@ export type Resource = {
   subject?: string;
 };
 
+export type ProfileLink = { label: string; url: string };
+export type ProfileExperience = { org: string; period: string; role: string };
+export type ProfileEducation = { institute: string; period: string; qualification: string };
+
 export type Profile = {
   course?: string;
   level?: string;
@@ -76,6 +80,13 @@ export type Profile = {
   verified_at?: string | null;
   account_type?: 'individual' | 'firm' | 'enterprise';
   org_name?: string;
+  city?: string | null;
+  headline?: string;
+  bio?: string;
+  links?: ProfileLink[];
+  skills?: string[];
+  experience?: ProfileExperience[];
+  education?: ProfileEducation[];
   created_at: string;
 };
 
@@ -338,6 +349,11 @@ export function useProfiles() {
       return data as Profile[];
     },
   });
+}
+
+/** Any member's profile (signed-in members can read all profiles). */
+export function useProfile(userId: string | undefined) {
+  return useMyProfile(userId);
 }
 
 export function useMyProfile(userId: string | undefined) {

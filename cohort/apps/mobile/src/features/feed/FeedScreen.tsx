@@ -94,11 +94,19 @@ export function FeedScreen() {
         <Card>
           {f.pinned ? <Text style={styles.pinned}>📌 Pinned announcement</Text> : null}
           <View style={styles.postHead}>
-            <Avatar name={f.author_name} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.strong}>{f.author_name}</Text>
-              <Text style={styles.meta}>{timeAgo(f.created_at)}</Text>
-            </View>
+            <Pressable
+              accessibilityLabel={`View ${f.author_name}'s profile`}
+              accessibilityRole="button"
+              disabled={!f.author_id}
+              onPress={(e) => { e.stopPropagation?.(); if (f.author_id) router.push({ params: { id: f.author_id }, pathname: '/member/[id]' }); }}
+              style={{ alignItems: 'center', flex: 1, flexDirection: 'row', gap: spacing.sm }}
+            >
+              <Avatar name={f.author_name} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.strong}>{f.author_name}</Text>
+                <Text style={styles.meta}>{timeAgo(f.created_at)}</Text>
+              </View>
+            </Pressable>
             {f.author_role ? <Pill label={f.author_role} /> : null}
           </View>
           <Text style={styles.body}>{f.body}</Text>

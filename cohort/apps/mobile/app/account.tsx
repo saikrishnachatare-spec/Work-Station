@@ -2,7 +2,7 @@
 import { SeoHead } from '@/components/SeoHead';
 import { createElement, useEffect, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
-import { useMyProfile } from '@/lib/data';
+import { type ProfileEducation, type ProfileExperience, useMyProfile } from '@/lib/data';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -28,6 +28,14 @@ export default function AccountScreen() {
   const [levelDraft, setLevelDraft] = useState('');
   const [photo, setPhoto] = useState<{uri:string;name:string;mimeType?:string;size?:number}|null>(null);
   const [photoPreview, setPhotoPreview] = useState('');
+  const [headlineDraft, setHeadlineDraft] = useState('');
+  const [bioDraft, setBioDraft] = useState('');
+  const [cityDraft, setCityDraft] = useState('');
+  const [skillsDraft, setSkillsDraft] = useState('');
+  const [linkedinDraft, setLinkedinDraft] = useState('');
+  const [websiteDraft, setWebsiteDraft] = useState('');
+  const [expDraft, setExpDraft] = useState<ProfileExperience[]>([]);
+  const [eduDraft, setEduDraft] = useState<ProfileEducation[]>([]);
   useEffect(()=>{if(profile.data?.avatar_path) supabase.storage.from('resources').createSignedUrl(profile.data.avatar_path,3600).then(({data})=>{if(data)setPhotoPreview(data.signedUrl);});},[profile.data?.avatar_path]);
   const toast = useToast();
   const qc = useQueryClient();
@@ -70,7 +78,32 @@ export default function AccountScreen() {
         const {error}=await supabase.storage.from('resources').upload(avatarPath,bytes,{contentType:photo.mimeType});
         if(error) throw error;
       }
-      const { data: saved, error: pErr } = await supabase.from('profiles').update({ full_name: next, course: courseDraft, level: levelDraft, avatar_path: avatarPath }).eq('id', user.id).select('id').single();
+      const normUrl = (u: string) => {
+        const t = u.trim();
+        if (!t) return '';
+        return /^https?:\/\//i.test(t) ? t : `https://${t}`;
+      };
+      const links = [
+        { label: 'LinkedIn', url: normUrl(linkedinDraft) },
+        { label: 'Website', url: normUrl(websiteDraft) },
+      ].filter((l) => l.url);
+      for (const l of links) {
+        try { new URL(l.url); } catch { throw new Error(`The ${l.label} link does not look like a valid URL`); }
+      }
+      const skills = skillsDraft.split(',').map((sk) => sk.trim()).filter(Boolean).slice(0, 15);
+      const experience = expDraft
+        .map((e) => ({ org: e.org.trim(), period: e.period.trim(), role: e.role.trim() }))
+        .filter((e) => e.role || e.org)
+        .slice(0, 10);
+      const education = eduDraft
+        .map((e) => ({ institute: e.institute.trim(), period: e.period.trim(), qualification: e.qualification.trim() }))
+        .filter((e) => e.qualification || e.institute)
+        .slice(0, 10);
+      const { data: saved, error: pErr } = await supabase.from('profiles').update({
+        avatar_path: avatarPath, bio: bioDraft.trim().slice(0, 2000), city: cityDraft.trim(),
+        course: courseDraft, education, experience, full_name: next,
+        headline: headlineDraft.trim().slice(0, 120), level: levelDraft, links, skills,
+      }).eq('id', user.id).select('id').single();
       if (pErr || !saved) throw pErr || new Error('Profile did not save');
       const { error: uErr } = await supabase.auth.updateUser({ data: { full_name: next } });
       if (uErr) throw uErr;
@@ -153,6 +186,46 @@ export default function AccountScreen() {
           <Text style={styles.label}>Profile photo (PNG, JPEG, WebP, up to 5 MB)</Text>
           {Platform.OS==='web' ? createElement('input',{type:'file',accept:'image/png,image/jpeg,image/webp','aria-label':'Profile photo',onChange:(e:{target:{files:FileList|null}})=>{const f=e.target.files?.[0];if(f)setPhoto({uri:URL.createObjectURL(f),name:f.name,mimeType:f.type,size:f.size})}}) : <Pressable onPress={async()=>{const r=await DocumentPicker.getDocumentAsync({type:['image/png','image/jpeg','image/webp']});if(!r.canceled)setPhoto(r.assets[0]);}}><Text>Choose photo</Text></Pressable>}
           {photo && <Text style={styles.meta}>{photo.name}</Text>}
+          <Text style={styles.label}>City</Text>
+          <TextInput onChangeText={setCityDraft} placeholder="e.g. Hyderabad" placeholderTextColor={colors.ink3} style={styles.input} value={cityDraft} />
+          <Text style={styles.label}>Headline (one line about you)</Text>
+          <TextInput maxLength={120} onChangeText={setHeadlineDraft} placeholder="e.g. CA Inter student, article assistant" placeholderTextColor={colors.ink3} style={styles.input} value={headlineDraft} />
+          <Text style={styles.label}>About you</Text>
+          <TextInput multiline onChangeText={setBioDraft} placeholder="A short bio members see on your profile" placeholderTextColor={colors.ink3} style={[styles.input, { minHeight: 80 }]} value={bioDraft} />
+          <Text style={styles.label}>Skills (comma separated)</Text>
+          <TextInput onChangeText={setSkillsDraft} placeholder="e.g. Direct tax, Audit, Excel" placeholderTextColor={colors.ink3} style={styles.input} value={skillsDraft} />
+          <Text style={styles.label}>LinkedIn URL</Text>
+          <TextInput autoCapitalize="none" onChangeText={setLinkedinDraft} placeholder="https://linkedin.com/in/your-name" placeholderTextColor={colors.ink3} style={styles.input} value={linkedinDraft} />
+          <Text style={styles.label}>Website or other link</Text>
+          <TextInput autoCapitalize="none" onChangeText={setWebsiteDraft} placeholder="https://…" placeholderTextColor={colors.ink3} style={styles.input} value={websiteDraft} />
+          <Text style={styles.label}>Experience</Text>
+          {expDraft.map((e, i) => (
+            <View key={i} style={{ gap: 6 }}>
+              <TextInput onChangeText={(v) => setExpDraft((rows) => rows.map((r, j) => (j === i ? { ...r, role: v } : r)))} placeholder="Role, e.g. Article assistant" placeholderTextColor={colors.ink3} style={styles.input} value={e.role} />
+              <TextInput onChangeText={(v) => setExpDraft((rows) => rows.map((r, j) => (j === i ? { ...r, org: v } : r)))} placeholder="Firm or company" placeholderTextColor={colors.ink3} style={styles.input} value={e.org} />
+              <TextInput onChangeText={(v) => setExpDraft((rows) => rows.map((r, j) => (j === i ? { ...r, period: v } : r)))} placeholder="Period, e.g. 2024 - present" placeholderTextColor={colors.ink3} style={styles.input} value={e.period} />
+              <Pressable onPress={() => setExpDraft((rows) => rows.filter((_, j) => j !== i))}><Text style={styles.danger}>Remove this experience</Text></Pressable>
+            </View>
+          ))}
+          {expDraft.length < 10 && (
+            <Pressable onPress={() => setExpDraft((rows) => [...rows, { org: '', period: '', role: '' }])} style={styles.ghostBtn}>
+              <Text style={styles.ghostText}>Add experience</Text>
+            </Pressable>
+          )}
+          <Text style={styles.label}>Education</Text>
+          {eduDraft.map((e, i) => (
+            <View key={i} style={{ gap: 6 }}>
+              <TextInput onChangeText={(v) => setEduDraft((rows) => rows.map((r, j) => (j === i ? { ...r, qualification: v } : r)))} placeholder="Qualification, e.g. B.Com" placeholderTextColor={colors.ink3} style={styles.input} value={e.qualification} />
+              <TextInput onChangeText={(v) => setEduDraft((rows) => rows.map((r, j) => (j === i ? { ...r, institute: v } : r)))} placeholder="Institute or university" placeholderTextColor={colors.ink3} style={styles.input} value={e.institute} />
+              <TextInput onChangeText={(v) => setEduDraft((rows) => rows.map((r, j) => (j === i ? { ...r, period: v } : r)))} placeholder="Period, e.g. 2021 - 2024" placeholderTextColor={colors.ink3} style={styles.input} value={e.period} />
+              <Pressable onPress={() => setEduDraft((rows) => rows.filter((_, j) => j !== i))}><Text style={styles.danger}>Remove this education</Text></Pressable>
+            </View>
+          ))}
+          {eduDraft.length < 10 && (
+            <Pressable onPress={() => setEduDraft((rows) => [...rows, { institute: '', period: '', qualification: '' }])} style={styles.ghostBtn}>
+              <Text style={styles.ghostText}>Add education</Text>
+            </Pressable>
+          )}
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Pressable onPress={() => setEditingName(false)} style={styles.ghostBtn}>
               <Text style={styles.ghostText}>Cancel</Text>
@@ -163,7 +236,22 @@ export default function AccountScreen() {
           </View>
         </Card>
       ) : (
-        <Pressable onPress={() => {setNameDraft(name);setCourseDraft(profile.data?.course||'');setLevelDraft(profile.data?.level||'');setPhoto(null);setEditingName(true);}}  style={styles.cta}>
+        <Pressable onPress={() => {
+            const linksOf = profile.data?.links ?? [];
+            setNameDraft(name);
+            setCourseDraft(profile.data?.course||'');
+            setLevelDraft(profile.data?.level||'');
+            setPhoto(null);
+            setHeadlineDraft(profile.data?.headline || '');
+            setBioDraft(profile.data?.bio || '');
+            setCityDraft(profile.data?.city || '');
+            setSkillsDraft((profile.data?.skills ?? []).join(', '));
+            setLinkedinDraft(linksOf.find((l) => l.label === 'LinkedIn')?.url || '');
+            setWebsiteDraft(linksOf.find((l) => l.label === 'Website')?.url || '');
+            setExpDraft((profile.data?.experience ?? []).map((e) => ({ ...e })));
+            setEduDraft((profile.data?.education ?? []).map((e) => ({ ...e })));
+            setEditingName(true);
+          }}  style={styles.cta}>
           <Text style={styles.ctaText}>Edit profile</Text>
         </Pressable>
       )}

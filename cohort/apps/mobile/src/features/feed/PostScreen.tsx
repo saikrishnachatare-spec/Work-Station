@@ -86,11 +86,19 @@ export function PostScreen({ id }: { id: string }) {
       </Pressable>
       <Card style={styles.card}>
         <View style={styles.headRow}>
-          <Avatar name={p.author_name} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.strong}>{p.author_name}</Text>
-            <Text style={styles.meta}>{timeAgo(p.created_at)}</Text>
-          </View>
+          <Pressable
+            accessibilityLabel={`View ${p.author_name}'s profile`}
+            accessibilityRole="button"
+            disabled={!p.author_id}
+            onPress={() => p.author_id && router.push({ params: { id: p.author_id }, pathname: '/member/[id]' })}
+            style={{ alignItems: 'center', flex: 1, flexDirection: 'row', gap: spacing.sm }}
+          >
+            <Avatar name={p.author_name} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.strong}>{p.author_name}</Text>
+              <Text style={styles.meta}>{timeAgo(p.created_at)}</Text>
+            </View>
+          </Pressable>
           {p.author_role ? <Pill label={p.author_role} /> : null}
         </View>
         {p.kind === 'announcement' && <Text style={styles.announcement}>Official announcement</Text>}
@@ -141,10 +149,18 @@ export function PostScreen({ id }: { id: string }) {
       )}
       {(comments.data ?? []).map((c) => (
         <Card key={c.id} style={styles.commentCard}>
-          <Avatar name={nameOf(c.author_id)} />
+          <Pressable
+            accessibilityLabel={`View ${nameOf(c.author_id)}'s profile`}
+            accessibilityRole="button"
+            onPress={() => router.push({ params: { id: c.author_id }, pathname: '/member/[id]' })}
+          >
+            <Avatar name={nameOf(c.author_id)} />
+          </Pressable>
           <View style={{ flex: 1 }}>
             <View style={styles.commentHead}>
-              <Text style={styles.strong}>{nameOf(c.author_id)}</Text>
+              <Pressable accessibilityRole="button" onPress={() => router.push({ params: { id: c.author_id }, pathname: '/member/[id]' })}>
+                <Text style={styles.strong}>{nameOf(c.author_id)}</Text>
+              </Pressable>
               <Text style={styles.meta}>{timeAgo(c.created_at)}</Text>
             </View>
             <Text style={styles.body}>{c.body}</Text>
