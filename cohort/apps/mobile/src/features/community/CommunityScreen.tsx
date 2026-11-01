@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
   },
   strong: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
   meta: { ...typeScale.caption, color: colors.ink3 },
-  tags: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
+  tags: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   btn: {
     backgroundColor: colors.brandSoft, borderColor: colors.brandSoft, borderRadius: radius.pill,
     borderWidth: 1, paddingHorizontal: 14, paddingVertical: 7,

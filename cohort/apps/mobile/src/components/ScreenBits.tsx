@@ -33,6 +33,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     backgroundColor: colors.brandSoft,
     borderRadius: 999,
+    flexShrink: 1,
+    maxWidth: '100%',
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
