@@ -291,7 +291,7 @@ function CommunitiesPanel({ userId }: { userId: string | undefined }) {
 
 const styles = StyleSheet.create({
   page: { gap: spacing.md, padding: spacing.lg, paddingBottom: 120 },
-  chips: { flexDirection: 'row', gap: spacing.sm },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   card: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   crumbs: { ...typeScale.caption, color: colors.ink3, fontWeight: '600', textTransform: 'uppercase' },
   cardTap: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: spacing.sm },

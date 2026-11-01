@@ -215,6 +215,28 @@ export default function AdminScreen() {
     refresh();
   };
   const setVerified = async (id: string, verified: boolean) => {
+    if (verified) {
+      // A pending request must be resolved through the same RPC as the queue:
+      // it flips the request, sets the badge and notifies the member. Setting
+      // verified_at directly would leave the request open and the member
+      // waiting for a notification that never comes.
+      const { data: pending } = await supabase
+        .from('verification_requests')
+        .select('id')
+        .eq('user_id', id)
+        .eq('status', 'pending')
+        .maybeSingle();
+      if (pending) {
+        const { error } = await supabase.rpc('review_verification_request', { p_approve: true, p_id: pending.id });
+        if (error) {
+          toast.show('Could not verify. Try again.', 'error');
+          return;
+        }
+        toast.show('Verified.', 'success');
+        refresh();
+        return;
+      }
+    }
     await supabase.from('profiles').update({ verified_at: verified ? new Date().toISOString() : null }).eq('id', id);
     refresh();
   };

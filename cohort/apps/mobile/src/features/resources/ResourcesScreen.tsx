@@ -136,7 +136,7 @@ export function ResourcesScreen() {
       )}
       {!resources.isLoading && !resources.isError && shared.filter((r) => kind === 'All' || r.cat === kind).length === 0 && (
         <EmptyState
-          body={`No ${kind === 'All' ? '' : kind.toLowerCase()} shared yet. Community uploads appear here.`}
+          body={kind === 'All' ? 'Nothing shared yet. Community uploads appear here.' : `No ${kind.toLowerCase()} shared yet. Community uploads appear here.`}
           icon="book-outline"
           title="Nothing shared yet"
         />

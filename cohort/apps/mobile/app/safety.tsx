@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/Card';
 import { ScreenHeader } from '@/components/ScreenBits';
 import { supabase } from '@/lib/supabase';
+import { useMounted } from '@/lib/use-mounted';
 import { useAuth } from '@/store/session';
 import { useToast } from '@/components/Toast';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -15,6 +16,7 @@ type Target = (typeof TARGETS)[number];
 
 export default function Safety() {
   const params = useLocalSearchParams<{ type: string; id: string }>();
+  const mounted = useMounted();
   const { session } = useAuth();
   const toast = useToast();
   const qc = useQueryClient();
@@ -60,7 +62,7 @@ export default function Safety() {
     }
   };
 
-  if (!type || !params.id) {
+  if (!mounted || !type || !params.id) {
     return (
       <View style={styles.center}>
         <Text style={styles.body}>Open Report from a post, listing or conversation.</Text>

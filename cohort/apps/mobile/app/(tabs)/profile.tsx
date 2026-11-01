@@ -7,7 +7,7 @@ import { createElement, useEffect, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { type ProfileEducation, type ProfileExperience, timeAgo, useMyPostedJobs, useMyProfile, useMyVerificationRequest, usePosts, useRequestVerification, useResources, useStudentNotes } from '@/lib/data';
 import { LEVELS } from '@/lib/demo-data';
-import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs, useRouter } from 'expo-router';
 
@@ -179,11 +179,18 @@ export default function ProfileScreen() {
     }
   };
 
+  const openNote = async (filePath: string) => {
+    const { data, error } = await supabase.storage.from('student-notes').createSignedUrl(filePath, 300);
+    if (error || !data) { toast.show('Could not open this file. Try again.', 'error'); return; }
+    if (Platform.OS === 'web') window.location.assign(data.signedUrl);
+    else await Linking.openURL(data.signedUrl);
+  };
+
   const exportMyData = async () => {
     setExporting(true);
     try {
       const uid = user.id;
-      const [profileRow, posts, applications, connections, messages, resources, alertPrefs] = await Promise.all([
+      const [profileRow, posts, applications, connections, messages, resources, alertPrefs, studentNotes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
         supabase.from('posts').select('*').eq('author_id', uid),
         supabase.from('applications').select('*').eq('user_id', uid),
@@ -191,8 +198,9 @@ export default function ProfileScreen() {
         supabase.from('messages').select('*').eq('sender_id', uid),
         supabase.from('resources').select('*').eq('owner_id', uid),
         supabase.from('job_alert_prefs').select('*').eq('user_id', uid),
+        supabase.from('student_notes').select('*').eq('owner_id', uid),
       ]);
-      for (const r of [profileRow, posts, applications, connections, messages, resources, alertPrefs]) {
+      for (const r of [profileRow, posts, applications, connections, messages, resources, alertPrefs, studentNotes]) {
         if (r.error) throw r.error;
       }
       const payload = {
@@ -204,6 +212,7 @@ export default function ProfileScreen() {
         messages_sent: messages.data,
         resources_uploaded: resources.data,
         job_alert_prefs: alertPrefs.data,
+        student_notes: studentNotes.data,
       };
       if (Platform.OS !== 'web') {
         toast.show('Data export is available on the web app for now.', 'info');
@@ -409,10 +418,12 @@ export default function ProfileScreen() {
             </Pressable>
           ))}
           {myNotes.map((n) => (
-            <Card key={n.id} style={{ gap: 4 }}>
-              <Text style={styles.strong}>{n.title}</Text>
-              <Text style={styles.meta}>{n.subject} · {timeAgo(n.created_at)}</Text>
-            </Card>
+            <Pressable accessibilityRole="button" key={n.id} onPress={() => n.file_path && openNote(n.file_path)}>
+              <Card style={{ gap: 4 }}>
+                <Text style={styles.strong}>{n.title}</Text>
+                <Text style={styles.meta}>{n.subject} · {timeAgo(n.created_at)}</Text>
+              </Card>
+            </Pressable>
           ))}
         </>
       )}

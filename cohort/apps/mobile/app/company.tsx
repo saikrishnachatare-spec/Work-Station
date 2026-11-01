@@ -6,7 +6,7 @@
  */
 import { SeoHead } from '@/components/SeoHead';
 import { useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { Avatar } from '@/components/Avatar';
@@ -146,7 +146,8 @@ export default function CompanyScreen() {
       toast.show('Could not open the resume. Try again.', 'error');
       return;
     }
-    Linking.openURL(data.signedUrl).catch(() => toast.show('Could not open the resume. Try again.', 'error'));
+    if (Platform.OS === 'web') window.location.assign(data.signedUrl);
+    else Linking.openURL(data.signedUrl).catch(() => toast.show('Could not open the resume. Try again.', 'error'));
   };
   const nameOf = (id: string) => (profiles.data ?? []).find((p) => p.id === id)?.full_name || 'Member';
   const profileOf = (id: string) => (profiles.data ?? []).find((p) => p.id === id);
