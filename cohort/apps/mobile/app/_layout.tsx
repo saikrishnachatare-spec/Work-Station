@@ -7,7 +7,7 @@ import { useEffect, useRef } from 'react';
 import { Platform, Text, View } from 'react-native';
 
 import { ConsentBanner } from '@/components/ConsentBanner';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ErrorBoundary as AppErrorBoundary, ErrorFallback } from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/Toast';
 import { getConsent, initAnalytics } from '@/lib/analytics';
 import { installErrorLogging } from '@/lib/errors';
@@ -21,6 +21,13 @@ import { colors } from '@/theme';
 const HYDRATION_SAFE_TITLE_CONTAINER = {
   headerTitleContainerStyle: { maxWidth: '100%' },
 } as Record<string, unknown>;
+
+/** expo-router's per-route boundary. Without this export a page that fails to
+ * load shows the router's raw "Something went wrong / Error: Loading module
+ * ... failed" screen. */
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<unknown> }) {
+  return <ErrorFallback error={error} onRetry={() => void retry()} />;
+}
 
 /** Sends unauthenticated, non-guest users to the login screen. */
 function AuthGate({ children }: { children: React.ReactNode }) {
@@ -86,7 +93,7 @@ export default function RootLayout() {
   }
 
   return (
-    <ErrorBoundary>
+    <AppErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
       <StatusBar style="dark" />
@@ -140,6 +147,6 @@ export default function RootLayout() {
       <ConsentBanner />
       </ToastProvider>
     </QueryClientProvider>
-    </ErrorBoundary>
+    </AppErrorBoundary>
   );
 }

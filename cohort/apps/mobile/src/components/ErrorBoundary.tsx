@@ -5,16 +5,42 @@
 import { Component, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { logError } from '@/lib/errors';
+import { isChunkLoadError, logError } from '@/lib/errors';
 import { colors, spacing, type as typeScale } from '@/theme';
 
-type State = { hasError: boolean };
+type State = { hasError: boolean; loadFailed: boolean; error: Error | null };
+
+/** Calm fallback shared by the app-level boundary and expo-router's per-route
+ * boundary. A failed page download gets a real Reload; anything else keeps the
+ * in-place retry. */
+export function ErrorFallback({ error, onRetry }: { error?: Error | null; onRetry: () => void }) {
+  const loadFailed = isChunkLoadError(error?.message);
+  return (
+    <View style={styles.wrap}>
+      <Text style={styles.title}>{loadFailed ? "Couldn't load this page" : 'Something went wrong'}</Text>
+      <Text style={styles.meta}>
+        {loadFailed
+          ? 'Check your connection, then reload.'
+          : 'The team has been notified automatically. Reload to try again.'}
+      </Text>
+      <Pressable
+        onPress={() => {
+          if (loadFailed && typeof window !== 'undefined' && window.location) window.location.reload();
+          else onRetry();
+        }}
+        style={styles.btn}
+      >
+        <Text style={styles.btnText}>{loadFailed ? 'Reload' : 'Try again'}</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
-  state: State = { hasError: false };
+  state: State = { hasError: false, loadFailed: false, error: null };
 
-  static getDerivedStateFromError(): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, loadFailed: isChunkLoadError(error?.message), error };
   }
 
   componentDidCatch(error: Error) {
@@ -24,15 +50,10 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <View style={styles.wrap}>
-          <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.meta}>
-            The team has been notified automatically. Reload to try again.
-          </Text>
-          <Pressable onPress={() => this.setState({ hasError: false })} style={styles.btn}>
-            <Text style={styles.btnText}>Try again</Text>
-          </Pressable>
-        </View>
+        <ErrorFallback
+          error={this.state.error}
+          onRetry={() => this.setState({ hasError: false, loadFailed: false, error: null })}
+        />
       );
     }
     return this.props.children;

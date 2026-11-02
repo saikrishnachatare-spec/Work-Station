@@ -15,8 +15,34 @@ import { supabase } from '@/lib/supabase';
  * enough. Covers Chrome ("Loading module ... failed", "Failed to fetch
  * dynamically imported module") and Safari ("Importing a module script
  * failed"). */
+const CHUNK_ERROR = /Loading (module|chunk)|dynamically imported module|Importing a module script failed|AsyncRequireError|ChunkLoadError/i;
+
+/** True when a JS chunk of the app failed to download (flaky network, or a
+ * stale page after a deploy) rather than a bug in the app's own code. */
+export function isChunkLoadError(message: string | undefined | null): boolean {
+  return !!message && CHUNK_ERROR.test(message);
+}
+
+/** The reload budget is per tab session. Clear it once the app has stayed up
+ * for a while, so one bad spell does not use up the retries for good. */
+let chunkErrorSeen = false;
+
+function resetReloadBudgetLater() {
+  setTimeout(() => {
+    // A page that hit a chunk error never refunds the budget, otherwise a
+    // permanently failing page would reload forever.
+    if (chunkErrorSeen) return;
+    try {
+      window.sessionStorage.removeItem('cohort-chunk-reload');
+    } catch {
+      /* ignore */
+    }
+  }, 20000);
+}
+
 function reloadForStaleChunk(message: string) {
-  if (!/Loading (module|chunk)|dynamically imported module|Importing a module script failed/i.test(message)) return;
+  if (!isChunkLoadError(message)) return;
+  chunkErrorSeen = true;
   try {
     const attempts = Number(window.sessionStorage.getItem('cohort-chunk-reload') ?? '0');
     if (attempts >= 3) return;
@@ -49,6 +75,7 @@ let installed = false;
 export function installErrorLogging() {
   if (installed || Platform.OS !== 'web' || typeof window === 'undefined') return;
   installed = true;
+  resetReloadBudgetLater();
   window.addEventListener('error', (event) => {
     logError(event.message || 'Uncaught error', event.error?.stack);
   });
