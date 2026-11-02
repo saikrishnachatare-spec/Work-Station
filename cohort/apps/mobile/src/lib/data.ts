@@ -910,7 +910,7 @@ export async function getGroupInviteLink(groupId: string, userId: string): Promi
     if (e2) throw e2;
     token = created.token as string;
   }
-  return `https://cohort-pi-eight.vercel.app/join?token=${token}`;
+  return `https://ca.chatare.space/join?token=${token}`;
 }
 
 /** Public invite preview (no membership required). */

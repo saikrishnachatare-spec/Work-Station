@@ -7,7 +7,7 @@ canonical/OG tags directly into each exported page.
 """
 import json, os, re, sys
 
-SITE = 'https://cohort-pi-eight.vercel.app'
+SITE = 'https://ca.chatare.space'
 NAME = 'Cohort'
 OG_IMG = f'{SITE}/og-image.png'
 DEFAULT_DESC = ('Cohort is the community for CA students and professionals: '

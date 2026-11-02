@@ -16,7 +16,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const BASE = process.env.BASE || 'https://cohort-pi-eight.vercel.app';
+const BASE = process.env.BASE || 'https://ca.chatare.space';
 const EMAIL = process.env.COHORT_TEST_EMAIL || '';
 const PASSWORD = process.env.COHORT_TEST_PASSWORD || '';
 const CHROME = process.env.CHROME_BIN || 'google-chrome';

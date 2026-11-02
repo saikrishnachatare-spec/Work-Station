@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://cohort-pi-eight.vercel.app/</loc><priority>1.0</priority></url>
-  <url><loc>https://cohort-pi-eight.vercel.app/community</loc><priority>0.8</priority></url>
-  <url><loc>https://cohort-pi-eight.vercel.app/work</loc><priority>0.8</priority></url>
-  <url><loc>https://cohort-pi-eight.vercel.app/resources</loc><priority>0.8</priority></url>
-  <url><loc>https://cohort-pi-eight.vercel.app/terms</loc><priority>0.3</priority></url>
-  <url><loc>https://cohort-pi-eight.vercel.app/privacy</loc><priority>0.3</priority></url>
+  <url><loc>https://ca.chatare.space/</loc><priority>1.0</priority></url>
+  <url><loc>https://ca.chatare.space/community</loc><priority>0.8</priority></url>
+  <url><loc>https://ca.chatare.space/work</loc><priority>0.8</priority></url>
+  <url><loc>https://ca.chatare.space/resources</loc><priority>0.8</priority></url>
+  <url><loc>https://ca.chatare.space/terms</loc><priority>0.3</priority></url>
+  <url><loc>https://ca.chatare.space/privacy</loc><priority>0.3</priority></url>
 </urlset>

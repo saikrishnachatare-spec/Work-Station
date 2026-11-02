@@ -8,7 +8,7 @@
  *
  * Usage: node scripts/e2e-smoke.mjs [baseUrl]
  */
-const base = process.argv[2] || 'https://cohort-pi-eight.vercel.app';
+const base = process.argv[2] || 'https://ca.chatare.space';
 const routes = [
   '/', '/resources', '/community', '/work', '/messages',
   '/account', '/login', '/privacy', '/terms', '/search', '/create',

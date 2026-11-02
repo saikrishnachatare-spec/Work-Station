@@ -4,4 +4,4 @@ Disallow: /admin
 Disallow: /account
 Disallow: /messages
 
-Sitemap: https://cohort-pi-eight.vercel.app/sitemap.xml
+Sitemap: https://ca.chatare.space/sitemap.xml

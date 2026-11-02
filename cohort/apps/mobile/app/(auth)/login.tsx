@@ -103,7 +103,7 @@ export default function LoginScreen() {
               level: acctType === 'individual' ? level : '',
               phone: phone.trim() ? normalizePhone(phone) : '',
             },
-            emailRedirectTo: 'https://cohort-pi-eight.vercel.app',
+            emailRedirectTo: 'https://ca.chatare.space',
           },
           password,
         });
@@ -117,7 +117,7 @@ export default function LoginScreen() {
         }
       } else {
         const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: 'https://cohort-pi-eight.vercel.app/reset-password',
+          redirectTo: 'https://ca.chatare.space/reset-password',
           captchaToken: captchaToken ?? undefined,
         });
         if (err) throw err;
