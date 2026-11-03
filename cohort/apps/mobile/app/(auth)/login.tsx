@@ -154,8 +154,7 @@ export default function LoginScreen() {
           </Text>
           <Text style={styles.doneHint}>
             Didn't get it? Wait a few minutes, then check Spam or Junk, that the address is spelled correctly, and
-            that your inbox has free storage. Still nothing? Try Create account again with the same email and
-            password; if the address is still unverified, a new link is sent.
+            that your inbox has free storage.
           </Text>
           <Pressable onPress={() => switchMode('signin')} style={styles.cta}>
             <Text style={styles.ctaText}>Back to sign in</Text>
