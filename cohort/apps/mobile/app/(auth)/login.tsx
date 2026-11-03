@@ -14,7 +14,7 @@ import { colors, radius, spacing, type as typeScale } from '@/theme';
 import { Turnstile } from '@/components/Turnstile';
 import { env } from '@/lib/env';
 
-type Mode = 'signin' | 'signup' | 'reset';
+type Mode = 'signin' | 'signup' | 'reset' | 'checkemail';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Collected at signup for contact data only - never verified by SMS.
@@ -111,9 +111,11 @@ export default function LoginScreen() {
         if (data.session) {
           router.replace('/');
         } else {
-          setInfo('Account created. Check your email for the verification link, then sign in.');
-          switchMode('signin');
-          setInfo('Account created. Check your email for the verification link, then sign in.');
+          setError('');
+          setInfo('');
+          setCaptchaToken(null);
+          setCaptchaReset((n) => n + 1);
+          setMode('checkemail');
         }
       } else {
         const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
@@ -143,6 +145,22 @@ export default function LoginScreen() {
       <Text style={styles.brand}>Cohort</Text>
       <Text style={styles.tagline}>The CA · CMA · CS student community</Text>
 
+      {mode === 'checkemail' ? (
+        <Card style={{ gap: spacing.md }}>
+          <Text style={styles.doneTitle}>Check your email</Text>
+          <Text style={styles.doneBody}>
+            Check {email.trim()} for a verification link. If a link arrives, open it to verify your account, then
+            sign in.
+          </Text>
+          <Text style={styles.doneHint}>
+            Didn't get it? Wait a few minutes, then check Spam or Junk, that the address is spelled correctly, and
+            that your inbox has free storage.
+          </Text>
+          <Pressable onPress={() => switchMode('signin')} style={styles.cta}>
+            <Text style={styles.ctaText}>Back to sign in</Text>
+          </Pressable>
+        </Card>
+      ) : (
       <Card style={{ gap: spacing.md }}>
         <View style={styles.modeRow}>
           {(['signin', 'signup'] as Mode[]).map((m) => (
@@ -262,6 +280,7 @@ export default function LoginScreen() {
           </Text>
         </Pressable>
       </Card>
+      )}
 
       <Text style={styles.legal}>
         By continuing you agree to our <Text style={styles.legalLink} onPress={() => router.push('/terms')}>Terms</Text> and{' '}
@@ -303,6 +322,9 @@ const styles = StyleSheet.create({
   phoneNote: { ...typeScale.caption, color: colors.ink3, marginTop: -spacing.sm },
   error: { ...typeScale.caption, color: colors.brandDeep },
   infoText: { ...typeScale.caption, color: '#3f6440' },
+  doneTitle: { color: colors.brandDeep, fontSize: 20, fontWeight: '700' as const, textAlign: 'center' as const },
+  doneBody: { ...typeScale.body, color: colors.ink, textAlign: 'center' as const },
+  doneHint: { ...typeScale.caption, color: colors.ink2, textAlign: 'center' as const },
   legal: { ...typeScale.caption, color: colors.ink3, marginTop: spacing.lg, textAlign: 'center' },
   legalLink: { color: colors.brand },
 });
