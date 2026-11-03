@@ -149,12 +149,13 @@ export default function LoginScreen() {
         <Card style={{ gap: spacing.md }}>
           <Text style={styles.doneTitle}>Check your email</Text>
           <Text style={styles.doneBody}>
-            If this email is new to Cohort, we've sent a verification link to {email.trim()}. Open the link to
-            confirm your account, then sign in.
+            Check {email.trim()} for a verification link. If a link arrives, open it to verify your account, then
+            sign in.
           </Text>
           <Text style={styles.doneHint}>
-            Didn't get it? Wait a few minutes and check Spam or Junk. Still nothing? Create the account again with
-            the same email and password to get a new link. Already confirmed? Just sign in.
+            Didn't get it? Wait a few minutes, then check Spam or Junk, that the address is spelled correctly, and
+            that your inbox has free storage. Still nothing? Try Create account again with the same email and
+            password; if the address is still unverified, a new link is sent.
           </Text>
           <Pressable onPress={() => switchMode('signin')} style={styles.cta}>
             <Text style={styles.ctaText}>Back to sign in</Text>
