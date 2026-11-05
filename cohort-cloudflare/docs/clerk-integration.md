@@ -82,6 +82,25 @@ Dev-instance operational facts learned while testing:
   7-day setting governs the session, not each token.
 - `external_id` is not editable in the dashboard UI; Backend API only.
 
+Deployed CPU verification (2026-11-05, approved isolated test):
+
+- A disposable worker `cohort-clerk-cpu-test` (secret-gated endpoint,
+  synthetic Clerk test identity only, no D1/R2) ran `verifyToken` with the
+  real CLERK_JWT_KEY + pinned issuer/authorized-parties against real
+  dev-instance session tokens, and was deleted right after (404 confirmed).
+- Per-invocation CPU time from Cloudflare's own tail accounting:
+  valid verifications 1-4 ms (cold singles), a 10-verification request
+  2 ms total, rejected requests ~0 ms. All comfortably inside the
+  documented 10 ms free-plan CPU budget per request.
+- Note: in-worker `performance.now()` read 0 ms for these calls (Workers
+  freezes timers around synchronous/native crypto work), so the tail
+  cpuTime figures above are the measurement of record; earlier local
+  "~2ms-class" statements were inference, now superseded by these
+  deployed measurements.
+- This establishes free-plan CPU fit for token verification only. It does
+  not cover the rest of the app (D1 reads, R2, email send), end-to-end
+  latency, or paid-feature behavior.
+
 Still not verified:
 
 - Expo SDK on web + Android against this instance.
@@ -89,8 +108,6 @@ Still not verified:
   `scripts/import-users-to-clerk.mjs`, dry-run by default; needs
   CLERK_SECRET_KEY, collected via vault link only when that stage is
   approved).
-- Deployed Workers CPU measurement of verification (needs approval for the
-  temporary resource on his account).
 - Clerk's 7-day session feel on mobile in practice.
 
 ## Cutover notes (when approved)
