@@ -17,41 +17,52 @@ accounts untouched until a tested switch is approved.
   is in trustedOrigins. Browsers send it automatically; native will use
   Better Auth's Expo plugin (not yet wired).
 
-## CPU feasibility - RESOLVED by deployed free-plan test (2026-11-05)
+## CPU constraint - measured facts, free-plan readiness NOT established (2026-11-05)
 
-Ran an isolated throwaway worker (`cohort-cpu-test`, secret-gated, synthetic
-fixtures only, deleted after the test) on his real free-plan Cloudflare
-account. Results captured via `wrangler tail`:
+An isolated throwaway worker (`cohort-cpu-test`, secret-gated, synthetic
+fixtures only, deleted after the test) ran on his real free-plan account:
 
-- Sign-in-equivalent request (bcryptjs compare at cost 10 - the operation
-  imported Supabase users need): **~126 ms CPU, HTTP 200, outcome ok**, plus
-  a PBKDF2 probe and a D1 query in the same request.
-- ~20 requests total, zero CPU-limit failures, including one burst request
-  running 8 bcrypt compares: 663 ms CPU, outcome ok.
-- Earlier local proxy measurement (~63 ms on Node) was the right order of
-  magnitude; workerd is somewhat slower (~80-165 ms per compare) but the
-  free plan did not block it.
+- A sign-in-equivalent request (bcryptjs compare at Supabase's cost-10, the
+  operation imported users need, plus a D1 query) used **~126 ms CPU** and
+  returned HTTP 200.
+- Bounded sample only: ~20 requests, all HTTP 200, including one burst
+  request running 8 compares (663 ms CPU). This is a small sample on one
+  day, not sustained-load evidence.
 
-Important honesty: Cloudflare still **documents** 10 ms CPU per request on
-Workers Free (https://developers.cloudflare.com/workers/platform/limits/).
-Empirically it was not enforced against these requests - enforcement is
-reactive, not a per-request hard kill, and Cloudflare could tighten it.
-At Cohort's scale (occasional sign-ins for a small user base) the practical
-headroom is large. If enforcement ever becomes a problem, Workers Paid
-($5/month) is the fallback - not needed now, and no longer a blocker for
-choosing this stack.
+Against the documented limit
+(https://developers.cloudflare.com/workers/platform/limits/,
+checked 2026-11-05):
 
-Second finding: workerd's WebCrypto PBKDF2 is **hard-capped at 100,000
-iterations** (throws `NotSupportedError` above that), below OWASP's 600k
-recommendation for PBKDF2-SHA256. So PBKDF2 is not a stronger on-Workers
-alternative; bcrypt remains the hashing choice, which also matches what
-imported Supabase users need.
+- Workers Free allows **10 ms CPU per request**; the measured auth operation
+  is ~12x over that budget. There is no secure-KDF configuration that fits
+  10 ms (bcrypt cost-10 ~126 ms measured in workerd; even weaker-tuned KDFs
+  at acceptable security parameters exceed it; workerd's WebCrypto PBKDF2 is
+  hard-capped at 100,000 iterations, below OWASP's 600k recommendation for
+  PBKDF2-SHA256).
+- The same page says: "Each isolate has some built-in flexibility to allow
+  for cases where your Worker infrequently runs over the configured limit.
+  If your Worker starts hitting the limit consistently, its execution will
+  be terminated" (Error 1102). Cohort's sign-ins would exceed the limit on
+  **every** auth request; whether Cloudflare's tolerance treats low-volume
+  but always-over traffic as "infrequent" is not defined, so free-plan
+  production readiness for this auth design is NOT established.
+- The page's only documented resolutions for CPU-limit errors: raise the
+  limit on Workers Paid ($5/month), optimize the code, or offload to
+  Durable Objects (also a paid-plan feature). No supported free-budget
+  route for secure password hashing exists in the official docs.
+
+Decision deferred to him before any further build: (a) accept Workers Paid
+$5/month - the only documented supported route; (b) run auth on free plan
+anyway, accepting that sign-ins could start failing with Error 1102 at
+Cloudflare's discretion - not recommended for production; (c) keep
+Supabase Auth and move only data/storage - drops the own-auth goal.
 
 ## Stages
 
 - [x] **0. Prep plumbing** — this folder; auth worker + D1/R2 stub tested.
-- [x] **1a. Deployed CPU feasibility** — passed on the real free plan
-  (see above).
+- [x] **1a. Deployed CPU measurement** — done (see above): the auth
+  operation measures ~12x over the free CPU budget; his plan decision
+  (paid vs accept risk vs keep Supabase Auth) gates everything below.
 - [ ] **1b. Auth** — create the real auth D1 (needs approval), apply schema, export
   Supabase auth users (verify the real hash export, not just the format),
   import preserving UUIDs, wire email delivery via Brevo's HTTP API

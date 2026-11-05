@@ -39,7 +39,7 @@ The API stub runs the same way on port 8788 (`npm run dev`, then
 
 ## What is NOT done yet (honest list)
 
-- CPU feasibility on the real free plan: PASSED 2026-11-05 (see docs/migration-plan.md). No standing D1/R2 resources yet - the isolated test resources were deleted after the test.
+- Deployed CPU measurement 2026-11-05: the auth operation uses ~12x the documented free CPU budget. Free-plan readiness NOT established - plan decision required before further build (see docs/migration-plan.md). The isolated test resources were deleted after the test.
 - Email verification / password reset delivery is stubbed — wiring to Brevo
   (HTTP API; Workers can't do raw SMTP) comes with deployment approval.
 - Supabase data export/import script written but not run against production.
