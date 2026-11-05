@@ -23,6 +23,8 @@ type Bindings = {
   DB: D1Database;
   FILES: R2Bucket;
   CLERK_JWT_KEY: string; // PEM public key - not a secret
+  CLERK_ISSUER: string; // Frontend API host of the instance, e.g. https://<slug>.clerk.accounts.dev
+  CLERK_AUTHORIZED_PARTIES: string; // comma-separated origins allowed as azp (hosted portal + app origins)
   CLERK_SECRET_KEY?: string; // only needed for Backend API calls (import script), not for verification
 };
 
@@ -52,7 +54,11 @@ app.get('/api/me', async (c) => {
   const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return c.json({ error: 'unauthorized' }, 401);
   try {
-    const claims = await verifyToken(token, { jwtKey: c.env.CLERK_JWT_KEY });
+    const claims = await verifyToken(token, {
+      jwtKey: c.env.CLERK_JWT_KEY,
+      issuer: c.env.CLERK_ISSUER,
+      authorizedParties: c.env.CLERK_AUTHORIZED_PARTIES.split(',').map((s) => s.trim()).filter(Boolean),
+    });
     return c.json({
       clerkUserId: claims.sub,
       cohortUserId: claims.external_id ?? null, // Supabase UUID, once imported

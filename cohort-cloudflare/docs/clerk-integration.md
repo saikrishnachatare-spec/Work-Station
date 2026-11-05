@@ -51,11 +51,46 @@ templates, no MFA (he already declined 2FA). Free allowance is 50,000 MRU
   against, and would need its own approval for the temporary resource.
 - D1 + R2 bindings still pass on the same worker.
 
-Not yet verified (needs a real Clerk app - his approval to create one on the
-free Hobby plan):
-- End-to-end with real Clerk-issued tokens and the Expo SDK on web + Android.
+Verified against the real free-Hobby dev instance (2026-11-05, test app
+"Cohort", instance fond-escargot-8888; still local wrangler dev, NOT deployed):
+
+- Real Clerk-issued session token (RS256, signed by the live instance) ->
+  200 with correct claims. Verification stays networkless via the PEM public
+  key; no Clerk API round trip per request.
+- Missing token -> 401; tampered signature -> 401; same token after its 60s
+  TTL -> 401.
+- The worker now pins `issuer` (the instance Frontend API host) and
+  `authorizedParties` (hosted portal origin) via env bindings
+  (CLERK_ISSUER / CLERK_AUTHORIZED_PARTIES). Real token passes with pins;
+  the same token is rejected (401) by a worker pinned to different values -
+  issuer/authorized-party enforcement is active, not just signature checks.
+- `external_id` renders as `null` for a dashboard-created user; the worker
+  maps that to `cohortUserId: null` and returns no account data. Nothing is
+  exposed when the mapping is unset, and the claim is only meaningful when
+  set server-side via the Backend API at import time (client-writable
+  metadata is never trusted).
+
+Dev-instance operational facts learned while testing:
+
+- Hosted sign-in lives at `https://<slug>.accounts.dev/sign-in` (the
+  `<slug>.clerk.accounts.dev` Frontend API host 404s for pages).
+- First sign-in from a new device/browser requires a one-time email code
+  even after a correct password - relevant for testing UX and for any headless
+  test plan.
+- Dashboard "Impersonate user" is a paid feature - not available on Hobby.
+- Session tokens are short-lived (~60s) and refreshed client-side; the
+  7-day setting governs the session, not each token.
+- `external_id` is not editable in the dashboard UI; Backend API only.
+
+Still not verified:
+
+- Expo SDK on web + Android against this instance.
 - Real Supabase export -> Clerk import (format path documented and scripted;
-  `scripts/import-users-to-clerk.mjs`, dry-run by default).
+  `scripts/import-users-to-clerk.mjs`, dry-run by default; needs
+  CLERK_SECRET_KEY, collected via vault link only when that stage is
+  approved).
+- Deployed Workers CPU measurement of verification (needs approval for the
+  temporary resource on his account).
 - Clerk's 7-day session feel on mobile in practice.
 
 ## Cutover notes (when approved)
