@@ -34,11 +34,12 @@ Against the documented limit
 checked 2026-11-05):
 
 - Workers Free allows **10 ms CPU per request**; the measured auth operation
-  is ~12x over that budget. There is no secure-KDF configuration that fits
-  10 ms (bcrypt cost-10 ~126 ms measured in workerd; even weaker-tuned KDFs
-  at acceptable security parameters exceed it; workerd's WebCrypto PBKDF2 is
-  hard-capped at 100,000 iterations, below OWASP's 600k recommendation for
-  PBKDF2-SHA256).
+  is ~12x over that budget. In this assessment no supported free-budget
+  route was found: the tested bcrypt configuration measures ~126 ms in
+  workerd, and workerd's WebCrypto PBKDF2 is hard-capped at 100,000
+  iterations (below OWASP's 600k recommendation for PBKDF2-SHA256). This
+  is what we tested and found - not a proof that no free-budget approach
+  could exist.
 - The same page says: "Each isolate has some built-in flexibility to allow
   for cases where your Worker infrequently runs over the configured limit.
   If your Worker starts hitting the limit consistently, its execution will
@@ -46,16 +47,18 @@ checked 2026-11-05):
   **every** auth request; whether Cloudflare's tolerance treats low-volume
   but always-over traffic as "infrequent" is not defined, so free-plan
   production readiness for this auth design is NOT established.
-- The page's only documented resolutions for CPU-limit errors: raise the
-  limit on Workers Paid ($5/month), optimize the code, or offload to
-  Durable Objects (also a paid-plan feature). No supported free-budget
-  route for secure password hashing exists in the official docs.
+- The page's documented resolutions for CPU-limit errors: raise the limit
+  on Workers Paid (starts at $5/month, plus any usage-based charges -
+  not a fixed guaranteed total), optimize the code, or offload to Durable
+  Objects (also a paid-plan feature).
 
-Decision deferred to him before any further build: (a) accept Workers Paid
-$5/month - the only documented supported route; (b) run auth on free plan
-anyway, accepting that sign-ins could start failing with Error 1102 at
-Cloudflare's discretion - not recommended for production; (c) keep
-Supabase Auth and move only data/storage - drops the own-auth goal.
+Decision deferred to him before any further build: (a) Workers Paid
+(starts at $5/month plus any usage-based charges) - the documented
+supported route for this workload; (b) keep Supabase Auth and move only
+data/storage - drops the own-auth goal. Running auth on the free plan is
+not offered: with every sign-in ~12x over the documented CPU budget,
+sign-ins could start failing with Error 1102 at Cloudflare's discretion,
+which is exactly why free is not production-ready here.
 
 ## Stages
 
