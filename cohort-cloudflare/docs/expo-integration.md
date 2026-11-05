@@ -1,4 +1,46 @@
-# Expo app integration sketch (stage 6 - not started)
+# Expo app integration (stage 6 - IN PROGRESS on this branch)
+
+## Where the code lives, and why (folder-scope note)
+
+He asked for the migration work to stay in `cohort-cloudflare/`. Backend
+preparation (worker, scripts, docs) does. The CLIENT integration is the one
+deliberate exception: wiring Clerk into the Expo app is only possible by
+editing the app itself (`cohort/apps/mobile`). Those edits are:
+
+- additive and flag-gated behind `EXPO_PUBLIC_CLERK_PREP=1`: with the flag
+  unset the provider is a passthrough and the Supabase flow is the only one
+  wired into the app's behavior. (Note: the branch bundle now also CONTAINS
+  the Clerk SDK and the prep route's code; "flag off" means the prep code
+  does not run, not that the bundle is byte-identical to main.)
+- on the `cloudflare-stack-prep` branch only. DEPLOY GUARD: production
+  deploys (Cloudflare Pages, ca.chatare.space) build from `main`; this
+  branch must never be merged with the flag enabled in any default env, and
+  no EAS/production build should be produced from it. Merging at all is a
+  later, separately-approved step after app-flow testing.
+
+## What exists now (branch, flag-gated)
+
+- `apps/mobile/src/lib/clerk.ts` - prep config (publishable key + API URL
+  from env; publishable key is public by design, secret key never enters).
+- `apps/mobile/src/features/clerk-prep/ClerkPrepProvider.tsx` - ClerkProvider
+  + tokenCache (expo-secure-store, the store the app already uses); passthrough
+  unless the flag is on.
+- `apps/mobile/app/clerk-prep.tsx` - public prep route: email+password
+  sign-in via the Clerk Expo SDK v4 (`signIn.password` -> new-device email
+  code via `signIn.mfa.*` -> `finalize`), then a button that calls the prep
+  api-worker `/api/me` with `getToken()` and shows the response.
+- `apps/mobile/app/_layout.tsx` - provider mounted unconditionally but
+  inert unless flag on; `/clerk-prep` added to public routes only when the
+  flag is on.
+
+## Verified so far
+
+- typecheck clean; existing jest suites pass (2/2). One pre-existing eslint
+  error in `app/(auth)/login.tsx` predates this work.
+- Web static export builds with the flag on; the signed-out prep screen
+  renders correctly (screenshot-verified locally).
+
+## The older sketch below remains the full-app target
 
 Direction: Clerk. The app swaps `supabase.auth` for the official Clerk Expo
 SDK (source: https://docs.expo.dev/guides/using-clerk/):

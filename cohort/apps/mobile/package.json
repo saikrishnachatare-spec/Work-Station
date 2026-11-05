@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@clerk/expo": "^4.15.0",
     "@cohort/shared": "workspace:*",
     "@expo/ui": "~58.0.22",
     "@expo/vector-icons": "^15.1.1",

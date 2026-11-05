@@ -7,6 +7,8 @@ import { useEffect, useRef } from 'react';
 import { Platform, Text, View } from 'react-native';
 
 import { ConsentBanner } from '@/components/ConsentBanner';
+import { ClerkPrepProvider } from '@/features/clerk-prep/ClerkPrepProvider';
+import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 import { ErrorBoundary as AppErrorBoundary, ErrorFallback } from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/Toast';
 import { getConsent, initAnalytics } from '@/lib/analytics';
@@ -38,7 +40,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
     const first = segments[0] as string | undefined;
-    const publicRoutes = ['(auth)', 'terms', 'privacy', 'reset-password'];
+    // clerk-prep is a public prep route (branch-only, flag-gated) so the
+    // synthetic Clerk sign-in screen is reachable without a Supabase session.
+    const publicRoutes = ['(auth)', 'terms', 'privacy', 'reset-password', ...(CLERK_PREP_ENABLED ? ['clerk-prep'] : [])];
     const isPublic = first === undefined || publicRoutes.includes(first);
     if (!session && !guest && !isPublic) {
       router.replace('/(auth)/login');
@@ -94,6 +98,7 @@ export default function RootLayout() {
 
   return (
     <AppErrorBoundary>
+    <ClerkPrepProvider>
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
       <StatusBar style="dark" />
@@ -147,6 +152,7 @@ export default function RootLayout() {
       <ConsentBanner />
       </ToastProvider>
     </QueryClientProvider>
+    </ClerkPrepProvider>
     </AppErrorBoundary>
   );
 }

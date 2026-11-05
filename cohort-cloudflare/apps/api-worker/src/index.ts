@@ -24,6 +24,7 @@ type Bindings = {
   FILES: R2Bucket;
   CLERK_JWT_KEY: string; // PEM public key - not a secret
   CLERK_ISSUER: string; // Frontend API host of the instance, e.g. https://<slug>.clerk.accounts.dev
+  CORS_ORIGINS?: string; // comma-separated allowed origins; defaults to prod site + local dev
   CLERK_AUTHORIZED_PARTIES: string; // comma-separated origins allowed as azp (hosted portal + app origins)
   CLERK_SECRET_KEY?: string; // only needed for Backend API calls (import script), not for verification
 };
@@ -40,7 +41,12 @@ app.get('/health', async (c) => {
 app.use(
   '/api/*',
   cors({
-    origin: ['https://ca.chatare.space', 'http://localhost:8789'],
+    origin: (origin, c) => {
+      const allowed = c.env.CORS_ORIGINS
+        ? c.env.CORS_ORIGINS.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : ['https://ca.chatare.space', 'http://localhost:8789'];
+      return allowed.includes(origin) ? origin : '';
+    },
     allowHeaders: ['Content-Type', 'Authorization'],
     allowMethods: ['GET', 'POST', 'OPTIONS'],
     credentials: true,
