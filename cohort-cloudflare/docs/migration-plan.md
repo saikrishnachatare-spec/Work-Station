@@ -1,8 +1,15 @@
 # Cohort → Cloudflare migration plan (preparation)
 
-Goal (his words): everything under our control on the Cloudflare stack,
-self-hosted auth via Better Auth, free tiers where possible, live app and
-accounts untouched until a tested switch is approved.
+Goal (his words): move Cohort to the Cloudflare stack on free plans, live
+app and accounts untouched until a tested switch is approved.
+
+Direction chosen 2026-11-05: **Clerk (free Hobby) for auth + Cloudflare
+free plans for everything else.** Self-hosted Better Auth was the earlier
+direction; the deployed CPU test below showed its password hashing does not
+fit the documented Workers Free CPU budget. Clerk moves hashing to Clerk's
+infrastructure - our Worker only verifies JWTs (~2 ms class), which fits.
+The Better Auth worker is kept under apps/better-auth-worker (superseded,
+working locally) in case a future Workers Paid plan revisits it.
 
 ## Proven so far (local, wrangler dev / miniflare, 2026-11-05)
 
@@ -17,7 +24,10 @@ accounts untouched until a tested switch is approved.
   is in trustedOrigins. Browsers send it automatically; native will use
   Better Auth's Expo plugin (not yet wired).
 
-## CPU constraint - measured facts, free-plan readiness NOT established (2026-11-05)
+## CPU constraint on self-hosted auth - measured facts (2026-11-05)
+
+**This applies to the superseded Better Auth direction. The active Clerk
+direction does not run password hashing in our Worker at all.**
 
 An isolated throwaway worker (`cohort-cpu-test`, secret-gated, synthetic
 fixtures only, deleted after the test) ran on his real free-plan account:
@@ -63,14 +73,20 @@ which is exactly why free is not production-ready here.
 ## Stages
 
 - [x] **0. Prep plumbing** — this folder; auth worker + D1/R2 stub tested.
-- [x] **1a. Deployed CPU measurement** — done (see above): the auth
-  operation measures ~12x over the free CPU budget; his plan decision
-  (paid vs accept risk vs keep Supabase Auth) gates everything below.
-- [ ] **1b. Auth** — create the real auth D1 (needs approval), apply schema, export
-  Supabase auth users (verify the real hash export, not just the format),
-  import preserving UUIDs, wire email delivery via Brevo's HTTP API
-  (Workers cannot do raw SMTP), full flow test on a preview URL.
+- [x] **1a. Deployed CPU measurement** — done (see above): self-hosted
+  bcrypt auth is ~12x over the free CPU budget. Resolved by his choice of
+  Clerk (hashing offloaded; JWT verification fits free).
+- [ ] **1b. Clerk app setup (his approval needed)** — create the free Hobby
+  Clerk application on his Gmail, configure session-token `external_id`
+  claim, then wire the Expo app (test instance first). Verify real
+  Clerk-issued tokens against the API worker.
+- [ ] **1c. Auth data** — with approval: real Supabase export, then
+  import to Clerk (`scripts/import-users-to-clerk.mjs`, dry-run default;
+  bcrypt digests import directly so users keep passwords; UUIDs preserved
+  as `external_id`). Full flow test on a preview URL.
   Note: at cutover every existing session ends — everyone signs in once.
+  Clerk sends verification/reset emails itself, so no Brevo wiring needed
+  for auth mail.
 - [ ] **2. Authorization parity** — Supabase RLS policies today decide who
   can read/write what. On Workers that logic must be re-implemented in the
   API worker. Needs negative tests (user A cannot read/write user B's

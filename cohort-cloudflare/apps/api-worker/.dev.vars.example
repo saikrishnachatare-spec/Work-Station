@@ -1,1 +1,4 @@
-# No secrets needed for the prep stub.
+# Clerk PEM public key (Dashboard -> API Keys -> PEM Public Key). NOT a secret.
+CLERK_JWT_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n"
+# Only needed when the worker itself calls Clerk's Backend API (it doesn't today):
+# set with `wrangler secret put CLERK_SECRET_KEY` at deploy time, never here in production.

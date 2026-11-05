@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "wrangler dev --local --port 8788", "typecheck": "tsc --noEmit" },
-  "dependencies": { "hono": "^4.13.16" },
+  "scripts": { "dev": "wrangler dev --local --port 8789", "typecheck": "tsc --noEmit" },
+  "dependencies": { "@clerk/backend": "^3.26.6", "@hono/clerk-auth": "^3.1.1", "hono": "^4.13.16" },
   "devDependencies": { "@cloudflare/workers-types": "^5.20261103.1", "typescript": "^5.9.0", "wrangler": "^4.157.0" }
 }

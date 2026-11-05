@@ -1,7 +1,9 @@
 # cohort-cloudflare — Cloudflare stack preparation
 
 Preparation area for moving Cohort's backend from Supabase to the Cloudflare
-stack (Workers + D1 + R2) with self-hosted auth via Better Auth.
+stack (Workers + D1 + R2) with **Clerk** for auth (his choice, 2026-11-05,
+free plans both sides). The earlier self-hosted Better Auth direction is
+kept under apps/better-auth-worker (superseded - see its SUPERSEDED.md).
 
 **Status: preparation only. Nothing here is deployed. The live app at
 https://ca.chatare.space and the Supabase project are untouched.**
@@ -12,34 +14,33 @@ production data, and no real email delivery are involved.
 
 ## Layout
 
-- `apps/auth-worker` — Better Auth on a Cloudflare Worker with D1.
-  Email/password auth, bcrypt password verification compatible with
-  Supabase's existing hashes, Cohort's min-8 password rule, CORS for
-  ca.chatare.space. **Tested locally: sign-up, sign-in, sessions, sign-out,
-  password rules, and a simulated Supabase-migrated user signing in with
-  their existing password.**
-- `apps/api-worker` — minimal stub proving the D1 (app data) and R2 (file
-  storage) bindings the rest of the migration will use. Health endpoint only;
-  no business logic.
+- `apps/api-worker` — future app backend. Verifies Clerk session JWTs
+  networklessly (fits the free CPU budget), plus the D1 (app data) and R2
+  (file storage) bindings. **Tested locally: valid/expired/wrong-key/missing
+  tokens behave correctly; D1+R2 pass.**
+- `apps/better-auth-worker` — SUPERSEDED self-hosted auth direction, kept
+  working locally for reference (see its SUPERSEDED.md). Locally tested:
+  sign-up, sign-in, sessions, sign-out, and a simulated Supabase-migrated
+  user signing in with their existing password.
 - `docs/migration-plan.md` — staged plan for the full move, what is proven
   vs. still open.
 
 ## Run locally
 
 ```bash
-cd apps/auth-worker
+cd apps/api-worker
 npm install
-cp .dev.vars.example .dev.vars   # fill in a local secret
-npm run dev                      # http://localhost:8787
-curl -X POST http://localhost:8787/migrate -H "x-migrate-key: <MIGRATE_KEY from .dev.vars>"
+cp .dev.vars.example .dev.vars   # paste any RSA PEM public key for local testing
+npm run dev                      # http://localhost:8789
+curl http://localhost:8789/health
 ```
 
-The API stub runs the same way on port 8788 (`npm run dev`, then
-`curl http://localhost:8788/health`).
+The superseded Better Auth worker runs the same way on port 8787 from
+apps/better-auth-worker (see its folder).
 
 ## What is NOT done yet (honest list)
 
-- Deployed CPU measurement 2026-11-05: the auth operation uses ~12x the documented free CPU budget. Free-plan readiness NOT established - plan decision required before further build (see docs/migration-plan.md). The isolated test resources were deleted after the test.
+- Deployed CPU measurement 2026-11-05: self-hosted password hashing uses ~12x the documented free CPU budget - that direction was dropped. The active Clerk direction moves hashing to Clerk; local JWT verification fits free. Not yet verified: real Clerk app end-to-end (needs his approval to create the free Clerk app). The isolated test resources were deleted after the test.
 - Email verification / password reset delivery is stubbed — wiring to Brevo
   (HTTP API; Workers can't do raw SMTP) comes with deployment approval.
 - Supabase data export/import script written but not run against production.

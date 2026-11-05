@@ -1,39 +1,32 @@
 # Expo app integration sketch (stage 6 - not started)
 
-Server side is already prepared: the auth worker loads the `@better-auth/expo`
-plugin and trusts the `cohort://` scheme plus `https://ca.chatare.space`
-(source: https://better-auth.com/docs/integrations/expo).
-
-Client side, in `cohort/apps/mobile` (behind a config flag so the live app
-is untouched until cutover):
+Direction: Clerk. The app swaps `supabase.auth` for the official Clerk Expo
+SDK (source: https://docs.expo.dev/guides/using-clerk/):
 
 ```ts
-// src/lib/auth-client.ts (new file, future)
-import { createAuthClient } from 'better-auth/react';
-import { expoClient } from '@better-auth/expo/client';
-import * as SecureStore from 'expo-secure-store';
+// App root (future, behind a config flag so the live app is untouched)
+import { ClerkProvider, ClerkLoaded } from '@clerk/expo';
+import * as SecureStore from 'expo-secure-store'; // token cache, same store the app already uses
 
-export const authClient = createAuthClient({
-  baseURL: 'https://<auth-worker-url>', // set at deploy time
-  plugins: [
-    expoClient({
-      scheme: 'cohort',          // matches app.json
-      storagePrefix: 'cohort',
-      storage: SecureStore,      // same store the app already uses
-    }),
-  ],
-});
+<ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} tokenCache={tokenCache}>
+  <ClerkLoaded>{/* existing app */}</ClerkLoaded>
+</ClerkProvider>
 ```
 
-Call mapping (from the official Supabase migration guide):
+- Sign-in/up screens: Clerk's prebuilt components or a custom flow with
+  `useSignIn` / `useSignUp` (custom keeps our minimal UI).
+- Web build (ca.chatare.space): same SDK; browser cookies/redirects handled
+  by Clerk.
+- API calls from the app send `Authorization: Bearer <session token>` from
+  `useAuth().getToken()`; the worker verifies it (see clerk-integration.md).
 
-- `supabase.auth.signUp` -> `authClient.signUp.email`
-- `supabase.auth.signInWithPassword` -> `authClient.signIn.email`
-- `supabase.auth.signOut` -> `authClient.signOut`
-- session state (`src/store/session.ts`) -> `authClient.useSession()`
+Call mapping from today:
+- `supabase.auth.signUp` -> `useSignUp().create({ emailAddress, password })`
+- `supabase.auth.signInWithPassword` -> `useSignIn().create({ identifier, password })`
+- `supabase.auth.signOut` -> `useClerk().signOut()`
+- `src/store/session.ts` session state -> `useAuth()` / `useUser()`
 
-Open items for that stage: the app also calls Supabase for data (posts,
-profiles, storage, realtime) - those move to the API worker in stages 3-5
-of `docs/migration-plan.md`, so the auth swap and the data swap land
-together behind the same flag. Web needs no plugin; the browser sends
-Origin automatically and cookies carry the session.
+Open items for that stage: deep links back into the Android app after email
+verification, guest browsing mode (today's `continueAsGuest`) stays
+client-side and untouched, and the data calls still move to the API worker
+per migration-plan.md stages 3-5.

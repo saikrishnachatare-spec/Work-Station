@@ -1,5 +1,4 @@
-# Cohort API worker (future app backend: posts, profiles, storage) - PREPARATION STUB ONLY.
-# Not deployed. Proves the D1 + R2 wiring that the full migration will use.
+# Cohort API worker (Clerk-verified) - PREPARATION ONLY. Not deployed.
 name = "cohort-api-prep"
 main = "src/index.ts"
 compatibility_date = "2026-11-05"
