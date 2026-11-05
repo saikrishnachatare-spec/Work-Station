@@ -3,9 +3,12 @@
 Future Cohort backend on a Cloudflare Worker. Auth is Clerk: the worker
 verifies session JWTs networklessly with `CLERK_JWT_KEY` (Clerk's PEM public
 key, not a secret) via `@clerk/backend` `verifyToken` - an asymmetric RS256
-check that fits the Workers Free CPU budget, unlike self-hosted bcrypt
-(see docs/migration-plan.md). `external_id` in the token claims is the
-user's Supabase UUID, so existing rows stay attached after import.
+check, far cheaper than self-hosted bcrypt (see docs/migration-plan.md).
+Deployed free-budget CPU fit is NOT yet established - our timings are local
+wall time, not deployed Workers CPU time. `external_id` in the token claims
+is planned to carry the user's Supabase UUID so existing rows can be mapped
+after import; correct ownership/authorization for imported users must be
+verified in testing, not assumed.
 
 ## Routes
 

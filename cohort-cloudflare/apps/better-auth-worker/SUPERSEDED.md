@@ -6,7 +6,8 @@ bcrypt password hashing (~126ms/request) exceeds the documented Workers Free
 10ms CPU budget with no supported free-budget route found in this assessment.
 
 Clerk moves password hashing to Clerk's own infrastructure; our worker only
-verifies JWTs (~2ms, asymmetric), which fits the free budget.
+verifies JWTs (asymmetric, far cheaper than hashing - though deployed
+free-budget CPU fit is not yet measured; local timings are wall time only).
 
 This folder still works locally (see docs/migration-plan.md stage notes) and
 is kept in case the direction is revisited - e.g. if a future Workers Paid

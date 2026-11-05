@@ -4,13 +4,18 @@ Why this direction: the deployed CPU test showed bcrypt password hashing
 (~126 ms/request) is ~12x over the documented Workers Free 10ms CPU budget
 (see migration-plan.md). With Clerk, hashing happens on Clerk's
 infrastructure; our Worker only verifies session JWTs - an asymmetric RS256
-check (~2 ms class work) that fits the free budget. Both sides stay on free
+check, much cheaper than bcrypt hashing. Whether it stays inside the
+deployed free CPU budget is NOT yet established: our measurements so far
+are local wall-time, not deployed Workers CPU time (see below). Both sides stay on free
 plans: Cloudflare Workers Free + Clerk Hobby (50,000 monthly retained users,
 unlimited applications, no card - https://clerk.com/pricing).
 
-Clerk Hobby limits that apply to Cohort: session lifetime fixed at 7 days
-(mobile users re-login weekly), default Clerk-branded emails and hosted
-pages, no custom email templates, no MFA (he already declined 2FA).
+Clerk Hobby limits that apply to Cohort: session lifetime listed as fixed
+at 7 days (what that means in practice for mobile re-login depends on
+Clerk's session/refresh semantics - to be observed during testing, not
+assumed), default Clerk-branded emails and hosted pages, no custom email
+templates, no MFA (he already declined 2FA). Free allowance is 50,000 MRU
+(monthly retained users, Clerk's current pricing term).
 
 ## Architecture
 
@@ -25,19 +30,25 @@ pages, no custom email templates, no MFA (he already declined 2FA).
   https://clerk.com/docs/reference/backend/verify-token
 - **Expo app** uses the official `@clerk/expo` SDK:
   https://docs.expo.dev/guides/using-clerk/
-- **User mapping**: imported users keep their Supabase UUID as Clerk
-  `external_id`, added to session-token claims (Dashboard -> Sessions ->
-  Customize session token). The worker reads `external_id` to authorize
-  rows keyed by the old UUIDs - posts/profiles stay attached.
+- **User mapping**: the plan is for imported users to keep their Supabase
+  UUID as Clerk `external_id`, added to session-token claims (Dashboard ->
+  Sessions -> Customize session token). The worker would read `external_id`
+  to look up rows keyed by the old UUIDs. This preserves the identity-
+  mapping intent only - that imported users actually get correct ownership/
+  authorization over their existing rows must be verified in testing after
+  a real import; it is not automatic.
 
 ## Locally verified (2026-11-05, wrangler dev / miniflare, synthetic keys)
 
 - Valid token -> 200 with correct claims incl. `external_id` mapping.
 - Missing token -> 401. Expired token -> 401. Token signed by a different
   key -> 401. (Negative/authorization probes pass.)
-- 20 sequential verifications in ~0.13s total locally (~6 ms each including
-  local HTTP overhead) - consistent with the ~2 ms class of asymmetric
-  verification, far inside the 10 ms free CPU budget.
+- 20 sequential verifications in ~0.13s total locally. This is local
+  miniflare wall time including HTTP overhead - NOT a deployed Workers CPU
+  measurement, so it does not by itself prove free-plan CPU fit. A deployed
+  CPU check on his account (like the earlier bcrypt test) would be needed
+  to establish that; deferred until a real Clerk app exists to test
+  against, and would need its own approval for the temporary resource.
 - D1 + R2 bindings still pass on the same worker.
 
 Not yet verified (needs a real Clerk app - his approval to create one on the

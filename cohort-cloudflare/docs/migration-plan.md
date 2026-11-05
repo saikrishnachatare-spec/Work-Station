@@ -7,8 +7,10 @@ Direction chosen 2026-11-05: **Clerk (free Hobby) for auth + Cloudflare
 free plans for everything else.** Self-hosted Better Auth was the earlier
 direction; the deployed CPU test below showed its password hashing does not
 fit the documented Workers Free CPU budget. Clerk moves hashing to Clerk's
-infrastructure - our Worker only verifies JWTs (~2 ms class), which fits.
-The Better Auth worker is kept under apps/better-auth-worker (superseded,
+infrastructure - our Worker only verifies JWTs (asymmetric, far cheaper
+than hashing; deployed free-budget CPU fit still unverified - our numbers
+are local wall time, not deployed CPU time). The Better Auth worker is
+kept under apps/better-auth-worker (superseded,
 working locally) in case a future Workers Paid plan revisits it.
 
 ## Proven so far (local, wrangler dev / miniflare, 2026-11-05)
@@ -75,7 +77,8 @@ which is exactly why free is not production-ready here.
 - [x] **0. Prep plumbing** — this folder; auth worker + D1/R2 stub tested.
 - [x] **1a. Deployed CPU measurement** — done (see above): self-hosted
   bcrypt auth is ~12x over the free CPU budget. Resolved by his choice of
-  Clerk (hashing offloaded; JWT verification fits free).
+  Clerk (hashing offloaded; JWT verification is the much cheaper
+  asymmetric kind, deployed CPU fit not yet measured).
 - [ ] **1b. Clerk app setup (his approval needed)** — create the free Hobby
   Clerk application on his Gmail, configure session-token `external_id`
   claim, then wire the Expo app (test instance first). Verify real

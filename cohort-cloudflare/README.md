@@ -15,7 +15,8 @@ production data, and no real email delivery are involved.
 ## Layout
 
 - `apps/api-worker` — future app backend. Verifies Clerk session JWTs
-  networklessly (fits the free CPU budget), plus the D1 (app data) and R2
+  networklessly (asymmetric verification, far cheaper than hashing;
+  deployed free-budget CPU fit not yet measured), plus the D1 (app data) and R2
   (file storage) bindings. **Tested locally: valid/expired/wrong-key/missing
   tokens behave correctly; D1+R2 pass.**
 - `apps/better-auth-worker` — SUPERSEDED self-hosted auth direction, kept
@@ -40,7 +41,7 @@ apps/better-auth-worker (see its folder).
 
 ## What is NOT done yet (honest list)
 
-- Deployed CPU measurement 2026-11-05: self-hosted password hashing uses ~12x the documented free CPU budget - that direction was dropped. The active Clerk direction moves hashing to Clerk; local JWT verification fits free. Not yet verified: real Clerk app end-to-end (needs his approval to create the free Clerk app). The isolated test resources were deleted after the test.
+- Deployed CPU measurement 2026-11-05: self-hosted password hashing uses ~12x the documented free CPU budget - that direction was dropped. The active Clerk direction moves hashing to Clerk's infrastructure; local JWT-verification timings are wall time, not deployed CPU proof - free-plan CPU fit unverified until a deployed check. Not yet verified: real Clerk app end-to-end (needs his approval to create the free Clerk app). The isolated test resources were deleted after the test.
 - Email verification / password reset delivery is stubbed — wiring to Brevo
   (HTTP API; Workers can't do raw SMTP) comes with deployment approval.
 - Supabase data export/import script written but not run against production.
