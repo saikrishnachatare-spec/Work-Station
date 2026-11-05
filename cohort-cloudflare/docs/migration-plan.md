@@ -17,33 +17,38 @@ accounts untouched until a tested switch is approved.
   is in trustedOrigins. Browsers send it automatically; native will use
   Better Auth's Expo plugin (not yet wired).
 
-## Open constraint: Workers Free CPU limit vs password hashing
+## Open constraint: Workers Free CPU limit vs password hashing (unresolved)
 
-Measured: bcryptjs compare at cost 10 ≈ 63 ms CPU (Node 22; workerd will be
-similar order). Cloudflare documents Workers Free CPU time at **10 ms per
-request** (Paid: 5 min) — https://developers.cloudflare.com/workers/platform/limits/ (checked 2026-11-05).
+Measured on Node 22 as a proxy for the Workers runtime (2026-11-05):
 
-Every sign-in and sign-up must run a password hash, and any secure KDF
-(bcrypt/scrypt/PBKDF2 at safe parameters) exceeds 10 ms of CPU. Options:
+- bcryptjs compare at cost 10 (required to verify imported Supabase hashes): ~63 ms CPU
+- native WebCrypto PBKDF2-SHA256: ~13 ms at 100k iterations, ~26 ms at 210k,
+  ~74 ms at the OWASP-recommended 600k
 
-1. **Workers Paid ($5/month)** — solves it outright; also lifts the
-   100k requests/day free cap. Requires his explicit approval (money).
-2. Lower-cost hashing to fit 10 ms — weakens password security. Not
-   recommended.
-3. Keep Supabase Auth and migrate only data/storage — fails the "own our
-   auth" goal.
+Cloudflare documents Workers Free CPU time at **10 ms per request** (Paid:
+5 min) - https://developers.cloudflare.com/workers/platform/limits/ (checked
+2026-11-05). CPU time counts code execution, not network waits -
+https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1102/
 
-Recommendation: option 1 when we approach cutover. Local prep continues on
-the free tooling meanwhile; nothing is blocked before then.
+State of knowledge: every secure KDF at recommended parameters measured
+above exceeds the free budget. These are proxy measurements on Node, not
+workerd; treat them as strong evidence, not final proof. The definitive
+check is running this auth worker on a real Cloudflare deployment, which
+needs approval to create resources. Lowering KDF parameters to squeeze
+under 10 ms would weaken password security and is not offered as an option.
 
-Also to verify at cutover: D1 free tier limits (5 GB storage, 5M reads/day —
-current data is 14 MB, fine) and R2 free allowances (10 GB, no egress fees —
-current files are 77 KB, fine).
+Implication: own-auth on Workers most likely needs **Workers Paid
+($5/month)**. Not yet requested - the decision is his, due before cutover,
+not now. Migrated Supabase users must verify against bcrypt at their
+stored cost regardless, so switching KDFs does not remove this need while
+imported hashes exist. Stage 1 includes a deployed-preview CPU test to
+confirm or refute this before any full app rewrite.
 
 ## Stages
 
 - [x] **0. Prep plumbing** — this folder; auth worker + D1/R2 stub tested.
-- [ ] **1. Auth** — create real D1 (needs approval), apply schema, export
+- [ ] **1. Auth** — create real D1 (needs approval), run the deployed-preview
+  CPU test above first, then apply schema, export
   Supabase auth users (verify the real hash export, not just the format),
   import preserving UUIDs, wire email delivery via Brevo's HTTP API
   (Workers cannot do raw SMTP), full flow test on a preview URL.

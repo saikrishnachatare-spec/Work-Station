@@ -1,7 +1,7 @@
 /**
  * Better Auth instance for Cohort - preparation stage.
  *
- * Design decisions (see PREP-NOTES.md):
+ * Design decisions (see ../../docs/migration-plan.md):
  * - Hosted on Cloudflare Workers, data in Cloudflare D1 (SQLite).
  * - Password hashing delegates to bcrypt so existing Supabase Auth users
  *   (Supabase stores bcrypt digests) keep their passwords after migration.
@@ -12,6 +12,7 @@
  *   connected); the send hooks are stubs in this prep stage.
  */
 import { betterAuth } from 'better-auth';
+import { expo } from '@better-auth/expo';
 import bcrypt from 'bcryptjs';
 
 export type AuthEnv = {
@@ -51,6 +52,7 @@ export function createAuth(env: AuthEnv) {
     },
     // The Expo web build at ca.chatare.space calls this worker cross-origin;
     // native builds send no Origin header, which Better Auth allows by default.
-    trustedOrigins: ['https://ca.chatare.space'],
+    trustedOrigins: ['https://ca.chatare.space', 'cohort://'],
+    plugins: [expo()],
   });
 }
