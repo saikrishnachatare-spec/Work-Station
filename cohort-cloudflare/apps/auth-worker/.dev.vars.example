@@ -1,0 +1,6 @@
+# Copy to .dev.vars for local dev. Real secrets are set with `wrangler secret put` only after deployment approval.
+BETTER_AUTH_SECRET=generate-a-64-char-hex-string
+BETTER_AUTH_URL=http://localhost:8787
+MIGRATE_KEY=local-only-guard-key
+# Production intent: true (with Brevo wired for email delivery). False only for local prep testing.
+REQUIRE_EMAIL_VERIFICATION=false

@@ -1,0 +1,13 @@
+# Cohort auth worker (Better Auth on Cloudflare Workers + D1) - PREPARATION BRANCH ONLY.
+# This worker is not deployed. Local testing runs against a local D1 via `wrangler dev --local`.
+name = "cohort-auth-prep"
+main = "src/index.ts"
+compatibility_date = "2026-11-05"
+compatibility_flags = ["nodejs_compat"]
+
+# Placeholder binding: real database + id are created only after approval.
+# Local dev uses wrangler's local D1 (miniflare), so no Cloudflare resources are touched.
+[[d1_databases]]
+binding = "DB"
+database_name = "cohort-auth-prep"
+database_id = "00000000-0000-0000-0000-000000000000"

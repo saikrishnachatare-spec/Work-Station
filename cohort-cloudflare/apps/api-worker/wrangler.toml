@@ -1,0 +1,15 @@
+# Cohort API worker (future app backend: posts, profiles, storage) - PREPARATION STUB ONLY.
+# Not deployed. Proves the D1 + R2 wiring that the full migration will use.
+name = "cohort-api-prep"
+main = "src/index.ts"
+compatibility_date = "2026-11-05"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cohort-app-prep"
+database_id = "00000000-0000-0000-0000-000000000000" # placeholder, local-only
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "cohort-files-prep" # placeholder, local-only
