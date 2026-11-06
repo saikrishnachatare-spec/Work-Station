@@ -22,3 +22,5 @@ Final worker assertions600/600 (39+84+158+90+69+98+36+26), each script clean exi
 
 ## Stage3
 CSEET resolved. Live lost-response browser proof still unverified after the prior bounded signup challenge failure. No fresh signup retry, existing fixture reset or session export.
+
+Follow-up Nov6: deterministic in-memory fault injection9/9 exercises actual storage module put/head/delete/D1-finalize failures, retry and cleanup-before-put interleaving. This supplements local R2 byte36/36, does NOT prove vendor outages/timed concurrent stress/live R2. Live R2 remains blocked by preserved no-billing choice.

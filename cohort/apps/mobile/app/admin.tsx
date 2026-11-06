@@ -395,7 +395,7 @@ export default function AdminScreen() {
       <SeoHead noindex description="Cohort admin panel." path="/admin" title="Admin" />
       <Text style={styles.title}>Cohort admin</Text>
       <Text style={styles.meta}>
-        Signed in as {me?.full_name || 'admin'} (admin). Every change writes straight to the live database.
+        Signed in as {me?.full_name || 'admin'} (admin). {CLERK_PREP_ENABLED ? 'Changes affect only the isolated synthetic test preview.' : 'Every change writes straight to the live database.'}
       </Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
@@ -410,16 +410,16 @@ export default function AdminScreen() {
         <View style={{ gap: spacing.md }}>
           <View style={styles.statGrid}>
             {[
-              ['Members', analytics.data?.totals.members ?? (profiles.data ?? []).filter((p) => (p.status as string) !== 'deleted').length], ['Admins', admins.length],
+              ['Members', analytics.data?.totals.members ?? (CLERK_PREP_ENABLED ? 'Loading' : (profiles.data ?? []).filter((p) => (p.status as string) !== 'deleted').length)], ['Admins', admins.length],
               ['Feed posts', regularPosts.length], ['Announcements', announcements.length],
               ['Resources', resources.data?.length ?? 0], ['Groups', groups.data?.length ?? 0],
               ['Job listings', jobs.data?.length ?? 0],
-              ['Sign-ins (7d)', analytics.data?.active_members.signin_7d ??
+              ['Sign-ins (7d)', analytics.data?.active_members.signin_7d ?? (CLERK_PREP_ENABLED ? 'Not connected' :
                 // eslint-disable-next-line react-hooks/purity -- fallback recency cutoff while analytics load; recomputing per render keeps the 7d window current
-                (activity.data ?? []).filter((a: ActivityRow) => a.action === 'sign_in' && Date.now() - parseTs(a.created_at) < 7 * 864e5).length],
-              ['New members (7d)', analytics.data ? analytics.data.by_day.slice(-7).reduce((n, d) => n + d.new_members, 0) :
+                (activity.data ?? []).filter((a: ActivityRow) => a.action === 'sign_in' && Date.now() - parseTs(a.created_at) < 7 * 864e5).length)],
+              ['New members (7d)', analytics.data ? analytics.data.by_day.slice(-7).reduce((n, d) => n + d.new_members, 0) : (CLERK_PREP_ENABLED ? 'Loading' :
                 // eslint-disable-next-line react-hooks/purity -- fallback recency cutoff while analytics load, same as above
-                (activity.data ?? []).filter((a: ActivityRow) => a.action === 'signup' && Date.now() - parseTs(a.created_at) < 7 * 864e5).length],
+                (activity.data ?? []).filter((a: ActivityRow) => a.action === 'signup' && Date.now() - parseTs(a.created_at) < 7 * 864e5).length)],
             ].map(([label, n]) => {
               const target = ({
                 Members: 'Users', Admins: 'Users', 'Feed posts': 'Posts', Announcements: 'Announcements',
@@ -444,7 +444,7 @@ export default function AdminScreen() {
           </View>
           {analytics.data && (
             <Text style={styles.meta}>
-              Member and sign-in counts exclude {analytics.data.totals.controlled_test_accounts ?? 0} controlled test accounts and deleted member placeholders. The Users section still lists every profile row, including former members.
+              Member and sign-in counts exclude {analytics.data.totals.controlled_test_accounts ?? 0} controlled test accounts and deleted member placeholders. The Users section still lists every profile row, including former members. {CLERK_PREP_ENABLED ? 'Sign-in capture is not connected; zero is not proof of no sign-ins.' : ''}
             </Text>
           )}
           <SectionTitle first title="Verification requests" />
@@ -502,7 +502,7 @@ export default function AdminScreen() {
           ))}
           <Text style={styles.meta}>
             Role model: public signup only ever creates a normal member account. Admin rights are granted and
-            revoked here, one admin to another, and enforced by row-level security on every table.
+            revoked here, one admin to another. {CLERK_PREP_ENABLED ? 'The API checks authorization on each route; D1 has no row-level security.' : 'Row-level security enforces access on every table.'}
           </Text>
         </View>
       )}
@@ -567,8 +567,8 @@ export default function AdminScreen() {
             <Text style={styles.meta}>{a.funnel.scope}</Text>
             <View style={styles.statGrid}>
               {[
-                ['Total', a.funnel.total], ['Waiting', CLERK_PREP_ENABLED ? a.funnel.new : a.funnel.pending], ['Reviewed', a.funnel.reviewed],
-                ['Shortlisted', a.funnel.shortlisted], ['Declined', CLERK_PREP_ENABLED ? a.funnel.rejected : a.funnel.declined],
+                ['Total', a.funnel.total], [CLERK_PREP_ENABLED ? 'New' : 'Waiting', CLERK_PREP_ENABLED ? a.funnel.new : a.funnel.pending], ['Reviewed', a.funnel.reviewed],
+                ['Shortlisted', a.funnel.shortlisted], [CLERK_PREP_ENABLED ? 'Rejected' : 'Declined', CLERK_PREP_ENABLED ? a.funnel.rejected : a.funnel.declined],
               ].map(([label, n]) => (
                 <Card key={label as string} style={styles.stat}>
                   <Text style={styles.statNum}>{n}</Text>
@@ -906,8 +906,7 @@ export default function AdminScreen() {
         return (
           <View style={{ gap: spacing.sm }}>
             <Text style={styles.meta}>
-              Real events only: signups, sign-ins (from auth timestamps, at most one per member per 15 min), content created,
-              moderation and hiring actions. Message contents are never logged. Screen views appear in a member&apos;s timeline and under the Screens filter.
+              {CLERK_PREP_ENABLED ? 'Recorded preview database events only. Clerk sign-in/auth-deletion capture is not connected. Profile-created entries include controlled fixture creation, not proof of end-to-end signup.' : 'Real events only: signups, sign-ins (from auth timestamps, at most one per member per 15 min), content created, moderation and hiring actions.'} Message contents are never logged. Screen views appear in a member&apos;s timeline and under the Screens filter.
             </Text>
             <TextInput
               placeholder="Filter by member name"
@@ -978,7 +977,7 @@ export default function AdminScreen() {
       {section === 'Database' && (
         <View style={{ gap: spacing.sm }}>
           <Text style={styles.meta}>
-            A read-only window into the live database: exact row counts for every table, and the 25 most
+            A read-only window into {CLERK_PREP_ENABLED ? 'the isolated test database' : 'the live database'}: exact row counts for every table, and the 25 most
             recent rows for the tables listed below. Sensitive data is never shown here - no passwords,
             tokens, phone numbers or private message contents. Counts come straight from the database.
           </Text>
