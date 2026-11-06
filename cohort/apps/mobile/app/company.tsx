@@ -15,6 +15,8 @@ import { ScreenHeader, SectionTitle } from '@/components/ScreenBits';
 import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
+import { api } from '@/lib/api';
+import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 import { supabase } from '@/lib/supabase';
 import {
   timeAgo,
@@ -141,6 +143,11 @@ export default function CompanyScreen() {
   );
 
   const openResume = async (path: string) => {
+    if (CLERK_PREP_ENABLED) {
+      // Item 4 (file bytes) is not built: say so, never a dead link.
+      toast.show('Resumes are not available in the test preview yet.', 'info');
+      return;
+    }
     const { data, error } = await supabase.storage.from('resumes').createSignedUrl(path, 300);
     if (error || !data) {
       toast.show('Could not open the resume. Try again.', 'error');
@@ -155,6 +162,20 @@ export default function CompanyScreen() {
   const toggleOpen = async (jobId: string, jobRole: string, current: string) => {
     const next = current === 'open' ? 'closed' : 'open';
     setClosing(jobId);
+    if (CLERK_PREP_ENABLED) {
+      try {
+        await api(`/api/jobs/${jobId}`, { auth: 'required', body: { status: next }, method: 'PATCH' });
+      } catch {
+        setClosing('');
+        toast.show('Could not update the opening. Try again.', 'error');
+        return;
+      }
+      setClosing('');
+      toast.show(next === 'closed' ? `"${jobRole}" closed. Applicants keep their history.` : `"${jobRole}" reopened.`, 'success');
+      jobs.refetch();
+      applications.refetch();
+      return;
+    }
     const { error } = await supabase.from('jobs').update({ status: next }).eq('id', jobId);
     setClosing('');
     if (error) {
@@ -207,6 +228,23 @@ export default function CompanyScreen() {
   const saveProfile = async () => {
     setSavingProfile(true);
     const links = coWebsite.trim() ? [{ label: 'Website', url: coWebsite.trim() }] : [];
+    if (CLERK_PREP_ENABLED) {
+      try {
+        await api(`/api/profiles/${userId}`, {
+          auth: 'required',
+          body: { bio: coBio.trim(), headline: coHeadline.trim(), links, org_name: coName.trim() },
+          method: 'PATCH',
+        });
+      } catch {
+        setSavingProfile(false);
+        toast.show('Could not save the company profile. Try again.', 'error');
+        return;
+      }
+      setSavingProfile(false);
+      toast.show('Company profile saved.', 'success');
+      profile.refetch();
+      return;
+    }
     const { error } = await supabase
       .from('profiles')
       .update({ bio: coBio.trim(), headline: coHeadline.trim(), links, org_name: coName.trim() })

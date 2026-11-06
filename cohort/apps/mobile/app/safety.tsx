@@ -5,6 +5,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Card } from '@/components/Card';
 import { ScreenHeader } from '@/components/ScreenBits';
+import { api } from '@/lib/api';
+import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 import { supabase } from '@/lib/supabase';
 import { useMounted } from '@/lib/use-mounted';
 import { useAuth } from '@/store/session';
@@ -28,6 +30,10 @@ export default function Safety() {
   const blocks = useQuery({
     enabled: !!session && type === 'user',
     queryFn: async () => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ blocks: { blocked_id: string }[] }>('/api/blocks', { auth: 'required' });
+        return r.blocks;
+      }
       const { data, error } = await supabase.from('user_blocks').select('blocked_id');
       if (error) throw error;
       return data ?? [];
@@ -40,6 +46,16 @@ export default function Safety() {
     if (!session) { toast.show('Sign in to report', 'info'); return; }
     if (reason.trim().length < 5) { toast.show('Explain the concern in at least 5 characters', 'info'); return; }
     setBusy(true);
+    if (CLERK_PREP_ENABLED) {
+      try {
+        await api('/api/reports', { auth: 'required', body: { reason: reason.trim(), target_id: params.id, target_type: type } });
+        setDone(true);
+      } catch {
+        toast.show('Could not submit report', 'error');
+      }
+      setBusy(false);
+      return;
+    }
     const { error } = await supabase.from('content_reports').insert({
       reporter_id: session.user.id, target_type: type, target_id: params.id, reason: reason.trim(),
     });
@@ -51,6 +67,20 @@ export default function Safety() {
   const block = async () => {
     if (!session) return;
     setBusy(true);
+    if (CLERK_PREP_ENABLED) {
+      try {
+        if (blocked) await api(`/api/blocks/${params.id}`, { auth: 'required', method: 'DELETE' });
+        else await api('/api/blocks', { auth: 'required', body: { blocked_id: params.id } });
+      } catch {
+        setBusy(false);
+        toast.show('Could not update block', 'error');
+        return;
+      }
+      setBusy(false);
+      await qc.invalidateQueries({ queryKey: ['blocks'] });
+      toast.show(blocked ? 'User unblocked' : 'User blocked', 'success');
+      return;
+    }
     const r = blocked
       ? await supabase.from('user_blocks').delete().eq('blocker_id', session.user.id).eq('blocked_id', params.id)
       : await supabase.from('user_blocks').insert({ blocker_id: session.user.id, blocked_id: params.id });

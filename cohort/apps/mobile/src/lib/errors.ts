@@ -5,6 +5,8 @@
  */
 import { Platform } from 'react-native';
 
+import { api } from '@/lib/api';
+import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 import { supabase } from '@/lib/supabase';
 
 /** A stale tab after a new deploy cannot find its old JS chunks. Reload to
@@ -64,6 +66,14 @@ export function logError(message: string, stack?: string | null) {
     url: onWeb ? window.location.pathname : 'app',
     user_agent: onWeb ? navigator.userAgent.slice(0, 300) : Platform.OS,
   };
+  if (CLERK_PREP_ENABLED) {
+    // The worker route is public with its own dual rate limit (0006+0044);
+    // fire-and-forget, same contract as the Supabase insert.
+    api('/api/error-logs', { auth: 'optional', body: entry }).catch(() => {
+      /* logging must never break the app */
+    });
+    return;
+  }
   supabase.from('error_logs').insert(entry).then(({ error }) => {
     if (error) console.warn('[cohort] error logging failed:', error.message);
   });

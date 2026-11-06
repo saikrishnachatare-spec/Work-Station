@@ -10,6 +10,8 @@ import { ScreenHeader } from '@/components/ScreenBits';
 import { EmptyState } from '@/components/EmptyState';
 import { ListSkeleton } from '@/components/Skeleton';
 import { useToast } from '@/components/Toast';
+import { api } from '@/lib/api';
+import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 import { supabase } from '@/lib/supabase';
 import {
   timeAgo,
@@ -115,6 +117,11 @@ export default function HiringScreen() {
   };
 
   const openResume = async (path: string, name?: string | null) => {
+    if (CLERK_PREP_ENABLED) {
+      // Item 4 (file bytes) is not built: say so, never a dead link.
+      toast.show('Resumes are not available in the test preview yet.', 'info');
+      return;
+    }
     const { data, error } = await supabase.storage.from('resumes').createSignedUrl(path, 300);
     if (error || !data) {
       toast.show('Could not open the resume. Try again.', 'error');
@@ -128,6 +135,20 @@ export default function HiringScreen() {
   const toggleOpen = async (jobId: string, role: string, current: string) => {
     const next = current === 'open' ? 'closed' : 'open';
     setClosing(jobId);
+    if (CLERK_PREP_ENABLED) {
+      try {
+        await api(`/api/jobs/${jobId}`, { auth: 'required', body: { status: next }, method: 'PATCH' });
+      } catch {
+        setClosing('');
+        toast.show('Could not update the opening. Try again.', 'error');
+        return;
+      }
+      setClosing('');
+      toast.show(next === 'closed' ? `"${role}" closed. Applicants keep their application history.` : `"${role}" reopened.`, 'success');
+      jobs.refetch();
+      applications.refetch();
+      return;
+    }
     const { error } = await supabase.from('jobs').update({ status: next }).eq('id', jobId);
     setClosing('');
     if (error) {
