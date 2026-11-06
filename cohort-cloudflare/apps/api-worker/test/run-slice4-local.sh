@@ -134,9 +134,11 @@ check 'apply to closed job'                    403 "$(code -X POST -H "$J" -H "A
 check 'apply to missing job'                   403 "$(code -X POST -H "$J" -H "Authorization: Bearer $TC" -d '{}' "$BASE/api/jobs/nope/apply")"
 check 'apply suspended'                        403 "$(code -X POST -H "$J" -H "Authorization: Bearer $TS" -d '{}' "$BASE/api/jobs/jGig/apply")"
 check 'apply forged user_id'                   403 "$(code -X POST -H "$J" -H "Authorization: Bearer $TB" -d "{\"user_id\":\"$A\"}" "$BASE/api/jobs/jGig/apply")"
-APPB=$(curl -s -X POST -H "$J" -H "Authorization: Bearer $TB" -d '{"status":"shortlisted"}' "$BASE/api/jobs/jGig/apply" | jget '.id')
-check 'apply with non-new status (mirrored quirk)' 'true' "$([ "$APPB" != "ERR" ] && [ -n "$APPB" ] && echo true || echo false)"
-check 'apply bad status'                       400 "$(code -X POST -H "$J" -H "Authorization: Bearer $TV" -d '{"status":"hired"}' "$BASE/api/jobs/jGig/apply")"
+check 'apply with client-chosen shortlisted rejected (fix)' 400 "$(code -X POST -H "$J" -H "Authorization: Bearer $TB" -d '{"status":"shortlisted"}' "$BASE/api/jobs/jGig/apply")"
+APPB=$(curl -s -X POST -H "$J" -H "Authorization: Bearer $TB" -d '{"status":"new"}' "$BASE/api/jobs/jGig/apply" | jget '.id')
+check 'apply with explicit new accepted'       'true' "$([ "$APPB" != "ERR" ] && [ -n "$APPB" ] && echo true || echo false)"
+check 'stored status is new'                   'new' "$(curl -s -H "Authorization: Bearer $TB" "$BASE/api/jobs/jGig/applications" | jget '.applications.find(a=>a.id==="'$APPB'").status')"
+check 'apply bad status also rejected'         400 "$(code -X POST -H "$J" -H "Authorization: Bearer $TV" -d '{"status":"hired"}' "$BASE/api/jobs/jGig/apply")"
 check 'mine lists own application'             'true' "$(curl -s -H "Authorization: Bearer $TC" "$BASE/api/applications/mine" | jget '.applications.some(a=>a.id==="'$APPC'").toString()')"
 check 'mine, no token'                         401 "$(code "$BASE/api/applications/mine")"
 check 'mine excludes others'                   'false' "$(curl -s -H "Authorization: Bearer $TC" "$BASE/api/applications/mine" | jget '.applications.some(a=>a.id==="'$APPB'").toString()')" 
@@ -217,8 +219,10 @@ check 'error log 10th authed ok'               201 "$(code -X POST -H "$J" -H "A
 check 'error log 11th authed rate limited'     403 "$(code -X POST -H "$J" -H "Authorization: Bearer $TA" -d '{"message":"crash 11"}' "$BASE/api/error-logs")"
 check 'anon bucket unaffected by authed limit' 201 "$(code -X POST -H "$J" -d '{"message":"anon still ok"}' "$BASE/api/error-logs")"
 check 'other user unaffected'                  201 "$(code -X POST -H "$J" -H "Authorization: Bearer $TB" -d '{"message":"bob crash"}' "$BASE/api/error-logs")"
-for i in $(seq 1 11); do LAST=$(code -X POST -H "$J" -H "Authorization: Bearer $TC" -d '{"message":"forged","user_id":"someone-else"}' "$BASE/api/error-logs"); done
-check 'forged user_id evades own limit (mirrored quirk)' 201 "$LAST" 
+for i in $(seq 1 10); do curl -s -o /dev/null -X POST -H "$J" -H "Authorization: Bearer $TC" -d '{"message":"forged","user_id":"someone-else"}' "$BASE/api/error-logs"; done
+LAST=$(code -X POST -H "$J" -H "Authorization: Bearer $TC" -d '{"message":"forged","user_id":"someone-else"}' "$BASE/api/error-logs")
+check 'forged user_id no longer evades limit (fix)' 403 "$LAST"
+check 'stored identity is the real caller (fix)' "$C" "$(curl -s -H "Authorization: Bearer $TADM" "$BASE/api/admin/error-logs" | jget '.error_logs.find(e=>e.message==="forged").user_id')"
 LONG=$(printf 'm%.0s' $(seq 1 2500))
 curl -s -o /dev/null -X POST -H "$J" -H "Authorization: Bearer $TB" -d "{\"message\":\"$LONG\"}" "$BASE/api/error-logs"
 check 'message sanitized to 2000'              '2000' "$(curl -s -H "Authorization: Bearer $TADM" "$BASE/api/admin/error-logs" | jget '.error_logs.find(e=>e.message.length>1500).message.length.toString()')"
@@ -235,6 +239,9 @@ AUDIT=$(curl -s -H "Authorization: Bearer $TADM" "$BASE/api/admin/privilege-audi
 check 'privilege audit row written'            'true' "$(echo "$AUDIT" | jget '.privilege_audit.some(a=>a.target_id==="'$C'"&&a.new_role==="admin"&&a.old_role==="user").toString()')"
 check 'new admin self-demotes (no guard upstream)' 200 "$(code -X PATCH -H "$J" -H "Authorization: Bearer $TC" -d '{"role":"user"}' "$BASE/api/admin/members/$C")"
 check 'second admin self-demotes (no last-admin guard)' 200 "$(code -X PATCH -H "$J" -H "Authorization: Bearer $TADM2" -d '{"role":"user"}' "$BASE/api/admin/members/$ADM2")"
+check 'last active admin cannot self-demote (fix)' 409 "$(code -X PATCH -H "$J" -H "Authorization: Bearer $TADM" -d '{"role":"user"}' "$BASE/api/admin/members/$ADM")"
+check 'last active admin cannot self-suspend (fix)' 409 "$(code -X PATCH -H "$J" -H "Authorization: Bearer $TADM" -d '{"status":"suspended"}' "$BASE/api/admin/members/$ADM")"
+check 'last admin still admin after refused changes' 200 "$(code -H "Authorization: Bearer $TADM" "$BASE/api/admin/reports")"
 check 'demoted admin loses admin access'       403 "$(code -H "Authorization: Bearer $TADM2" "$BASE/api/admin/reports")"
 check 'verified_at not settable via members'   400 "$(code -X PATCH -H "$J" -H "Authorization: Bearer $TADM" -d '{"verified_at":"now"}' "$BASE/api/admin/members/$C")"
 check 'member patch bad role'                  400 "$(code -X PATCH -H "$J" -H "Authorization: Bearer $TADM" -d '{"role":"superadmin"}' "$BASE/api/admin/members/$C")"

@@ -314,18 +314,24 @@ Mirrored non-obvious upstream semantics (observations, NOT changes):
 - applications UPDATE is POSTER ONLY (0030): not the applicant, not an
   admin who did not post the job. DELETE is applicant only - no admin
   override. Both tested.
-- applications INSERT does not force status='new' upstream: a client may
-  self-insert 'shortlisted' (0033 policy + 0030 enum). Mirrored, tested,
-  flagged as an upstream quirk - not "fixed".
-- No last-admin or self-demotion guard exists (profiles_admin FOR ALL):
-  an admin can demote themselves and the last admin. Mirrored + tested.
+- applications INSERT does not force status='new' upstream (0033 policy +
+  0030 enum): a client could self-insert 'shortlisted'. FIXED in this worker
+  with the owner's approval (2026-11-06, prep branch only): any
+  client-supplied status other than 'new' is rejected (400).
+- No last-admin or self-demotion guard exists upstream (profiles_admin FOR
+  ALL). FIXED in this worker with the owner's approval (2026-11-06, prep
+  branch only): self-demotion and demoting other admins stay allowed while
+  another active admin exists, but a change that would strip the LAST active
+  admin (role or status) is refused (409 last_active_admin).
   role/status/verified_at are mutable ONLY via /api/admin/members/:id
   (role/status) and verification review (verified_at); no generic profile
   update endpoint exists, so the privilege guard (0026) cannot be bypassed.
 - error_logs insert is PUBLIC incl. anonymous, dual rate limit (10/min
-  authed, 30/min anon) with sanitize truncation (0006+0044). Upstream quirk
-  mirrored: the limiter counts rows whose stored user_id equals the caller,
-  so a client that always forges user_id never accumulates (tested).
+  authed, 30/min anon) with sanitize truncation (0006+0044). Upstream stored
+  whatever user_id the client sent, making the limiter evadable and logs
+  forgeable. FIXED in this worker with the owner's approval (2026-11-06,
+  prep branch only): user_id is always the verified caller identity (null
+  when anonymous); client-supplied user_id is ignored.
 - admin_restore (0035): ownership passes to the restoring admin when the
   original owner is gone/deleted; dependents re-insert on-conflict-skip
   after the parent (parent/child FK order); the restore is one D1 batch so
@@ -334,9 +340,9 @@ Mirrored non-obvious upstream semantics (observations, NOT changes):
   (storage_cleanup_required, fail-closed) because no bucket exists to
   verify byte removal.
 
-test/run-slice4-local.sh: 144/144 assertions PASS (2026-11-06), synthetic
+test/run-slice4-local.sh: 150/150 assertions PASS (2026-11-06), synthetic
 issuer + seeded local D1 only. Fresh regression after 0004: slice2 39/39,
-slice3 84/84, slice5 90/90, slice4 144/144 in sequence (357 total).
+slice3 84/84, slice5 90/90, slice4 150/150 in sequence (363 total).
 
 Not ported (explicit gaps): notification enqueue side-effects (job_match
 0055, application_status, verification-review + report notifications),
@@ -362,3 +368,9 @@ badges, PG error shapes, multi-isolate atomicity.
    decision); Clerk prod instance + DNS cutover undecided.
 7. Real data export/import - out of bounds until the user asks.
 8. R2/storage replacement - independent billing decision, not authorized.
+
+Owner-approved prep-branch deviations from upstream (2026-11-06, decided on
+the exact three-question list; live app untouched): applications always start
+'new'; error_logs store the verified caller identity; the last active admin
+cannot be stripped. The start_dm first-message rate-limit bypass remains an
+upstream quirk/gap - not established as an intentional product decision.

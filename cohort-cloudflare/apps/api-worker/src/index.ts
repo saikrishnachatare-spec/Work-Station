@@ -1274,8 +1274,7 @@ app.delete('/api/jobs/:id', async (c) => {
 });
 
 // ---- apply (0033): caller = user_id, active member, job open. Dup -> 409.
-// Upstream quirk mirrored: the insert policy does not force status='new', so
-// a client may self-insert any enum status (documented, not "fixed").
+// Deviation from upstream (user-approved): status forced to 'new' at insert.
 app.post('/api/jobs/:id/apply', async (c) => {
   const caller = await getCaller(c);
   if (!caller) return c.json({ error: 'unauthorized' }, 401);
@@ -1285,8 +1284,12 @@ app.post('/api/jobs/:id/apply', async (c) => {
   const open = await c.env.DB.prepare("SELECT 1 AS x FROM jobs WHERE id = ? AND status = 'open'").bind(c.req.param('id')).first();
   if (!open) return c.json({ error: 'forbidden', reason: 'job_not_open' }, 403);
   const body = (await c.req.json<Record<string, unknown>>().catch(() => null)) ?? {};
-  const status = body?.status === undefined ? 'new' : String(body.status);
-  if (!(APP_STATUS as readonly string[]).includes(status)) return c.json({ error: 'invalid', reason: 'bad_status' }, 400);
+  // USER-APPROVED FIX (2026-11-06, prep branch only): upstream lets the
+  // client pick any enum status at insert (0033 WITH CHECK + 0030 enum), so
+  // an applicant can self-insert 'shortlisted'. Here applications always
+  // start 'new'; any other client-supplied status is rejected.
+  if (body?.status !== undefined && body.status !== 'new')
+    return c.json({ error: 'invalid', reason: 'applications_start_new' }, 400);
   if (body?.user_id !== undefined && body.user_id !== caller.cohortUserId)
     return c.json({ error: 'forbidden', reason: 'forged_user_id' }, 403);
   if (body?.job_id !== undefined && body.job_id !== c.req.param('id'))
@@ -1297,7 +1300,7 @@ app.post('/api/jobs/:id/apply', async (c) => {
       'INSERT INTO applications (id, job_id, user_id, status, resume_path, resume_name) VALUES (?,?,?,?,?,?)',
     )
       .bind(
-        id, c.req.param('id'), caller.cohortUserId, status,
+        id, c.req.param('id'), caller.cohortUserId, 'new',
         typeof body?.resume_path === 'string' ? body.resume_path : null,
         typeof body?.resume_name === 'string' ? body.resume_name : null,
       )
@@ -1483,8 +1486,10 @@ app.put('/api/job-alert-prefs', async (c) => {
 });
 
 // ---- error logs (0006+0044): PUBLIC insert, dual rate limit, sanitize.
-// Upstream quirk mirrored: the rate check counts rows whose stored user_id
-// equals the caller - a client that forges user_id evades its own limit.
+// USER-APPROVED FIX (2026-11-06, prep branch only): upstream stores whatever
+// user_id the client sends (rate-limit evasion + log forging). Here user_id
+// is always the verified caller identity (null when anonymous); any
+// client-supplied user_id is ignored.
 app.post('/api/error-logs', async (c) => {
   const caller = await getCaller(c);
   const identity = caller ? (caller.cohortUserId ?? `clerk:${caller.clerkUserId}`) : null;
@@ -1506,7 +1511,7 @@ app.post('/api/error-logs', async (c) => {
   )
     .bind(
       crypto.randomUUID(),
-      typeof body.user_id === 'string' ? body.user_id : identity,
+      identity,
       body.message.slice(0, 2000),
       cut(body.stack, 8000),
       cut(body.url, 1000),
@@ -1621,7 +1626,9 @@ app.delete('/api/admin/error-logs/:id', async (c) => {
 
 // ---- member privilege management (profiles_admin 0001 + guard 0026 + audit 0018).
 // Only role/status here; verified_at changes flow through verification review.
-// Upstream has NO last-admin or self-demotion guard - mirrored, documented.
+// Upstream has NO last-admin guard; this worker adds one (user-approved fix):
+// self-demotion and demoting other admins stay allowed while another active
+// admin exists, but the LAST active admin cannot be stripped.
 app.patch('/api/admin/members/:id', async (c) => {
   const gate = await requireAdmin(c);
   if ('error' in gate) return gate.error;
@@ -1636,6 +1643,19 @@ app.patch('/api/admin/members/:id', async (c) => {
   if (!['active', 'suspended', 'deleted'].includes(status)) return c.json({ error: 'invalid', reason: 'bad_status' }, 400);
   if (body.verified_at !== undefined)
     return c.json({ error: 'invalid', reason: 'verified_at_via_verification_review_only' }, 400);
+  // USER-APPROVED FIX (2026-11-06, prep branch only): upstream has no
+  // last-admin guard. Here a change that would strip the target's ACTIVE
+  // admin standing (role or status) is refused when no OTHER active admin
+  // exists, so Cohort can never be left with zero active admins.
+  const targetIsActiveAdmin = target.role === 'admin' && target.status === 'active';
+  const losesActiveAdmin = role !== 'admin' || status !== 'active';
+  if (targetIsActiveAdmin && losesActiveAdmin) {
+    const { c: otherAdmins } = await c.env.DB.prepare(
+      "SELECT COUNT(*) AS c FROM profiles WHERE role = 'admin' AND status = 'active' AND id <> ?",
+    ).bind(target.id).first<{ c: number }>().then((r) => ({ c: r?.c ?? 0 }));
+    if (otherAdmins === 0)
+      return c.json({ error: 'conflict', reason: 'last_active_admin' }, 409);
+  }
   await c.env.DB.batch([
     c.env.DB.prepare('UPDATE profiles SET role = ?, status = ? WHERE id = ?').bind(role, status, target.id),
     ...(role !== target.role || status !== target.status
