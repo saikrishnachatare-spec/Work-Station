@@ -2056,6 +2056,8 @@ app.get('/api/search', async (c) => {
   if (q.length < 2) return c.json({ posts: [], resources: [], groups: [], jobs: [], people: [] });
   const like = `%${q}%`;
   const caller = await getCaller(c);
+  let searchAdmin = false;
+  if (caller?.cohortUserId) searchAdmin = isAdmin(await getProfile(c.env.DB, caller.cohortUserId));
   const [posts, resources, groups, jobs, people] = await Promise.all([
     c.env.DB.prepare(
       'SELECT id, author_id, author_name, author_role, kind, body, image_path, pinned, like_count, comment_count, created_at FROM posts WHERE body LIKE ? OR author_name LIKE ? ORDER BY created_at DESC LIMIT 20',
@@ -2064,7 +2066,7 @@ app.get('/api/search', async (c) => {
     c.env.DB.prepare("SELECT id, name, purpose, description, kind, member_count, created_by, created_at FROM groups WHERE kind = 'group' AND (name LIKE ? OR description LIKE ? OR purpose LIKE ?) LIMIT 20").bind(like, like, like).all(),
     c.env.DB.prepare(
       `SELECT j.*, COALESCE(p.full_name, '') AS posted_by_name FROM jobs j LEFT JOIN profiles p ON p.id = j.posted_by
-        WHERE (j.role LIKE ? OR j.firm LIKE ? OR j.loc LIKE ?) AND (j.status = 'open' ${caller?.cohortUserId ? 'OR j.posted_by = ?' : ''})
+        WHERE (j.role LIKE ? OR j.firm LIKE ? OR j.loc LIKE ?) AND (j.status = 'open' ${caller?.cohortUserId ? 'OR j.posted_by = ?' : ''} ${searchAdmin ? 'OR 1=1' : ''})
         ORDER BY j.created_at DESC LIMIT 20`,
     ).bind(...([like, like, like, ...(caller?.cohortUserId ? [caller.cohortUserId] : [])] as string[])).all(),
     caller
@@ -2078,6 +2080,39 @@ app.get('/api/search', async (c) => {
     jobs: jobs.results,
     people: (people.results as Record<string, unknown>[]).map(rowToProfile),
   });
+});
+
+// likes_read (0001): using (true) - public. This convenience route scopes to
+// the caller's own likes so the app can mark its liked posts.
+app.get('/api/me/likes', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ postIds: [] });
+  const { results } = await c.env.DB.prepare('SELECT post_id FROM post_likes WHERE user_id = ?').bind(caller.cohortUserId).all<{ post_id: string }>();
+  return c.json({ postIds: results.map((r) => r.post_id) });
+});
+
+// jobs_read (0033 + anon variant): open to everyone; own any-status and
+// admin-all for signed-in members. Invisible rows 404, same as RLS empty set.
+app.get('/api/jobs/:id', async (c) => {
+  const caller = await getCaller(c);
+  let me: Profile | null = null;
+  if (caller?.cohortUserId) me = await getProfile(c.env.DB, caller.cohortUserId);
+  const j = await c.env.DB.prepare(
+    `SELECT j.*, COALESCE(p.full_name, '') AS posted_by_name,
+            (SELECT COUNT(*) FROM applications a WHERE a.job_id = j.id) AS application_count
+       FROM jobs j LEFT JOIN profiles p ON p.id = j.posted_by
+      WHERE j.id = ? AND (j.status = 'open' ${caller?.cohortUserId ? 'OR j.posted_by = ?' : ''} ${isAdmin(me) ? 'OR 1=1' : ''})`,
+  ).bind(...([c.req.param('id'), ...(caller?.cohortUserId ? [caller.cohortUserId] : [])] as string[])).first();
+  if (!j) return c.json({ error: 'not_found' }, 404);
+  return c.json({ job: j });
+});
+
+// resources_read (0001): using (true) - public.
+app.get('/api/resources/:id', async (c) => {
+  const r = await c.env.DB.prepare('SELECT * FROM resources WHERE id = ?').bind(c.req.param('id')).first();
+  if (!r) return c.json({ error: 'not_found' }, 404);
+  return c.json({ resource: r });
 });
 
 export default app;

@@ -61,6 +61,11 @@ INSERT OR REPLACE INTO comments (id, post_id, author_id, body) VALUES
 INSERT OR REPLACE INTO student_notes (id, title, owner_id, file_path, uploader_name) VALUES
  ('n_file','note with file','$A','student-notes/a.pdf','Alice Active'),
  ('n_nofile','note no file','$B',NULL,'Bob Active');
+INSERT OR REPLACE INTO jobs (id, firm, role, status, posted_by) VALUES
+ ('j_open','Firm A','Audit Trainee','open','$ADM'),
+ ('j_closed','Firm B','Intern','closed','$B');
+INSERT OR REPLACE INTO resources (id, title, owner_id) VALUES ('r1','synthetic resource','$A');
+INSERT OR REPLACE INTO post_likes (post_id, user_id) VALUES ('p_img','$A');
 INSERT OR REPLACE INTO notifications (id, user_id, kind, title) VALUES
  ('n1','$A','system','for alice'),
  ('n2','$A','system','also alice'),
@@ -151,6 +156,20 @@ check 'search anon: posts found'                 1 "$(echo "$ANON" | node -pe 'J
 AUTH=$(curl -s -H "Authorization: Bearer $TA" "$BASE/api/search?q=alice")
 check 'search authed: people found'              1 "$(echo "$AUTH" | node -pe 'JSON.parse(require("fs").readFileSync(0)).people.length')"
 check 'search short query empty'                 0 "$(curl -s "$BASE/api/search?q=a" | node -pe 'JSON.parse(require("fs").readFileSync(0)).posts.length')"
+
+echo '--- likes/jobs/resources additions'
+check 'me/likes no token'                        401 "$(code "$BASE/api/me/likes")"
+check 'me/likes returns own'                     '["p_img"]' "$(curl -s -H "Authorization: Bearer $TA" "$BASE/api/me/likes" | node -pe 'JSON.stringify(JSON.parse(require("fs").readFileSync(0)).postIds)')"
+check 'me/likes unmapped empty'                  '[]' "$(curl -s -H "Authorization: Bearer $TNOTIN" "$BASE/api/me/likes" | node -pe 'JSON.stringify(JSON.parse(require("fs").readFileSync(0)).postIds)')"
+check 'job get open, anon'                       200 "$(code "$BASE/api/jobs/j_open")"
+check 'job get closed, anon 404'                 404 "$(code "$BASE/api/jobs/j_closed")"
+check 'job get closed, owner ok'                 200 "$(code -H "Authorization: Bearer $TB" "$BASE/api/jobs/j_closed")"
+check 'job get closed, other member 404'         404 "$(code -H "Authorization: Bearer $TA" "$BASE/api/jobs/j_closed")"
+check 'job get closed, admin ok'                 200 "$(code -H "Authorization: Bearer $TADM" "$BASE/api/jobs/j_closed")"
+check 'resource get, public'                     200 "$(code "$BASE/api/resources/r1")"
+check 'resource get missing'                     404 "$(code "$BASE/api/resources/nope")"
+check 'search admin sees closed job'             1 "$(curl -s -H "Authorization: Bearer $TADM" "$BASE/api/search?q=Intern" | node -pe 'JSON.parse(require("fs").readFileSync(0)).jobs.length')"
+check 'search anon no closed job'                0 "$(curl -s "$BASE/api/search?q=Intern" | node -pe 'JSON.parse(require("fs").readFileSync(0)).jobs.length')"
 
 echo '--- external_id claim strictness (item 10 path)'
 BADEXT1=$(MINT_ISSUER="https://synthetic.clerk.accounts.dev" node -e '
