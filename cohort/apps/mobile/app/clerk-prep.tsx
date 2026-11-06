@@ -18,7 +18,8 @@ import { colors, radius, spacing } from '@/theme';
 type Stage = 'credentials' | 'emailCode';
 
 export default function ClerkPrepScreen() {
-  const { isSignedIn } = useAuth();
+  // Flag check first: under flag-off no ClerkProvider is mounted, so any
+  // Clerk hook would throw here (static export renders this route too).
   if (!CLERK_PREP_ENABLED) {
     return (
       <View style={styles.center}>
@@ -27,6 +28,11 @@ export default function ClerkPrepScreen() {
       </View>
     );
   }
+  return <ClerkPrepInner />;
+}
+
+function ClerkPrepInner() {
+  const { isSignedIn } = useAuth();
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Clerk prep (dev instance)</Text>

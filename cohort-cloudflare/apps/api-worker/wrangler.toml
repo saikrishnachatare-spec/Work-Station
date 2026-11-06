@@ -25,4 +25,8 @@ CORS_ORIGINS = "https://cohort-test-preview.pages.dev,http://localhost:8789,http
 # bind to the same-id D1 profile row. Server-controlled; not a secret. Item 10
 # replaces this with Backend-API external_id mapping for real users.
 TEST_SUB_ALLOWLIST = "user_3LfjRoTDNbKKoIokRRE50PtERCb"
+# Both required for the allowlist path (fail-closed otherwise): explicit opt-in
+# plus the exact dev issuer it is pinned to.
+PREVIEW_IDENTITY_BINDING = "enabled"
+PREVIEW_DEV_ISSUER = "https://fond-escargot-8888.clerk.accounts.dev"
 CLERK_JWT_KEY = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2PWu3w271TDYBG/TL0i+\n5jqwxYgxw3eHn8O+ZAey8JQlzf2VLV1p9VMd/+JgK+fYyd88Pd4/2JxhFaZhwV0Q\nc+p0S5S0px1iFbAs8IQjTRWaQsWjwq+txrGONivA3nEu7ZFF0viGO4MrzLzlI3R6\nW1+GuVNUkaEf2W2A17RYLm/Y9Gap4WrdlhARptb62KcHwucbvYNQLT/X1Sc8FBDd\noQSYIJqyBGrFwJLupPuIDj06HQ3vPQsDzcJHWZENYpvizHivdiZmlxkczCgvgLkY\nrRml1tk9WuwHKgsGEXFeXuMCYqXJydHHgaVJNPlBRUf0iBr4xQOcxhxo2ibxR3X9\ngQIDAQAB\n-----END PUBLIC KEY-----"

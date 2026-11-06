@@ -33,6 +33,8 @@ CLERK_JWT_KEY="${pub}"
 CLERK_ISSUER="https://synthetic.clerk.accounts.dev"
 CLERK_AUTHORIZED_PARTIES="https://synthetic.test"
 TEST_SUB_ALLOWLIST="user_allowA,user_allowNoRow"
+PREVIEW_IDENTITY_BINDING="enabled"
+PREVIEW_DEV_ISSUER="https://synthetic.clerk.accounts.dev"
 `);
 ' "$TMP"
 
@@ -194,6 +196,52 @@ const s = createSign("RSA-SHA256"); s.update(h+"."+p);
 console.log(h+"."+p+"."+s.sign(readFileSync(process.argv[1],"utf8")).toString("base64url"));
 ' "$TMP/key.pem")
 check 'external_id malformed string treated as absent' 'null' "$(curl -s -H "Authorization: Bearer $BADEXT2" "$BASE/api/me" | node -pe 'String(JSON.parse(require("fs").readFileSync(0)).cohortUserId)')"
+
+echo '--- allowlist gate fail-closed variants (server restarts)'
+write_vars() {
+node -e '
+const { readFileSync, writeFileSync } = require("node:fs");
+const pub = readFileSync(process.argv[1] + "/pub.pem", "utf8").trim().replace(/\n/g, "\\n");
+writeFileSync(".dev.vars",
+`# SYNTHETIC LOCAL TEST VALUES - gate variant
+CLERK_JWT_KEY="${pub}"
+CLERK_ISSUER="${process.argv[2]}"
+CLERK_AUTHORIZED_PARTIES="https://synthetic.test"
+TEST_SUB_ALLOWLIST="user_allowA,user_allowNoRow"
+${process.argv[3]}
+`);
+' "$TMP" "$1" "$2"
+}
+restart() {
+  kill $WPID 2>/dev/null; wait $WPID 2>/dev/null
+  pkill -f "wrangler dev --local --port $PORT" 2>/dev/null
+  pkill -f "workerd" 2>/dev/null
+  for i in $(seq 1 30); do curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1 || break; sleep 1; done
+  (npx wrangler dev --local --port $PORT >>"$TMP/wrangler.log" 2>&1) & WPID=$!
+  for i in $(seq 1 60); do curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1 && break; sleep 1; done
+}
+
+# variant 1: opt-in not 'enabled' -> inert even with issuer pin correct.
+# (.dev.vars cannot UNSET a wrangler.toml [vars] key locally, so this writes an
+# explicit non-'enabled' value; the code path - !== 'enabled' fails closed - is
+# the same one an absent var takes.)
+write_vars "https://synthetic.clerk.accounts.dev" 'PREVIEW_IDENTITY_BINDING="disabled"
+PREVIEW_DEV_ISSUER="https://synthetic.clerk.accounts.dev"'
+restart
+check 'opt-in not enabled -> no binding'          'null' "$(curl -s -H "Authorization: Bearer $TALLOW" "$BASE/api/me" | node -pe 'String(JSON.parse(require("fs").readFileSync(0)).cohortUserId)')"
+
+# variant 2: issuer pin mismatch (look-alike dev instance) -> inert
+write_vars "https://synthetic.clerk.accounts.dev" 'PREVIEW_IDENTITY_BINDING="enabled"
+PREVIEW_DEV_ISSUER="https://other-instance.clerk.accounts.dev"'
+restart
+check 'issuer pin mismatch -> no binding'         'null' "$(curl -s -H "Authorization: Bearer $TALLOW" "$BASE/api/me" | node -pe 'String(JSON.parse(require("fs").readFileSync(0)).cohortUserId)')"
+
+# variant 3: pin matches but issuer is a production-style host -> inert
+write_vars "https://clerk.production-example.com" 'PREVIEW_IDENTITY_BINDING="enabled"
+PREVIEW_DEV_ISSUER="https://clerk.production-example.com"'
+TPROD=$(MINT_ISSUER="https://clerk.production-example.com" node test/mint-token.mjs "$TMP/key.pem" "$ALA" - 300)
+restart
+check 'production-style issuer -> no binding'     'null' "$(curl -s -H "Authorization: Bearer $TPROD" "$BASE/api/me" | node -pe 'String(JSON.parse(require("fs").readFileSync(0)).cohortUserId)')"
 
 echo
 echo "slice6: $PASS passed, $FAIL failed"

@@ -43,6 +43,8 @@ type Bindings = {
   CLERK_AUTHORIZED_PARTIES: string; // comma-separated origins allowed as azp
   CLERK_SECRET_KEY?: string; // only for Backend API calls (import script), not verification
   TEST_SUB_ALLOWLIST?: string; // PREVIEW-ONLY (item 2): comma-separated synthetic Clerk dev-user subs allowed to bind to a same-id D1 profile row
+  PREVIEW_IDENTITY_BINDING?: string; // must be exactly 'enabled' or the allowlist path stays inert
+  PREVIEW_DEV_ISSUER?: string; // exact Clerk dev Frontend API URL the allowlist path is pinned to
 };
 
 type Caller = { clerkUserId: string; cohortUserId: string | null };
@@ -83,6 +85,18 @@ async function getCaller(c: {
     // is a Clerk DEVELOPMENT instance (*.clerk.accounts.dev hosts; production
     // instances use clerk.<domain> hosts), so the path cannot activate
     // against a production deployment even if the var were set by mistake.
+    // Production-inert by construction - ALL of these must hold or the
+    // allowlist path fails closed (no binding, no error):
+    //   1. explicit opt-in: PREVIEW_IDENTITY_BINDING === 'enabled'
+    //   2. exact issuer pin: CLERK_ISSUER === PREVIEW_DEV_ISSUER (string
+    //      equality, not a suffix - a look-alike dev instance does not match)
+    //   3. the pinned issuer is a Clerk DEVELOPMENT host (*.clerk.accounts.dev;
+    //      production instances use clerk.<domain>)
+    // A production deployment would need all three misconfigured at once, and
+    // a prod CLERK_ISSUER can never equal the pinned dev issuer.
+    if (c.env.PREVIEW_IDENTITY_BINDING !== 'enabled') return { clerkUserId: sub, cohortUserId: null };
+    if (!c.env.PREVIEW_DEV_ISSUER || c.env.CLERK_ISSUER !== c.env.PREVIEW_DEV_ISSUER)
+      return { clerkUserId: sub, cohortUserId: null };
     let issuerIsDev = false;
     try { issuerIsDev = new URL(c.env.CLERK_ISSUER).host.endsWith('.clerk.accounts.dev'); } catch { issuerIsDev = false; }
     if (!issuerIsDev) return { clerkUserId: sub, cohortUserId: null };
