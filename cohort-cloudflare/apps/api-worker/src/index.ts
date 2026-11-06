@@ -1221,7 +1221,7 @@ app.get('/api/jobs', async (c) => {
   )
     .bind(...(caller?.cohortUserId ? [caller.cohortUserId] : []))
     .all();
-  return c.json({ jobs: results });
+  return c.json({ jobs: (results as Record<string, unknown>[]).map(rowToJob) });
 });
 
 // ---- jobs insert (0026): caller = posted_by, active member, Gig work OR verified
@@ -1872,6 +1872,11 @@ function rowToProfile(r: Record<string, unknown>) {
   };
 }
 
+// jobs.tags is JSON text in D1; clients expect an array (Supabase jsonb shape).
+function rowToJob(r: Record<string, unknown>) {
+  return { ...r, tags: parseJsonArray(r.tags) };
+}
+
 // ---------------------------------------------------------------- profiles
 // profiles_read (0009): authenticated only - NOT public. A valid Clerk token
 // mirrors auth.role()='authenticated'; a mapped user is not required to read.
@@ -2095,7 +2100,7 @@ app.get('/api/search', async (c) => {
     posts: posts.results,
     resources: resources.results,
     groups: groups.results,
-    jobs: jobs.results,
+    jobs: (jobs.results as Record<string, unknown>[]).map(rowToJob),
     people: (people.results as Record<string, unknown>[]).map(rowToProfile),
   });
 });
@@ -2123,7 +2128,7 @@ app.get('/api/jobs/:id', async (c) => {
       WHERE j.id = ? AND (j.status = 'open' ${caller?.cohortUserId ? 'OR j.posted_by = ?' : ''} ${isAdmin(me) ? 'OR 1=1' : ''})`,
   ).bind(...([c.req.param('id'), ...(caller?.cohortUserId ? [caller.cohortUserId] : [])] as string[])).first();
   if (!j) return c.json({ error: 'not_found' }, 404);
-  return c.json({ job: j });
+  return c.json({ job: rowToJob(j as Record<string, unknown>) });
 });
 
 // resources_read (0001): using (true) - public.
