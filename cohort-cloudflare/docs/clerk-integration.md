@@ -115,3 +115,27 @@ Still not verified:
 - Existing sessions end at the switch - everyone signs in once.
 - Keep Supabase Auth running read-only during a parallel-test window so a
   rollback only means flipping the app's config flag back.
+
+## Interactive test-route findings (2026-11-06, continuation run)
+
+- Portal sign-in (https://fond-escargot-8888.accounts.dev/sign-in) from a cloud
+  browser profile persists across browser sessions (cookies saved on lease
+  release) and needs NO password re-entry while the session lives. However the
+  @clerk/expo SDK on the app origin does NOT pick up that portal session - it
+  manages its own session via explicit signIn, so the app sign-in form still
+  needs the test password on whatever origin serves the test build.
+- Quick tunnels (trycloudflare.com) get a RANDOM hostname per run. Because the
+  saved test login is site-limited in the vault, each new tunnel hostname needs
+  a fresh one-time site approval - per-run user chore.
+- Static export route nuance: expo-router emits clerk-prep.html; the app's auth
+  guard matches the clean path /clerk-prep, so the test server must resolve
+  clean URLs (path -> path.html) or the guard redirects to /login.
+
+Test-route options assessed (to stop per-run approval churn):
+1. (current) random quick tunnel + one-time site approval per run. Works, churns.
+2. Named tunnel with a stable hostname on his Cloudflare account, added to the
+   vault item once. Needs his OK (new named-tunnel resource on his account).
+3. Cloudflare Pages branch-preview host (stable *.pages.dev) IF a flag-on
+   preview build can be configured per-branch - to explore, needs his OK.
+4. Keep browser sign-in only for milestone checks; run synthetic-issuer suites
+   (no browser, no approval) for routine iteration. Already the case.
