@@ -9,7 +9,9 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { useRouter } from 'expo-router';
 
 import { Card } from '@/components/Card';
+import { ClerkResetForm } from '@/features/clerk-prep/ClerkResetForm';
 import { ClerkSignInForm } from '@/features/clerk-prep/ClerkSignInForm';
+import { ClerkSignUpForm } from '@/features/clerk-prep/ClerkSignUpForm';
 import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 import { supabase } from '@/lib/supabase';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -27,19 +29,11 @@ const normalizePhone = (raw: string) => raw.replace(/[\s().-]/g, '');
 
 export default function LoginScreen() {
   const router = useRouter();
-  // Prep flag on: Clerk dev-instance sign-in only. Signup, password reset
-  // and the phone/org onboarding fields are item-3 scope - say so plainly
-  // instead of offering dead Supabase-backed controls.
+  // Prep flag on: Clerk dev-instance auth. Signup and reset are stage-3
+  // preview fixtures: accounts are synthetic, need owner allowlisting
+  // server-side before member features turn on (preview-only gate).
   if (CLERK_PREP_ENABLED) {
-    return (
-      <ScrollView contentContainerStyle={{ gap: spacing.md, padding: spacing.lg }}>
-        <Text style={{ color: colors.brand, fontSize: 24, fontWeight: '800' }}>Cohort test preview</Text>
-        <Text style={{ color: '#555' }}>
-          Sign in with a synthetic test account. Creating an account and resetting a password are not available in the preview yet.
-        </Text>
-        <ClerkSignInForm />
-      </ScrollView>
-    );
+    return <ClerkPrepAuthScreen />;
   }
   const [mode, setMode] = useState<Mode>('signin');
   const [acctType, setAcctType] = useState<'individual' | 'firm' | 'enterprise'>('individual');
@@ -344,3 +338,38 @@ const styles = StyleSheet.create({
   legal: { ...typeScale.caption, color: colors.ink3, marginTop: spacing.lg, textAlign: 'center' },
   legalLink: { color: colors.brand },
 });
+
+/** Flag-on auth screen: sign-in / sign-up / reset modes over the Clerk dev instance. */
+function ClerkPrepAuthScreen() {
+  const [mode, setMode] = useState<'signin' | 'signup' | 'reset'>('signin');
+  return (
+    <ScrollView contentContainerStyle={{ gap: spacing.md, padding: spacing.lg }} keyboardShouldPersistTaps="handled">
+      <Text style={{ color: colors.brand, fontSize: 24, fontWeight: '800' }}>Cohort test preview</Text>
+      <Text style={{ color: '#555' }}>
+        Synthetic test accounts only. New accounts stay blocked until the test owner allowlists them (a preview-only
+        step; the production app will not have it).
+      </Text>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {(['signin', 'signup', 'reset'] as const).map((m) => (
+          <Pressable
+            key={m}
+            onPress={() => setMode(m)}
+            style={{
+              borderColor: colors.brand,
+              borderRadius: 999,
+              borderWidth: 1,
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              backgroundColor: mode === m ? colors.brand : 'transparent',
+            }}
+          >
+            <Text style={{ color: mode === m ? colors.cream : colors.brand, fontSize: 13 }}>
+              {m === 'signin' ? 'Sign in' : m === 'signup' ? 'Create account' : 'Reset password'}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      {mode === 'signin' ? <ClerkSignInForm /> : mode === 'signup' ? <ClerkSignUpForm /> : <ClerkResetForm />}
+    </ScrollView>
+  );
+}
