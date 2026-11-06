@@ -26,3 +26,6 @@ https://clerk.com/docs/reference/backend/user/create-user
 https://clerk.com/docs/guides/development/migrating/overview
 https://clerk.com/docs/guides/development/webhooks/overview
 https://clerk.com/docs/reference/backend/verify-webhook
+
+## Offline verifier preparation
+clerkLifecycle.ts is NOT registered/imported into Worker runtime, no endpoint/config created. Actual installed verifyWebhook helper with ephemeral synthetic signature key13/13: valid signature, wrong/missing secret, tamper, old signature, wrong/missing instance, unsupported type, nonallowed subject, inactive session, nested subject mismatch, invalid mapping type, deletion without external mapping, seconds/ms/future time. Output strips raw payload/private fields. No event journal, dedupe/order reconciliation or vendor-delivery proof yet. Live Event Catalog confirmed0endpoints and session.created(data.status active,user_id,nested user.external_id), separate session.pending, user.deleted(id/deleted/object only). Catalog session timestamp sample seconds vs deletion milliseconds accounted for. Lifecycle event is not consent/authority for account/content deletion. Source dev catalog URL https://app.svix.com/app_3Lk69TRygckgCaczvwI4dvWCFmR/event-types observed embedded in dev Webhooks page.
