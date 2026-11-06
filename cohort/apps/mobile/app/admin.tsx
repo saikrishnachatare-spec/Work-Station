@@ -361,7 +361,7 @@ export default function AdminScreen() {
     return parts.join(' · ');
   };
   const ACTION_LABELS: Record<string, string> = {
-    signup: 'signed up', sign_in: 'signed in', post_created: 'created a post', opening_posted: 'posted an opening',
+    signup: CLERK_PREP_ENABLED ? 'profile created' : 'signed up', sign_in: 'signed in', post_created: 'created a post', opening_posted: 'posted an opening',
     resource_shared: 'shared a resource', group_created: 'created a group', group_removed: 'removed a group',
     application_sent: 'applied to an opening', application_reviewed: 'marked an applicant reviewed',
     application_shortlisted: 'shortlisted an applicant', application_rejected: 'declined an applicant',
