@@ -224,7 +224,7 @@ app.post('/api/posts/:id/like', async (c) => {
   try {
     await c.env.DB.batch([
       c.env.DB.prepare('INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)').bind(postId, caller.cohortUserId),
-      c.env.DB.prepare('UPDATE posts SET like_count = like_count + 1 WHERE id = ?').bind(postId),
+      c.env.DB.prepare('UPDATE posts SET like_count = (SELECT COUNT(*) FROM post_likes WHERE post_id = ?) WHERE id = ?').bind(postId, postId),
     ]);
   } catch {
     return c.json({ error: 'conflict', reason: 'already_liked' }, 409); // PK (post_id, user_id)
@@ -239,14 +239,15 @@ app.delete('/api/posts/:id/like', async (c) => {
   if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
 
   const postId = c.req.param('id');
-  const existing = await c.env.DB.prepare('SELECT 1 AS x FROM post_likes WHERE post_id = ? AND user_id = ?')
+  // Delete-then-recompute: if two concurrent unlikes race, only one DELETE
+  // reports a change, so the count is recomputed at most once per actual row.
+  const del = await c.env.DB.prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?')
     .bind(postId, caller.cohortUserId)
-    .first();
-  if (!existing) return c.json({ error: 'not_found' }, 404);
-  await c.env.DB.batch([
-    c.env.DB.prepare('DELETE FROM post_likes WHERE post_id = ? AND user_id = ?').bind(postId, caller.cohortUserId),
-    c.env.DB.prepare('UPDATE posts SET like_count = MAX(like_count - 1, 0) WHERE id = ?').bind(postId),
-  ]);
+    .run();
+  if (!del.meta.changes) return c.json({ error: 'not_found' }, 404);
+  await c.env.DB.prepare('UPDATE posts SET like_count = (SELECT COUNT(*) FROM post_likes WHERE post_id = ?) WHERE id = ?')
+    .bind(postId, postId)
+    .run();
   return c.json({ ok: true });
 });
 
@@ -281,7 +282,7 @@ app.post('/api/posts/:id/comments', async (c) => {
   await c.env.DB.batch([
     c.env.DB.prepare('INSERT INTO comments (id, post_id, author_id, body) VALUES (?, ?, ?, ?)')
       .bind(id, postId, caller.cohortUserId, body.body),
-    c.env.DB.prepare('UPDATE posts SET comment_count = comment_count + 1 WHERE id = ?').bind(postId),
+    c.env.DB.prepare('UPDATE posts SET comment_count = (SELECT COUNT(*) FROM comments WHERE post_id = ?) WHERE id = ?').bind(postId, postId),
   ]);
   const comment = await c.env.DB.prepare('SELECT * FROM comments WHERE id = ?').bind(id).first();
   return c.json({ comment }, 201);
@@ -302,7 +303,7 @@ app.delete('/api/comments/:id', async (c) => {
   }
   await c.env.DB.batch([
     c.env.DB.prepare('DELETE FROM comments WHERE id = ?').bind(id),
-    c.env.DB.prepare('UPDATE posts SET comment_count = MAX(comment_count - 1, 0) WHERE id = ?').bind(comment.post_id),
+    c.env.DB.prepare('UPDATE posts SET comment_count = (SELECT COUNT(*) FROM comments WHERE post_id = ?) WHERE id = ?').bind(comment.post_id, comment.post_id),
   ]);
   return c.json({ ok: true });
 });

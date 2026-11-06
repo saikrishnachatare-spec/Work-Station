@@ -100,12 +100,33 @@ reading the effective policy text for these 4 tables directly.
 
 test/run-slice2-local.sh: throwaway RSA keypair per run, .dev.vars swapped to
 the synthetic issuer and restored on exit, local D1 reset + seeded with
-synthetic active/suspended/admin profiles, wrangler dev --local. 35/35
+synthetic active/suspended/admin profiles, wrangler dev --local. 39/39
 assertions passed (2026-11-06): public reads, 401 no/expired/garbage token,
 suspended -> 403 on all writes, forged author_id -> 403, admin-only
 announcement, blocked terms -> 422, double-like 409, admin-cannot-unlike
 (404), comment delete owner/non-owner/admin matrix, ownership always from the
-token's external_id, count upkeep nets to zero.
-NOT covered by tests: rate-limit counters at the boundary (10 posts/hour,
-20 comments/10min), multi-instance concurrency, real Clerk tokens against
-these endpoints (verified earlier only against /api/me).
+token's external_id, rate-limit boundaries (11th post/hour -> 403,
+21st comment/10min -> 403, other users unaffected), count upkeep nets to zero.
+
+Race safety of count upkeep: like insert + count recompute run in ONE D1
+batch (a serialized transaction), so the PK conflict path can never leave a
+half-updated count. Unlike deletes first and checks meta.changes, so a
+concurrent double-unlike recomputes at most once; the recompute itself is
+absolute (COUNT(*) from post_likes), so transient interleavings self-heal on
+the next write. Comment insert/delete recompute comment_count from the
+comments table inside their batch. Remaining known window: unlike's
+recompute is a second statement after its DELETE (not one batch), so a reader
+between the two can see a briefly stale count - value-correctness holds, not
+instant-visibility.
+
+Scope of "parity": the above is POLICY-TEXT parity - every allow/deny rule in
+the effective RLS policies for these 4 tables is mirrored and tested. It is
+not complete behavior parity: Postgres error codes/messages, trigger
+side-effects (admin activity logging 0032, notifications 0050), realtime
+broadcasts, and multi-instance concurrency are NOT ported/tested.
+
+NOT covered by tests: multi-instance concurrency, real Clerk tokens against
+these endpoints (verified earlier against /api/me only; real-token run gated
+on user approval for sandbox use of the saved test-user login), and
+external_id-bearing imported-user tokens (untestable until the import stage
+by design - external_id is Backend-API-only).

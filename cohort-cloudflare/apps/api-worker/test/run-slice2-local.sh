@@ -115,5 +115,24 @@ check 'comment delete missing'                  404 "$(code -X DELETE -H "Author
 LC=$(curl -s "$BASE/api/feed" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const p=JSON.parse(d).posts.find(p=>p.id===process.argv[1]);console.log(p.like_count+"/"+p.comment_count)})' "$POST_ID")
 check 'like/comment counts net to 0/0' '0/0' "$LC"
 
+
+# --- rate-limit boundaries (0044: <10 own posts/hour, <20 own comments/10min)
+# A already has 1 post this hour from the matrix above; seed 9 more directly.
+SEED_POST=$(node -e 'console.log(crypto.randomUUID())')
+npx wrangler d1 execute cohort-app-prep --local --command "
+INSERT INTO posts (id, author_id, author_name, author_role, body) VALUES ('$SEED_POST','$B','Bob Active','user','seed post');
+INSERT INTO posts (id, author_id, author_name, author_role, body)
+ WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<9)
+ SELECT lower(hex(randomblob(16))), '$A','Alice Active','user','seed' FROM c;" | tail -1
+check 'post create at 10/hour boundary -> 403' 403 "$(code -X POST -H "$J" -H "Authorization: Bearer $TA" -d '{"body":"eleventh"}' "$BASE/api/posts")"
+check 'post create under limit (other user)'  201 "$(code -X POST -H "$J" -H "Authorization: Bearer $TB" -d '{"body":"bob still fine"}' "$BASE/api/posts")"
+# 20 comments by A within 10 minutes on the dedicated seed post.
+npx wrangler d1 execute cohort-app-prep --local --command "
+INSERT INTO comments (id, post_id, author_id, body)
+ WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<20)
+ SELECT lower(hex(randomblob(16))), '$SEED_POST', '$A', 'seed comment' FROM c;" | tail -1
+check 'comment create at 20/10min boundary -> 403' 403 "$(code -X POST -H "$J" -H "Authorization: Bearer $TA" -d '{"body":"twenty first"}' "$BASE/api/posts/$SEED_POST/comments")"
+check 'comment create under limit (other user)' 201 "$(code -X POST -H "$J" -H "Authorization: Bearer $TB" -d '{"body":"bob comments fine"}' "$BASE/api/posts/$SEED_POST/comments")"
+
 echo "---- $PASS passed, $FAIL failed ----"
 [ "$FAIL" = 0 ]
