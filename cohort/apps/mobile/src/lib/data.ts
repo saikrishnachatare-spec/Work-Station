@@ -224,6 +224,10 @@ export function useGroups() {
   return useQuery({
     queryKey: ['groups'],
     queryFn: async (): Promise<Group[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ groups: Group[] }>('/api/groups');
+        return r.groups.filter((g) => g.kind === 'group').sort((a, b) => b.member_count - a.member_count);
+      }
       const { data, error } = await supabase.from('groups').select('*').eq('kind', 'group').order('member_count', { ascending: false });
       if (error) throw error;
       return data as Group[];
@@ -236,6 +240,10 @@ export function useMyGroups(userId: string | undefined) {
     enabled: !!userId,
     queryKey: ['my-groups', userId],
     queryFn: async (): Promise<Set<string>> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ groups: (Group & { my_role?: string | null })[] }>('/api/groups', { auth: 'required' });
+        return new Set(r.groups.filter((g) => g.my_role != null).map((g) => g.id));
+      }
       const { data, error } = await supabase.from('group_members').select('group_id').eq('user_id', userId!);
       if (error) throw error;
       return new Set((data as { group_id: string }[]).map((r) => r.group_id));
@@ -248,6 +256,10 @@ export function useToggleGroup(userId: string | undefined) {
   return useMutation({
     mutationFn: async ({ groupId, member }: { groupId: string; member: boolean }) => {
       if (!userId) throw new Error('Sign in to join circles');
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/groups/${groupId}/${member ? 'leave' : 'join'}`, { auth: 'required', method: 'POST' });
+        return;
+      }
       if (member) {
         const { error } = await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', userId);
         if (error) throw error;
@@ -267,6 +279,10 @@ export function useJobs() {
   return useQuery({
     queryKey: ['jobs'],
     queryFn: async (): Promise<Job[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ jobs: Job[] }>('/api/jobs');
+        return r.jobs;
+      }
       const { data, error } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return data as Job[];
@@ -278,6 +294,10 @@ export function useResources() {
   return useQuery({
     queryKey: ['resources'],
     queryFn: async (): Promise<Resource[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ resources: Resource[] }>('/api/resources');
+        return r.resources;
+      }
       const { data, error } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return data as Resource[];
@@ -290,6 +310,15 @@ export function useResource(id: string | undefined) {
     enabled: !!id,
     queryKey: ['resource', id],
     queryFn: async (): Promise<Resource | null> => {
+      if (CLERK_PREP_ENABLED) {
+        try {
+          const r = await api<{ resource: Resource }>(`/api/resources/${id}`);
+          return r.resource;
+        } catch (e) {
+          if ((e as { status?: number }).status === 404) return null;
+          throw e;
+        }
+      }
       const { data, error } = await supabase.from('resources').select('*').eq('id', id!).maybeSingle();
       if (error) throw error;
       return (data as Resource) ?? null;
@@ -310,6 +339,10 @@ export function useChannels() {
   return useQuery({
     queryKey: ['channels'],
     queryFn: async (): Promise<Group[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ groups: Group[] }>('/api/groups');
+        return r.groups.filter((g) => g.kind === 'channel');
+      }
       const { data, error } = await supabase.from('groups').select('*').eq('kind', 'channel').order('created_at', { ascending: false });
       if (error) throw error;
       return data as Group[];
@@ -321,6 +354,10 @@ export function useCommunities() {
   return useQuery({
     queryKey: ['communities'],
     queryFn: async (): Promise<Community[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ communities: Community[] }>('/api/communities');
+        return r.communities;
+      }
       const { data, error } = await supabase.from('communities').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return data as Community[];
@@ -334,6 +371,11 @@ export function useCommunityGroups(communityId: string | undefined) {
     enabled: !!communityId,
     queryKey: ['community-groups', communityId],
     queryFn: async (): Promise<Group[]> => {
+      if (CLERK_PREP_ENABLED) {
+        // The worker embeds each community's groups in the list response.
+        const r = await api<{ communities: (Community & { groups: Group[] })[] }>('/api/communities');
+        return r.communities.find((cm) => cm.id === communityId)?.groups ?? [];
+      }
       const { data, error } = await supabase
         .from('community_groups')
         .select('group_id, groups(*)')
@@ -349,6 +391,10 @@ export function useCreateCommunity(userId: string | undefined) {
   return useMutation({
     mutationFn: async ({ name, about }: { name: string; about: string }): Promise<Community> => {
       if (!userId) throw new Error('Sign in to create a community');
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ id: string }>('/api/communities', { auth: 'required', body: { about, name } });
+        return { about, created_at: new Date().toISOString(), created_by: userId, id: r.id, name };
+      }
       const { data, error } = await supabase
         .from('communities')
         .insert({ about, created_by: userId, name })
@@ -366,6 +412,10 @@ export function useAddGroupToCommunity(userId: string | undefined) {
   return useMutation({
     mutationFn: async ({ communityId, groupId }: { communityId: string; groupId: string }) => {
       if (!userId) throw new Error('Sign in to add a group');
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/communities/${communityId}/groups`, { auth: 'required', body: { group_id: groupId } });
+        return;
+      }
       const { error } = await supabase.from('community_groups').insert({ community_id: communityId, group_id: groupId });
       if (error) throw error;
     },
@@ -378,6 +428,10 @@ export function useCreateChannel(userId: string | undefined) {
   return useMutation({
     mutationFn: async ({ name, purpose }: { name: string; purpose: string }): Promise<Group> => {
       if (!userId) throw new Error('Sign in to create a channel');
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ id: string }>('/api/groups', { auth: 'required', body: { kind: 'channel', name, purpose } });
+        return { created_by: userId, description: '', id: r.id, kind: 'channel', member_count: 1, name, purpose };
+      }
       const { data, error } = await supabase
         .from('groups')
         .insert({ created_by: userId, kind: 'channel', name, purpose })
@@ -400,6 +454,10 @@ export function useProfiles() {
   return useQuery({
     queryKey: ['profiles'],
     queryFn: async (): Promise<Profile[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ profiles: Profile[] }>('/api/profiles', { auth: 'required' });
+        return r.profiles;
+      }
       const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return data as Profile[];
@@ -417,6 +475,15 @@ export function useMyProfile(userId: string | undefined) {
     enabled: !!userId,
     queryKey: ['profile', userId],
     queryFn: async (): Promise<Profile | null> => {
+      if (CLERK_PREP_ENABLED) {
+        try {
+          const r = await api<{ profile: Profile }>(`/api/profiles/${userId}`, { auth: 'required' });
+          return r.profile;
+        } catch (e) {
+          if ((e as { status?: number }).status === 404) return null;
+          throw e;
+        }
+      }
       const { data, error } = await supabase.from('profiles').select('*').eq('id', userId!).maybeSingle();
       if (error) throw error;
       return (data as Profile) ?? null;
@@ -431,6 +498,12 @@ export function useMyApplications(userId: string | undefined) {
     enabled: !!userId,
     queryKey: ['applications', userId],
     queryFn: async (): Promise<Map<string, MyApplication>> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ applications: ({ job_id: string } & MyApplication)[] }>('/api/applications/mine', { auth: 'required' });
+        return new Map(
+          r.applications.map((row) => [row.job_id, { cover_note: row.cover_note, resume_name: row.resume_name, resume_path: row.resume_path, status: row.status }]),
+        );
+      }
       const { data, error } = await supabase
         .from('applications')
         .select('job_id, status, cover_note, resume_name, resume_path')
@@ -466,6 +539,11 @@ export function useApplyToJob(userId: string | undefined) {
   return useMutation({
     mutationFn: async ({ coverNote, jobId, resume }: { coverNote: string; jobId: string; resume: ResumeFile | null }) => {
       if (!userId) throw new Error('Sign in to apply');
+      if (CLERK_PREP_ENABLED) {
+        if (resume) throw previewUnavailable('Resume upload', 'item 4 - file storage');
+        await api(`/api/jobs/${jobId}/apply`, { auth: 'required', body: { cover_note: coverNote.trim().slice(0, 2000) } });
+        return;
+      }
       let resumePath: string | null = null;
       if (resume) resumePath = await uploadResume(userId, jobId, resume);
       const { error } = await supabase.from('applications').insert({
@@ -486,6 +564,17 @@ export function useToggleApplication(userId: string | undefined) {
   return useMutation({
     mutationFn: async ({ applied, jobId }: { applied: boolean; jobId: string }) => {
       if (!userId) throw new Error('Sign in to apply');
+      if (CLERK_PREP_ENABLED) {
+        if (applied) {
+          const mine = await api<{ applications: { id: string; job_id: string }[] }>('/api/applications/mine', { auth: 'required' });
+          const row = mine.applications.find((a) => a.job_id === jobId);
+          if (!row) throw new Error('Nothing to withdraw');
+          await api(`/api/applications/${row.id}`, { auth: 'required', method: 'DELETE' });
+        } else {
+          await api(`/api/jobs/${jobId}/apply`, { auth: 'required', body: {} });
+        }
+        return;
+      }
       if (applied) {
         // Withdraw: remove the row, then best-effort remove the uploaded resume.
         const { data: row } = await supabase
@@ -510,6 +599,10 @@ export function useCreateGroup() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ description, name, purpose, userId }: { description: string; name: string; purpose: string; userId: string }) => {
+      if (CLERK_PREP_ENABLED) {
+        await api('/api/groups', { auth: 'required', body: { description, name, purpose } });
+        return;
+      }
       const { data, error } = await supabase
         .from('groups')
         .insert({ created_by: userId, description, member_count: 0, name, purpose })
@@ -534,6 +627,13 @@ export function useCreateJob() {
     }: {
       cat?: string; deadline?: string; description?: string; firm: string; loc?: string; openings?: number; pay?: string; role: string; userId: string;
     }) => {
+      if (CLERK_PREP_ENABLED) {
+        const row: Record<string, unknown> = { cat, description, firm, loc, pay, role };
+        if (deadline) row.deadline = deadline;
+        if (openings) row.openings = openings;
+        await api('/api/jobs', { auth: 'required', body: row });
+        return;
+      }
       const row: Record<string, unknown> = {
         cat, description, firm, loc, pay, posted_by: userId, role, tags: [],
       };
@@ -554,6 +654,10 @@ export function useMyPostedJobs(userId?: string) {
     enabled: !!userId,
     queryKey: ['my-jobs', userId],
     queryFn: async (): Promise<Job[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ jobs: (Job & { posted_by?: string })[] }>('/api/jobs', { auth: 'required' });
+        return r.jobs.filter((j) => j.posted_by === userId);
+      }
       const { data, error } = await supabase.from('jobs').select('*').eq('posted_by', userId!).order('created_at', { ascending: false });
       if (error) throw error;
       return data as Job[];
@@ -567,6 +671,10 @@ export function useUpdateApplicationStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ applicationId, status }: { applicationId: string; status: string }) => {
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/applications/${applicationId}/status`, { auth: 'required', body: { status }, method: 'PATCH' });
+        return;
+      }
       const { error } = await supabase.from('applications').update({ status }).eq('id', applicationId);
       if (error) throw error;
     },
@@ -580,6 +688,12 @@ export function useApplicationsForJobs(jobIds: string[]) {
     enabled: jobIds.length > 0,
     queryKey: ['job-applications', key],
     queryFn: async (): Promise<Application[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const all = await Promise.all(
+          jobIds.map((id) => api<{ applications: Application[] }>(`/api/jobs/${id}/applications`, { auth: 'required' })),
+        );
+        return all.flatMap((r) => r.applications);
+      }
       const { data, error } = await supabase.from('applications').select('*').in('job_id', jobIds).order('created_at', { ascending: false });
       if (error) throw error;
       return data as Application[];
@@ -597,6 +711,10 @@ export function useActivityLog(enabled: boolean, limit = 200) {
     enabled,
     queryKey: ['activity-log', limit],
     queryFn: async (): Promise<ActivityRow[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ activity: ActivityRow[] }>(`/api/admin/activity-log?limit=${limit}`, { auth: 'required' });
+        return r.activity;
+      }
       const { data, error } = await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).order('id', { ascending: false }).limit(limit);
       if (error) throw error;
       return data as ActivityRow[];
@@ -626,6 +744,10 @@ export function useLiveAdminFeed(enabled: boolean) {
         for (const key of keys) qc.invalidateQueries({ queryKey: [key] });
       }, 800);
     };
+    if (CLERK_PREP_ENABLED) {
+      const poll = setInterval(refresh, 30000);
+      return () => { clearInterval(poll); if (timer) clearTimeout(timer); setLive(false); };
+    }
     const channel = supabase
       .channel('admin-live-feed')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activity_log' }, refresh)
@@ -647,6 +769,10 @@ export function useTrash(enabled: boolean) {
     enabled,
     queryKey: ['trash'],
     queryFn: async (): Promise<TrashRow[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ trash: TrashRow[] }>('/api/admin/trash', { auth: 'required' });
+        return r.trash;
+      }
       const { data, error } = await supabase.from('trash').select('*').is('restored_at', null).order('trashed_at', { ascending: false });
       if (error) throw error;
       return data as TrashRow[];
@@ -661,6 +787,7 @@ export function useCreateResource() {
       course: string; subject?: string; title: string; uploadedBy: string; userId: string;
       file?: { uri: string; name: string; mimeType?: string; size?: number } | null;
     }) => {
+      if (CLERK_PREP_ENABLED) throw previewUnavailable('Resource upload', 'item 4 - file storage');
       if (!file) throw new Error('Choose a PDF or image');
       if ((file.size ?? 0) > 10 * 1024 * 1024) throw new Error('Maximum file size is 10 MB');
       const mime = file.mimeType || 'application/pdf';
@@ -687,6 +814,10 @@ export function useStudentNotes() {
   return useQuery({
     queryKey: ['student-notes'],
     queryFn: async (): Promise<StudentNote[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ notes: StudentNote[] }>('/api/student-notes');
+        return r.notes;
+      }
       const { data, error } = await supabase.from('student_notes').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       return data as StudentNote[];
@@ -701,6 +832,7 @@ export function useUploadStudentNote() {
       file?: { mimeType?: string; name: string; size?: number; uri: string } | null;
       subject?: string; title: string; uploaderName: string; userId: string;
     }) => {
+      if (CLERK_PREP_ENABLED) throw previewUnavailable('Student note upload', 'item 4 - file storage');
       if (!file) throw new Error('Choose a PDF or image');
       if ((file.size ?? 0) > 10 * 1024 * 1024) throw new Error('Maximum file size is 10 MB');
       const mime = file.mimeType || 'application/pdf';
@@ -723,6 +855,11 @@ export function useDeleteStudentNote() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (note: StudentNote) => {
+      if (CLERK_PREP_ENABLED) {
+        // Worker fails closed (409) while the note has file bytes (item 4).
+        await api(`/api/student-notes/${note.id}`, { auth: 'required', method: 'DELETE' });
+        return;
+      }
       const { error } = await supabase.from('student_notes').delete().eq('id', note.id);
       if (error) throw error;
       if (note.file_path) await supabase.storage.from('student-notes').remove([note.file_path]);
@@ -738,6 +875,15 @@ export function useJobAlertPref(userId: string | undefined) {
     enabled: !!userId,
     queryKey: ['job-alert', userId],
     queryFn: async (): Promise<JobAlertPref | null> => {
+      if (CLERK_PREP_ENABLED) {
+        try {
+          const r = await api<{ prefs: JobAlertPref | null }>('/api/job-alert-prefs', { auth: 'required' });
+          return r.prefs;
+        } catch (e) {
+          if ((e as { status?: number }).status === 404) return null;
+          throw e;
+        }
+      }
       const { data, error } = await supabase.from('job_alert_prefs').select('*').eq('user_id', userId!).maybeSingle();
       if (error) throw error;
       return (data as JobAlertPref) ?? null;
@@ -750,6 +896,10 @@ export function useSaveJobAlert(userId: string | undefined) {
   return useMutation({
     mutationFn: async ({ keywords, markSeen }: { keywords: string; markSeen?: boolean }) => {
       if (!userId) throw new Error('Sign in to set alerts');
+      if (CLERK_PREP_ENABLED) {
+        await api('/api/job-alert-prefs', { auth: 'required', body: { keywords, mark_seen: !!markSeen }, method: 'PUT' });
+        return;
+      }
       const row: Record<string, unknown> = { keywords, updated_at: new Date().toISOString(), user_id: userId };
       if (markSeen) row.last_seen_at = new Date().toISOString();
       const { error } = await supabase.from('job_alert_prefs').upsert(row, { onConflict: 'user_id' });
@@ -774,6 +924,34 @@ export function useThreads(userId: string | undefined) {
     enabled: !!userId,
     queryKey: ['threads', userId],
     queryFn: async (): Promise<ThreadSummary[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ threads: { id: string; group_id: string | null; participants: string[]; my_last_read_at: string | null }[] }>(
+          '/api/threads', { auth: 'required' });
+        const dms = r.threads.filter((t) => t.group_id === null);
+        const out: ThreadSummary[] = [];
+        for (const t of dms) {
+          const other = t.participants.find((p) => p !== userId);
+          const [msgs, profile] = await Promise.all([
+            api<{ messages: Message[] }>(`/api/threads/${t.id}/messages`, { auth: 'required' }),
+            other
+              ? api<{ profile: Profile }>(`/api/profiles/${other}`, { auth: 'required' }).catch(() => null)
+              : Promise.resolve(null),
+          ]);
+          const last = msgs.messages[msgs.messages.length - 1];
+          const unread = msgs.messages.filter(
+            (m) => m.sender_id && m.sender_id !== userId && (!t.my_last_read_at || m.created_at > t.my_last_read_at),
+          ).length;
+          out.push({
+            id: t.id,
+            lastAt: last?.created_at ?? '',
+            lastMessage: last?.body ?? '',
+            otherName: profile?.profile.full_name ?? 'Member',
+            otherUserId: other,
+            unread,
+          });
+        }
+        return out;
+      }
       const { data: mine, error: e1 } = await supabase
         .from('thread_participants')
         .select('thread_id, last_read_at')
@@ -823,6 +1001,10 @@ export function useMarkThreadRead(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (threadId: string) => {
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/threads/${threadId}/read`, { auth: 'required', method: 'POST' });
+        return;
+      }
       const { error } = await supabase.rpc('mark_thread_read', { p_thread: threadId });
       if (error) throw error;
     },
@@ -833,7 +1015,7 @@ export function useMarkThreadRead(userId: string | undefined) {
 export function useThreadMessages(threadId: string | null) {
   const qc = useQueryClient();
   useEffect(() => {
-    if (!threadId) return;
+    if (!threadId || CLERK_PREP_ENABLED) return; // realtime replacement is item 6; the 5s poll below stays on
     const channel = supabase.channel(`messages:${threadId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `thread_id=eq.${threadId}` }, () => {
         qc.invalidateQueries({ queryKey: ['messages', threadId] });
@@ -845,6 +1027,10 @@ export function useThreadMessages(threadId: string | null) {
     enabled: !!threadId,
     queryKey: ['messages', threadId],
     queryFn: async (): Promise<Message[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ messages: Message[] }>(`/api/threads/${threadId}/messages`, { auth: 'required' });
+        return r.messages;
+      }
       const { data, error } = await supabase
         .from('messages')
         .select('*')
@@ -862,6 +1048,10 @@ export function useStartThread(userId: string | undefined) {
   return useMutation({
     mutationFn: async ({ otherUserId, firstMessage }: { firstMessage: string; otherUserId: string }) => {
       if (!userId) throw new Error('Sign in to send messages');
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ thread_id: string }>('/api/dm', { auth: 'required', body: { first: firstMessage, other: otherUserId } });
+        return r.thread_id;
+      }
       // Server-side function creates the DM, adds both people and sends the first message.
       const { data, error } = await supabase.rpc('start_dm', { p_other: otherUserId, p_first: firstMessage });
       if (error) throw error;
@@ -876,6 +1066,10 @@ export function useSendMessage(userId: string | undefined) {
   return useMutation({
     mutationFn: async ({ body, threadId }: { body: string; threadId: string }) => {
       if (!userId) throw new Error('Sign in to send messages');
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/threads/${threadId}/messages`, { auth: 'required', body: { body } });
+        return;
+      }
       const { error } = await supabase.from('messages').insert({ body, sender_id: userId, thread_id: threadId });
       if (error) throw error;
     },
@@ -892,6 +1086,10 @@ export type GroupInvitePreview = { group_id: string; name: string; purpose: stri
 
 /** Get (or create on demand) the chat thread owned by a group. */
 export async function getGroupThreadId(groupId: string): Promise<string> {
+  if (CLERK_PREP_ENABLED) {
+    const r = await api<{ threadId: string }>(`/api/groups/${groupId}/thread`, { auth: 'required' });
+    return r.threadId;
+  }
   const { data: existing, error: e1 } = await supabase
     .from('threads')
     .select('id')
@@ -918,6 +1116,17 @@ export function useGroupThread(groupId: string | null, userId: string | undefine
 
 /** Get (or create) the shareable invite link for a group the user belongs to. */
 export async function getGroupInviteLink(groupId: string, userId: string): Promise<string> {
+  if (CLERK_PREP_ENABLED) {
+    const existing = await api<{ invites: { token: string }[] }>(`/api/groups/${groupId}/invites`, { auth: 'required' });
+    let token = existing.invites[0]?.token;
+    if (!token) {
+      const created = await api<{ token: string }>(`/api/groups/${groupId}/invites`, { auth: 'required', body: {} });
+      token = created.token;
+    }
+    // Preview links must never point at the live site.
+    const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'https://cohort-test-preview.pages.dev';
+    return `${origin}/join?token=${token}`;
+  }
   const { data: existing, error: e1 } = await supabase
     .from('group_invites')
     .select('token')
@@ -945,6 +1154,14 @@ export function useInvitePreview(token: string | null) {
     enabled: !!token,
     queryKey: ['invite', token],
     queryFn: async (): Promise<GroupInvitePreview | null> => {
+      if (CLERK_PREP_ENABLED) {
+        try {
+          return await api<GroupInvitePreview>(`/api/invites/${token}`);
+        } catch (e) {
+          if ((e as { status?: number }).status === 404) return null;
+          throw e;
+        }
+      }
       const { data, error } = await supabase.rpc('group_by_invite_token', { p_token: token! });
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : data;
@@ -958,6 +1175,10 @@ export function useJoinByToken(userId: string | undefined) {
   return useMutation({
     mutationFn: async (token: string): Promise<string> => {
       if (!userId) throw new Error('Sign in to join');
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ group_id: string }>(`/api/invites/${token}/join`, { auth: 'required', body: {} });
+        return r.group_id;
+      }
       const { data, error } = await supabase.rpc('join_group_by_token', { p_token: token });
       if (error) throw error;
       return data as string;
@@ -975,6 +1196,12 @@ export function useAddGroupMembers(userId: string | undefined) {
   return useMutation({
     mutationFn: async ({ groupId, memberIds }: { groupId: string; memberIds: string[] }) => {
       if (!userId) throw new Error('Sign in to add people');
+      if (CLERK_PREP_ENABLED) {
+        for (const id of memberIds) {
+          await api(`/api/groups/${groupId}/members`, { auth: 'required', body: { user_id: id } });
+        }
+        return;
+      }
       const rows = memberIds.map((id) => ({ group_id: groupId, user_id: id }));
       const { error } = await supabase.from('group_members').upsert(rows, { onConflict: 'group_id,user_id' });
       if (error) throw error;
@@ -992,6 +1219,10 @@ export function useLeaveGroup(userId: string | undefined) {
   return useMutation({
     mutationFn: async (groupId: string) => {
       if (!userId) throw new Error('Sign in to leave a group');
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/groups/${groupId}/leave`, { auth: 'required', method: 'POST' });
+        return;
+      }
       const { data, error } = await supabase
         .from('group_members')
         .delete()
@@ -1014,6 +1245,10 @@ export function useGroupMembers(groupId: string | null) {
     enabled: !!groupId,
     queryKey: ['group-members', groupId],
     queryFn: async (): Promise<string[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ members: { user_id: string }[] }>(`/api/groups/${groupId}/members`);
+        return r.members.map((m) => m.user_id);
+      }
       const { data, error } = await supabase.from('group_members').select('user_id').eq('group_id', groupId!);
       if (error) throw error;
       return (data as { user_id: string }[]).map((r) => r.user_id);
@@ -1028,6 +1263,10 @@ export function useGroupMemberRows(groupId: string | null) {
     enabled: !!groupId,
     queryKey: ['group-member-rows', groupId],
     queryFn: async (): Promise<GroupMemberRow[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ members: GroupMemberRow[] }>(`/api/groups/${groupId}/members`);
+        return r.members;
+      }
       const { data, error } = await supabase.from('group_members').select('user_id, role').eq('group_id', groupId!);
       if (error) throw error;
       return data as GroupMemberRow[];
@@ -1040,6 +1279,15 @@ export function useGroup(groupId: string | null) {
     enabled: !!groupId,
     queryKey: ['group', groupId],
     queryFn: async (): Promise<{ id: string; name: string; created_by: string; kind: 'group' | 'channel' } | null> => {
+      if (CLERK_PREP_ENABLED) {
+        try {
+          const r = await api<{ group: { id: string; name: string; created_by: string; kind: 'group' | 'channel' } }>(`/api/groups/${groupId}`);
+          return r.group;
+        } catch (e) {
+          if ((e as { status?: number }).status === 404) return null;
+          throw e;
+        }
+      }
       const { data, error } = await supabase.from('groups').select('id, name, created_by, kind').eq('id', groupId!).maybeSingle();
       if (error) throw error;
       return data as { id: string; name: string; created_by: string; kind: 'group' | 'channel' } | null;
@@ -1051,6 +1299,10 @@ export function useSetGroupMemberRole(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ memberId, role }: { memberId: string; role: 'admin' | 'member' }) => {
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/groups/${groupId}/members/${memberId}`, { auth: 'required', body: { role }, method: 'PATCH' });
+        return;
+      }
       const { data, error } = await supabase.from('group_members').update({ role }).eq('group_id', groupId).eq('user_id', memberId).select('user_id');
       if (error) throw error;
       if (!data || data.length === 0) throw new Error('not_permitted');
@@ -1063,6 +1315,10 @@ export function useRemoveGroupMember(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (memberId: string) => {
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/groups/${groupId}/members/${memberId}`, { auth: 'required', method: 'DELETE' });
+        return;
+      }
       const { data, error } = await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', memberId).select('user_id');
       if (error) throw error;
       if (!data || data.length === 0) throw new Error('not_permitted');
@@ -1100,6 +1356,15 @@ export function useJob(id: string | null) {
     enabled: !!id,
     queryKey: ['job', id],
     queryFn: async (): Promise<Job | null> => {
+      if (CLERK_PREP_ENABLED) {
+        try {
+          const r = await api<{ job: Job }>(`/api/jobs/${id}`);
+          return r.job;
+        } catch (e) {
+          if ((e as { status?: number }).status === 404) return null;
+          throw e;
+        }
+      }
       const { data, error } = await supabase.from('jobs').select('*').eq('id', id!).maybeSingle();
       if (error) throw error;
       return (data as Job) ?? null;
@@ -1209,6 +1474,7 @@ export function useAdminAnalytics(enabled: boolean) {
     enabled,
     queryKey: ['admin-analytics'],
     queryFn: async (): Promise<AdminAnalytics> => {
+      if (CLERK_PREP_ENABLED) throw previewUnavailable('Admin analytics', 'item 7');
       const { data, error } = await supabase.rpc('admin_analytics');
       if (error) throw error;
       return data as AdminAnalytics;
@@ -1232,6 +1498,10 @@ export function useNotifications(userId: string | undefined) {
     enabled: !!userId,
     queryKey: ['notifications', userId],
     queryFn: async (): Promise<Notification[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ notifications: Notification[] }>('/api/notifications', { auth: 'required' });
+        return r.notifications;
+      }
       const { data, error } = await supabase
         .from('notifications')
         .select('id, kind, title, body, link, read_at, created_at')
@@ -1249,6 +1519,10 @@ export function useMarkNotificationRead(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (notificationId: string) => {
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/notifications/${notificationId}/read`, { auth: 'required', method: 'POST' });
+        return;
+      }
       const { error } = await supabase
         .from('notifications')
         .update({ read_at: new Date().toISOString() })
@@ -1264,6 +1538,10 @@ export function useMarkAllNotificationsRead(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
+      if (CLERK_PREP_ENABLED) {
+        await api('/api/notifications/read-all', { auth: 'required', method: 'POST' });
+        return;
+      }
       const { error } = await supabase
         .from('notifications')
         .update({ read_at: new Date().toISOString() })
@@ -1289,6 +1567,13 @@ export function useConnectionWith(userId: string | undefined, otherId: string | 
     enabled: !!userId && !!otherId && userId !== otherId,
     queryKey: ['connection', userId, otherId],
     queryFn: async (): Promise<Connection | null> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ connections: Connection[] }>('/api/connections', { auth: 'required' });
+        const pair = r.connections
+          .filter((cn) => (cn.requester_id === userId && cn.addressee_id === otherId) || (cn.requester_id === otherId && cn.addressee_id === userId))
+          .sort((a, b) => b.created_at.localeCompare(a.created_at));
+        return pair[0] ?? null;
+      }
       const { data, error } = await supabase
         .from('connections')
         .select('*')
@@ -1307,6 +1592,10 @@ export function useMyConnections(userId: string | undefined) {
     enabled: !!userId,
     queryKey: ['connections', userId],
     queryFn: async (): Promise<Connection[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ connections: Connection[] }>('/api/connections', { auth: 'required' });
+        return r.connections.filter((cn) => cn.status === 'accepted');
+      }
       const { data, error } = await supabase
         .from('connections')
         .select('*')
@@ -1325,6 +1614,14 @@ export function useConnectionRequests(userId: string | undefined) {
     enabled: !!userId,
     queryKey: ['connection-requests', userId],
     queryFn: async (): Promise<{ incoming: Connection[]; outgoing: Connection[] }> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ connections: Connection[] }>('/api/connections', { auth: 'required' });
+        const rows = r.connections.filter((cn) => cn.status === 'pending');
+        return {
+          incoming: rows.filter((cn) => cn.addressee_id === userId),
+          outgoing: rows.filter((cn) => cn.requester_id === userId),
+        };
+      }
       const { data, error } = await supabase
         .from('connections')
         .select('*')
@@ -1347,6 +1644,10 @@ export function useSendConnectionRequest(userId: string | undefined) {
   return useMutation({
     mutationFn: async (addresseeId: string) => {
       if (!userId) throw new Error('Sign in to connect');
+      if (CLERK_PREP_ENABLED) {
+        await api('/api/connections', { auth: 'required', body: { addressee_id: addresseeId } });
+        return;
+      }
       const { error } = await supabase.from('connections').insert({ addressee_id: addresseeId, requester_id: userId });
       if (error) throw error;
     },
@@ -1361,6 +1662,10 @@ export function useRespondToConnection(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ accept, connectionId }: { accept: boolean; connectionId: string }) => {
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/connections/${connectionId}/respond`, { auth: 'required', body: { action: accept ? 'accept' : 'decline' } });
+        return;
+      }
       const { error } = await supabase
         .from('connections')
         .update({ status: accept ? 'accepted' : 'declined' })
@@ -1380,6 +1685,10 @@ export function useRemoveConnection(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (connectionId: string) => {
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/connections/${connectionId}`, { auth: 'required', method: 'DELETE' });
+        return;
+      }
       const { error } = await supabase.from('connections').delete().eq('id', connectionId);
       if (error) throw error;
     },
@@ -1438,6 +1747,10 @@ export function useMyVerificationRequest(userId: string | undefined) {
     enabled: !!userId,
     queryKey: ['verification-request', userId],
     queryFn: async (): Promise<VerificationRequest | null> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ verification_requests: VerificationRequest[] }>('/api/verification-requests/mine', { auth: 'required' });
+        return r.verification_requests[0] ?? null;
+      }
       const { data, error } = await supabase
         .from('verification_requests')
         .select('*')
@@ -1456,6 +1769,10 @@ export function useRequestVerification(userId: string | undefined) {
   return useMutation({
     mutationFn: async (note: string) => {
       if (!userId) throw new Error('Sign in first');
+      if (CLERK_PREP_ENABLED) {
+        await api('/api/verification-requests', { auth: 'required', body: { note } });
+        return;
+      }
       const { error } = await supabase.from('verification_requests').insert({ note, user_id: userId });
       if (error) throw error;
     },
@@ -1469,6 +1786,10 @@ export function usePendingVerificationRequests(isAdmin: boolean) {
     enabled: isAdmin,
     queryKey: ['verification-requests-pending'],
     queryFn: async (): Promise<VerificationRequest[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ verification_requests: VerificationRequest[] }>('/api/admin/verification-requests?status=pending', { auth: 'required' });
+        return r.verification_requests;
+      }
       const { data, error } = await supabase
         .from('verification_requests')
         .select('*')
@@ -1484,6 +1805,10 @@ export function useReviewVerificationRequest() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ approve, requestId }: { approve: boolean; requestId: string }) => {
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/admin/verification-requests/${requestId}/review`, { auth: 'required', body: { approve } });
+        return;
+      }
       const { error } = await supabase.rpc('review_verification_request', { p_approve: approve, p_id: requestId });
       if (error) throw error;
     },

@@ -1517,6 +1517,10 @@ app.put('/api/job-alert-prefs', async (c) => {
   )
     .bind(caller.cohortUserId, keywords)
     .run();
+  // 0021 shape: the app upserts last_seen_at when the member has seen the
+  // current job-match state (useSaveJobAlert markSeen).
+  if (body.mark_seen === true)
+    await c.env.DB.prepare("UPDATE job_alert_prefs SET last_seen_at = datetime('now') WHERE user_id = ?").bind(caller.cohortUserId).run();
   return c.json({ ok: true });
 });
 
