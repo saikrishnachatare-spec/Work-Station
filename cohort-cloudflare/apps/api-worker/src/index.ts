@@ -98,19 +98,17 @@ async function commentRateOk(db: D1Database, authorId: string): Promise<boolean>
   return (row?.c ?? 0) < 20;
 }
 
-// 0052 blocked terms (seeded list; the admin-managed blocked_terms table and
-// live editing are NOT ported in this slice - parity gap, see mapping doc).
-const BLOCKED_TERMS = [
-  'chutiya', 'madarchod', 'bhenchod', 'randi', 'harami',
-  'nigger', 'faggot', 'whore', 'slut',
-  'leaked paper', 'leak paper', 'exam leak', 'answer key leak',
-];
+// 0052 blocked terms: admin-managed blocked_terms table (seeded by 0004 with
+// the upstream 0052 list). Case-insensitive word-boundary match, same as
+// check_clean_text. Live admin edits take effect on the next request.
 const CLEAN_MSG = 'Please keep it respectful - that text is not allowed on Cohort.';
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const BLOCKED_RES = BLOCKED_TERMS.map(
-  (t) => new RegExp(`(?<![\\w])${escapeRe(t).replace(/\s+/g, '\\s+')}(?![\\w])`, 'i'),
-);
-const isClean = (text: string) => !BLOCKED_RES.some((re) => re.test(text));
+async function isClean(db: D1Database, text: string): Promise<boolean> {
+  const { results } = await db.prepare('SELECT term FROM blocked_terms').all<{ term: string }>();
+  return !results.some((t) =>
+    new RegExp(`(?<![\\w])${escapeRe(t.term).replace(/\s+/g, '\\s+')}(?![\\w])`, 'i').test(text),
+  );
+}
 
 // ---------------------------------------------------------------- middleware
 
@@ -189,7 +187,7 @@ app.post('/api/posts', async (c) => {
   if (kind !== 'post' && !isAdmin(profile)) {
     return c.json({ error: 'forbidden', reason: 'kind_admin_only' }, 403);
   }
-  if (!isClean(body.body)) return c.json({ error: 'rejected', reason: CLEAN_MSG }, 422);
+  if (!(await isClean(c.env.DB, body.body))) return c.json({ error: 'rejected', reason: CLEAN_MSG }, 422);
   if (!(await postRateOk(c.env.DB, caller.cohortUserId))) {
     return c.json({ error: 'forbidden', reason: 'rate_limited' }, 403);
   }
@@ -273,7 +271,7 @@ app.post('/api/posts/:id/comments', async (c) => {
   if (body.author_id !== undefined && body.author_id !== caller.cohortUserId) {
     return c.json({ error: 'forbidden', reason: 'author_mismatch' }, 403);
   }
-  if (!isClean(body.body)) return c.json({ error: 'rejected', reason: CLEAN_MSG }, 422);
+  if (!(await isClean(c.env.DB, body.body))) return c.json({ error: 'rejected', reason: CLEAN_MSG }, 422);
   if (!(await commentRateOk(c.env.DB, caller.cohortUserId))) {
     return c.json({ error: 'forbidden', reason: 'rate_limited' }, 403);
   }
@@ -405,7 +403,7 @@ app.post('/api/dm', async (c) => {
   const first = (body.first ?? '').trim();
   if (first !== '') {
     if (first.length > 4000) return c.json({ error: 'invalid', reason: 'body_too_long' }, 400);
-    if (!isClean(first)) return c.json({ error: 'rejected', reason: CLEAN_MSG }, 422);
+    if (!(await isClean(c.env.DB, first))) return c.json({ error: 'rejected', reason: CLEAN_MSG }, 422);
     await c.env.DB.prepare('INSERT INTO messages (id, thread_id, sender_id, body) VALUES (?, ?, ?, ?)')
       .bind(crypto.randomUUID(), thread.id, caller.cohortUserId, first).run();
   }
@@ -486,7 +484,7 @@ app.post('/api/threads/:id/messages', async (c) => {
     'SELECT 1 AS x FROM thread_participants p WHERE p.thread_id = ? AND EXISTS (SELECT 1 FROM user_blocks u WHERE (u.blocker_id = ? AND u.blocked_id = p.user_id) OR (u.blocker_id = p.user_id AND u.blocked_id = ?))',
   ).bind(threadId, caller.cohortUserId, caller.cohortUserId).first();
   if (blocked) return c.json({ error: 'forbidden', reason: 'blocked' }, 403);
-  if (!isClean(body.body)) return c.json({ error: 'rejected', reason: CLEAN_MSG }, 422);
+  if (!(await isClean(c.env.DB, body.body))) return c.json({ error: 'rejected', reason: CLEAN_MSG }, 422);
   if (!(await messageRateOk(c.env.DB, caller.cohortUserId))) {
     return c.json({ error: 'forbidden', reason: 'rate_limited' }, 403);
   }
@@ -1096,6 +1094,686 @@ app.post('/api/notifications/:id/read', async (c) => {
   if (!n) return c.json({ error: 'not_found' }, 404);
   if (n.user_id !== caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'not_own_notification' }, 403);
   await c.env.DB.prepare("UPDATE notifications SET read_at = datetime('now') WHERE id = ?").bind(n.id).run();
+  return c.json({ ok: true });
+});
+
+
+// ================================================================ slice 4
+// jobs / applications / verification / reports / job alerts / error logs /
+// admin surfaces. Policies mirrored from the effective Supabase state:
+// jobs 0001+0010+0026+0028+0033+0044+0065, applications 0002+0029+0030+0033+0049,
+// verification_requests 0056, content_reports 0016, job_alert_prefs 0021,
+// error_logs 0006+0044, activity_log/trash 0032+0035, privilege_audit 0018.
+// Source-grounded notes:
+// - applications SELECT = own OR admin OR poster-of-the-job (0002+0029). Full
+//   row is visible to all three (no column masking upstream), which includes
+//   resume_path/resume_name METADATA - never exposed on any public route.
+// - applications UPDATE: poster ONLY (0030) - not the applicant, not an admin
+//   who did not post the job. DELETE: applicant only (no admin override).
+// - No last-admin / self-demotion guard exists upstream (profiles_admin FOR
+//   ALL, 0001): an admin CAN demote themselves or the last admin. Mirrored.
+// - role/status/verified_at are mutable ONLY via /api/admin/members/:id and
+//   the verification review path (guard_profile_privileges 0026); no generic
+//   profile-update endpoint exists in this worker, so there is no bypass.
+// - Notification enqueue side-effects (job_match 0055, application_status,
+//   verification review 0056, log_content_activity 0061) are NOT ported.
+
+const JOB_STATUS = ['open', 'closed'] as const;
+const APP_STATUS = ['new', 'reviewed', 'shortlisted', 'rejected'] as const;
+const REPORT_TARGET = ['post', 'user', 'job'] as const;
+
+async function requireAdmin(c: { req: { header: (n: string) => string | undefined }; env: Bindings; json: (o: unknown, s?: number) => Response }) {
+  const caller = await getCaller(c);
+  if (!caller) return { error: c.json({ error: 'unauthorized' }, 401) };
+  if (!caller.cohortUserId) return { error: c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403) };
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (!isAdmin(me)) return { error: c.json({ error: 'forbidden', reason: 'admin_only' }, 403) };
+  return { caller, me };
+}
+
+const isVerifiedMember = (p: Profile | null): p is Profile =>
+  !!p && p.status === 'active' && !!(p as Profile & { verified_at?: string | null }).verified_at;
+
+async function getProfileFull(db: D1Database, id: string) {
+  return db
+    .prepare('SELECT id, full_name, role, status, account_type, verified_at FROM profiles WHERE id = ?')
+    .bind(id)
+    .first<{ id: string; full_name: string; role: string; status: string; account_type: string; verified_at: string | null }>();
+}
+
+async function logActivity(
+  db: D1Database,
+  actorId: string | null,
+  actorName: string,
+  action: string,
+  entityType: string,
+  entityId: string,
+  detail: Record<string, unknown> = {},
+) {
+  await db
+    .prepare('INSERT INTO activity_log (id, actor_id, actor_name, action, entity_type, entity_id, detail) VALUES (?,?,?,?,?,?,?)')
+    .bind(crypto.randomUUID(), actorId, actorName, action, entityType, entityId, JSON.stringify(detail))
+    .run();
+}
+
+// ---- jobs read (0033: open for everyone incl. anon; own-any-status for the
+// poster; everything for admin)
+app.get('/api/jobs', async (c) => {
+  const caller = await getCaller(c);
+  let me: Awaited<ReturnType<typeof getProfileFull>> = null;
+  if (caller?.cohortUserId) me = await getProfileFull(c.env.DB, caller.cohortUserId);
+  const admin = isAdmin(me as Profile | null);
+  const { results } = await c.env.DB.prepare(
+    `SELECT j.*, COALESCE(p.full_name, '') AS posted_by_name,
+            (SELECT COUNT(*) FROM applications a WHERE a.job_id = j.id) AS application_count
+       FROM jobs j LEFT JOIN profiles p ON p.id = j.posted_by
+      WHERE j.status = 'open' ${caller?.cohortUserId ? 'OR j.posted_by = ?' : ''} ${admin ? 'OR 1=1' : ''}
+      ORDER BY j.created_at DESC LIMIT 200`,
+  )
+    .bind(...(caller?.cohortUserId ? [caller.cohortUserId] : []))
+    .all();
+  return c.json({ jobs: results });
+});
+
+// ---- jobs insert (0026): caller = posted_by, active member, Gig work OR verified
+app.post('/api/jobs', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfileFull(c.env.DB, caller.cohortUserId);
+  if (!me || me.status !== 'active') return c.json({ error: 'forbidden', reason: 'not_active_member' }, 403);
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ error: 'invalid_json' }, 400);
+  if (body.posted_by !== undefined && body.posted_by !== caller.cohortUserId)
+    return c.json({ error: 'forbidden', reason: 'forged_posted_by' }, 403);
+  const cat = typeof body.cat === 'string' && body.cat.trim() ? body.cat.trim() : 'Jobs';
+  const firm = typeof body.firm === 'string' ? body.firm.trim() : '';
+  const role = typeof body.role === 'string' ? body.role.trim() : '';
+  if (!firm || !role) return c.json({ error: 'invalid', reason: 'firm_and_role_required' }, 400);
+  if (cat !== 'Gig work' && !isVerifiedMember(me))
+    return c.json({ error: 'forbidden', reason: 'verification_required_for_jobs' }, 403);
+  const description = typeof body.description === 'string' ? body.description : '';
+  if (description.length > 5000 || role.length > 200 || firm.length > 200)
+    return c.json({ error: 'invalid', reason: 'text_too_long' }, 400);
+  const openings = body.openings === undefined || body.openings === null ? null : Number(body.openings);
+  if (openings !== null && (!Number.isInteger(openings) || openings <= 0))
+    return c.json({ error: 'invalid', reason: 'openings_must_be_positive' }, 400);
+  const status = body.status === undefined ? 'open' : String(body.status);
+  if (!(JOB_STATUS as readonly string[]).includes(status))
+    return c.json({ error: 'invalid', reason: 'bad_status' }, 400);
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare(
+    'INSERT INTO jobs (id, cat, firm, role, loc, pay, tags, posted_by, description, deadline, status, openings) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+  )
+    .bind(
+      id, cat, firm, role,
+      typeof body.loc === 'string' ? body.loc : '',
+      typeof body.pay === 'string' ? body.pay : '',
+      JSON.stringify(Array.isArray(body.tags) ? body.tags.filter((t) => typeof t === 'string') : []),
+      caller.cohortUserId, description,
+      typeof body.deadline === 'string' ? body.deadline : null,
+      status, openings,
+    )
+    .run();
+  return c.json({ id }, 201);
+});
+
+// ---- jobs update (0028): USING poster-or-admin; WITH CHECK admin OR
+// (new.posted_by = caller AND (new.cat = 'Gig work' OR caller verified NOW))
+app.patch('/api/jobs/:id', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfileFull(c.env.DB, caller.cohortUserId);
+  const job = await c.env.DB.prepare('SELECT * FROM jobs WHERE id = ?').bind(c.req.param('id')).first<Record<string, unknown>>();
+  if (!job) return c.json({ error: 'not_found' }, 404);
+  const admin = isAdmin(me as Profile | null);
+  if (!admin && job.posted_by !== caller.cohortUserId) return c.json({ error: 'forbidden' }, 403);
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ error: 'invalid_json' }, 400);
+  const next = {
+    cat: body.cat !== undefined ? String(body.cat) : String(job.cat),
+    firm: body.firm !== undefined ? String(body.firm) : String(job.firm),
+    role: body.role !== undefined ? String(body.role) : String(job.role),
+    loc: body.loc !== undefined ? String(body.loc) : String(job.loc),
+    pay: body.pay !== undefined ? String(body.pay) : String(job.pay),
+    tags: body.tags !== undefined ? JSON.stringify(Array.isArray(body.tags) ? body.tags.filter((t) => typeof t === 'string') : []) : String(job.tags),
+    description: body.description !== undefined ? String(body.description) : String(job.description),
+    deadline: body.deadline !== undefined ? (body.deadline === null ? null : String(body.deadline)) : (job.deadline as string | null),
+    status: body.status !== undefined ? String(body.status) : String(job.status),
+    openings: body.openings !== undefined ? (body.openings === null ? null : Number(body.openings)) : (job.openings as number | null),
+    posted_by: body.posted_by !== undefined ? String(body.posted_by) : (job.posted_by as string | null),
+  };
+  if (!(JOB_STATUS as readonly string[]).includes(next.status)) return c.json({ error: 'invalid', reason: 'bad_status' }, 400);
+  if (next.description.length > 5000 || next.role.length > 200 || next.firm.length > 200)
+    return c.json({ error: 'invalid', reason: 'text_too_long' }, 400);
+  if (next.openings !== null && (!Number.isInteger(next.openings) || next.openings <= 0))
+    return c.json({ error: 'invalid', reason: 'openings_must_be_positive' }, 400);
+  if (!admin && (next.posted_by !== caller.cohortUserId || (next.cat !== 'Gig work' && !isVerifiedMember(me))))
+    return c.json({ error: 'forbidden', reason: 'update_gate' }, 403);
+  await c.env.DB.prepare(
+    'UPDATE jobs SET cat=?, firm=?, role=?, loc=?, pay=?, tags=?, description=?, deadline=?, status=?, openings=?, posted_by=? WHERE id=?',
+  )
+    .bind(next.cat, next.firm, next.role, next.loc, next.pay, next.tags, next.description, next.deadline, next.status, next.openings, next.posted_by, c.req.param('id'))
+    .run();
+  return c.json({ ok: true });
+});
+
+// ---- jobs delete (0001): poster or admin (direct delete, no trash snapshot;
+// the trash path is POST /api/admin/trash)
+app.delete('/api/jobs/:id', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfileFull(c.env.DB, caller.cohortUserId);
+  const job = await c.env.DB.prepare('SELECT id, posted_by FROM jobs WHERE id = ?').bind(c.req.param('id')).first<{ id: string; posted_by: string | null }>();
+  if (!job) return c.json({ error: 'not_found' }, 404);
+  if (!isAdmin(me as Profile | null) && job.posted_by !== caller.cohortUserId) return c.json({ error: 'forbidden' }, 403);
+  await c.env.DB.prepare('DELETE FROM jobs WHERE id = ?').bind(job.id).run();
+  return c.json({ ok: true });
+});
+
+// ---- apply (0033): caller = user_id, active member, job open. Dup -> 409.
+// Upstream quirk mirrored: the insert policy does not force status='new', so
+// a client may self-insert any enum status (documented, not "fixed").
+app.post('/api/jobs/:id/apply', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfileFull(c.env.DB, caller.cohortUserId);
+  if (!me || me.status !== 'active') return c.json({ error: 'forbidden', reason: 'not_active_member' }, 403);
+  const open = await c.env.DB.prepare("SELECT 1 AS x FROM jobs WHERE id = ? AND status = 'open'").bind(c.req.param('id')).first();
+  if (!open) return c.json({ error: 'forbidden', reason: 'job_not_open' }, 403);
+  const body = (await c.req.json<Record<string, unknown>>().catch(() => null)) ?? {};
+  const status = body?.status === undefined ? 'new' : String(body.status);
+  if (!(APP_STATUS as readonly string[]).includes(status)) return c.json({ error: 'invalid', reason: 'bad_status' }, 400);
+  if (body?.user_id !== undefined && body.user_id !== caller.cohortUserId)
+    return c.json({ error: 'forbidden', reason: 'forged_user_id' }, 403);
+  if (body?.job_id !== undefined && body.job_id !== c.req.param('id'))
+    return c.json({ error: 'forbidden', reason: 'job_id_mismatch' }, 403);
+  const id = crypto.randomUUID();
+  try {
+    await c.env.DB.prepare(
+      'INSERT INTO applications (id, job_id, user_id, status, resume_path, resume_name) VALUES (?,?,?,?,?,?)',
+    )
+      .bind(
+        id, c.req.param('id'), caller.cohortUserId, status,
+        typeof body?.resume_path === 'string' ? body.resume_path : null,
+        typeof body?.resume_name === 'string' ? body.resume_name : null,
+      )
+      .run();
+  } catch {
+    return c.json({ error: 'conflict', reason: 'already_applied' }, 409);
+  }
+  return c.json({ id }, 201);
+});
+
+// ---- applications read: own (0002) / poster (0029) / admin. Full rows -
+// no column masking upstream; resume metadata is only ever on these routes.
+app.get('/api/applications/mine', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const { results } = await c.env.DB.prepare(
+    `SELECT a.*, j.role AS job_role, j.firm AS job_firm, j.status AS job_status
+       FROM applications a JOIN jobs j ON j.id = a.job_id
+      WHERE a.user_id = ? ORDER BY a.created_at DESC`,
+  )
+    .bind(caller.cohortUserId)
+    .all();
+  return c.json({ applications: results });
+});
+
+app.get('/api/jobs/:id/applications', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfileFull(c.env.DB, caller.cohortUserId);
+  const job = await c.env.DB.prepare('SELECT id, posted_by FROM jobs WHERE id = ?').bind(c.req.param('id')).first<{ id: string; posted_by: string | null }>();
+  if (!job) return c.json({ error: 'not_found' }, 404);
+  if (!isAdmin(me as Profile | null) && job.posted_by !== caller.cohortUserId) return c.json({ error: 'forbidden' }, 403);
+  const { results } = await c.env.DB.prepare(
+    `SELECT a.*, COALESCE(p.full_name, '') AS applicant_name
+       FROM applications a LEFT JOIN profiles p ON p.id = a.user_id
+      WHERE a.job_id = ? ORDER BY a.created_at ASC`,
+  )
+    .bind(job.id)
+    .all();
+  return c.json({ applications: results });
+});
+
+// ---- application status update (0030): POSTER only + identity guard trigger
+app.patch('/api/applications/:id/status', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const appRow = await c.env.DB.prepare(
+    'SELECT a.id, a.job_id, a.user_id, j.posted_by FROM applications a JOIN jobs j ON j.id = a.job_id WHERE a.id = ?',
+  )
+    .bind(c.req.param('id'))
+    .first<{ id: string; job_id: string; user_id: string; posted_by: string | null }>();
+  if (!appRow) return c.json({ error: 'not_found' }, 404);
+  if (appRow.posted_by !== caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'not_job_poster' }, 403);
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ error: 'invalid_json' }, 400);
+  // guard_application_identity (0030): identity columns can never change
+  if ((body.id !== undefined && body.id !== appRow.id) ||
+      (body.job_id !== undefined && body.job_id !== appRow.job_id) ||
+      (body.user_id !== undefined && body.user_id !== appRow.user_id))
+    return c.json({ error: 'forbidden', reason: 'application_identity_immutable' }, 403);
+  const status = String(body.status ?? '');
+  if (!(APP_STATUS as readonly string[]).includes(status)) return c.json({ error: 'invalid', reason: 'bad_status' }, 400);
+  await c.env.DB.prepare('UPDATE applications SET status = ? WHERE id = ?').bind(status, appRow.id).run();
+  return c.json({ ok: true });
+});
+
+// ---- application withdraw (0002): applicant ONLY - no admin override upstream
+app.delete('/api/applications/:id', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const del = await c.env.DB.prepare('DELETE FROM applications WHERE id = ? AND user_id = ?').bind(c.req.param('id'), caller.cohortUserId).run();
+  if (!del.meta.changes) return c.json({ error: 'not_found' }, 404);
+  return c.json({ ok: true });
+});
+
+// ---- verification requests (0056)
+app.post('/api/verification-requests', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfileFull(c.env.DB, caller.cohortUserId);
+  if (!me || me.status !== 'active' || me.verified_at)
+    return c.json({ error: 'forbidden', reason: 'not_eligible' }, 403);
+  const body = (await c.req.json<Record<string, unknown>>().catch(() => null)) ?? {};
+  if (body?.user_id !== undefined && body.user_id !== caller.cohortUserId)
+    return c.json({ error: 'forbidden', reason: 'forged_user_id' }, 403);
+  if (body?.status !== undefined && body.status !== 'pending')
+    return c.json({ error: 'invalid', reason: 'status_must_be_pending' }, 400);
+  const id = crypto.randomUUID();
+  try {
+    await c.env.DB.prepare('INSERT INTO verification_requests (id, user_id, note) VALUES (?,?,?)')
+      .bind(id, caller.cohortUserId, typeof body?.note === 'string' ? body.note : '')
+      .run();
+  } catch {
+    return c.json({ error: 'conflict', reason: 'pending_request_exists' }, 409);
+  }
+  return c.json({ id }, 201);
+});
+
+app.get('/api/verification-requests/mine', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const { results } = await c.env.DB.prepare(
+    'SELECT * FROM verification_requests WHERE user_id = ? ORDER BY created_at DESC',
+  )
+    .bind(caller.cohortUserId)
+    .all();
+  return c.json({ verification_requests: results });
+});
+
+// ---- content reports (0016)
+app.post('/api/reports', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfileFull(c.env.DB, caller.cohortUserId);
+  if (!me || me.status !== 'active') return c.json({ error: 'forbidden', reason: 'not_active_member' }, 403);
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ error: 'invalid_json' }, 400);
+  if (body.reporter_id !== undefined && body.reporter_id !== caller.cohortUserId)
+    return c.json({ error: 'forbidden', reason: 'forged_reporter_id' }, 403);
+  if (body.status !== undefined && body.status !== 'open')
+    return c.json({ error: 'invalid', reason: 'status_must_be_open' }, 400);
+  const targetType = String(body.target_type ?? '');
+  if (!(REPORT_TARGET as readonly string[]).includes(targetType))
+    return c.json({ error: 'invalid', reason: 'bad_target_type' }, 400);
+  const reason = typeof body.reason === 'string' ? body.reason : '';
+  if (reason.length < 5 || reason.length > 2000)
+    return c.json({ error: 'invalid', reason: 'reason_length_5_2000' }, 400);
+  const targetId = String(body.target_id ?? '');
+  if (!targetId) return c.json({ error: 'invalid', reason: 'target_id_required' }, 400);
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare(
+    'INSERT INTO content_reports (id, reporter_id, target_type, target_id, reason) VALUES (?,?,?,?,?)',
+  )
+    .bind(id, caller.cohortUserId, targetType, targetId, reason)
+    .run();
+  return c.json({ id }, 201);
+});
+
+app.get('/api/reports/mine', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const { results } = await c.env.DB.prepare(
+    'SELECT * FROM content_reports WHERE reporter_id = ? ORDER BY created_at DESC',
+  )
+    .bind(caller.cohortUserId)
+    .all();
+  return c.json({ reports: results });
+});
+
+// ---- job alert prefs (0021): own row only
+app.get('/api/job-alert-prefs', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const row = await c.env.DB.prepare('SELECT * FROM job_alert_prefs WHERE user_id = ?').bind(caller.cohortUserId).first();
+  return c.json({ prefs: row ?? null });
+});
+
+app.put('/api/job-alert-prefs', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ error: 'invalid_json' }, 400);
+  if (body.user_id !== undefined && body.user_id !== caller.cohortUserId)
+    return c.json({ error: 'forbidden', reason: 'forged_user_id' }, 403);
+  const keywords = typeof body.keywords === 'string' ? body.keywords : '';
+  await c.env.DB.prepare(
+    `INSERT INTO job_alert_prefs (user_id, keywords, updated_at) VALUES (?,?,datetime('now'))
+     ON CONFLICT (user_id) DO UPDATE SET keywords = excluded.keywords, updated_at = datetime('now')`,
+  )
+    .bind(caller.cohortUserId, keywords)
+    .run();
+  return c.json({ ok: true });
+});
+
+// ---- error logs (0006+0044): PUBLIC insert, dual rate limit, sanitize.
+// Upstream quirk mirrored: the rate check counts rows whose stored user_id
+// equals the caller - a client that forges user_id evades its own limit.
+app.post('/api/error-logs', async (c) => {
+  const caller = await getCaller(c);
+  const identity = caller ? (caller.cohortUserId ?? `clerk:${caller.clerkUserId}`) : null;
+  const lim = identity ? 10 : 30;
+  const { c: recent } = identity
+    ? await c.env.DB.prepare(
+        "SELECT COUNT(*) AS c FROM error_logs WHERE user_id = ? AND created_at > datetime('now', '-1 minute')",
+      ).bind(identity).first<{ c: number }>().then((r) => ({ c: r?.c ?? 0 }))
+    : await c.env.DB.prepare(
+        "SELECT COUNT(*) AS c FROM error_logs WHERE user_id IS NULL AND created_at > datetime('now', '-1 minute')",
+      ).first<{ c: number }>().then((r) => ({ c: r?.c ?? 0 }));
+  if (recent >= lim) return c.json({ error: 'forbidden', reason: 'rate_limited' }, 403);
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body || typeof body.message !== 'string' || !body.message)
+    return c.json({ error: 'invalid', reason: 'message_required' }, 400);
+  const cut = (v: unknown, n: number) => (typeof v === 'string' ? v.slice(0, n) : null);
+  await c.env.DB.prepare(
+    'INSERT INTO error_logs (id, user_id, message, stack, url, user_agent) VALUES (?,?,?,?,?,?)',
+  )
+    .bind(
+      crypto.randomUUID(),
+      typeof body.user_id === 'string' ? body.user_id : identity,
+      body.message.slice(0, 2000),
+      cut(body.stack, 8000),
+      cut(body.url, 1000),
+      cut(body.user_agent, 500) ?? cut(c.req.header('User-Agent'), 500),
+    )
+    .run();
+  return c.json({ ok: true }, 201);
+});
+
+// ================================================== admin-only surfaces
+
+// ---- verification review (0056 review_verification_request)
+app.get('/api/admin/verification-requests', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const status = c.req.query('status');
+  const filter = status && ['pending', 'approved', 'rejected'].includes(status) ? 'WHERE v.status = ?' : '';
+  const { results } = await c.env.DB.prepare(
+    `SELECT v.*, COALESCE(p.full_name, '') AS user_name
+       FROM verification_requests v LEFT JOIN profiles p ON p.id = v.user_id
+      ${filter} ORDER BY v.created_at ASC`,
+  )
+    .bind(...(filter ? [status as string] : []))
+    .all();
+  return c.json({ verification_requests: results });
+});
+
+app.post('/api/admin/verification-requests/:id/review', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const body = await c.req.json<{ approve?: boolean }>().catch(() => null);
+  if (!body || typeof body.approve !== 'boolean') return c.json({ error: 'invalid', reason: 'approve_boolean_required' }, 400);
+  const vr = await c.env.DB.prepare("SELECT id, user_id FROM verification_requests WHERE id = ? AND status = 'pending'")
+    .bind(c.req.param('id'))
+    .first<{ id: string; user_id: string }>();
+  if (!vr) return c.json({ error: 'not_found', reason: 'request_not_found' }, 404);
+  const stmts = [
+    c.env.DB.prepare("UPDATE verification_requests SET status = ?, responded_at = datetime('now') WHERE id = ?")
+      .bind(body.approve ? 'approved' : 'rejected', vr.id),
+  ];
+  if (body.approve)
+    stmts.push(c.env.DB.prepare("UPDATE profiles SET verified_at = datetime('now') WHERE id = ?").bind(vr.user_id));
+  await c.env.DB.batch(stmts);
+  return c.json({ ok: true });
+});
+
+// ---- reports review (0016 reports_review)
+app.get('/api/admin/reports', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const { results } = await c.env.DB.prepare(
+    `SELECT r.*, COALESCE(p.full_name, '') AS reporter_name
+       FROM content_reports r LEFT JOIN profiles p ON p.id = r.reporter_id
+      ORDER BY r.created_at DESC LIMIT 200`,
+  ).all();
+  return c.json({ reports: results });
+});
+
+app.patch('/api/admin/reports/:id', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ error: 'invalid_json' }, 400);
+  const status = String(body.status ?? '');
+  if (!['open', 'reviewed'].includes(status)) return c.json({ error: 'invalid', reason: 'bad_status' }, 400);
+  const r = await c.env.DB.prepare('UPDATE content_reports SET status = ? WHERE id = ?').bind(status, c.req.param('id')).run();
+  if (!r.meta.changes) return c.json({ error: 'not_found' }, 404);
+  return c.json({ ok: true });
+});
+
+// ---- blocked terms (0052): admin read + write
+app.get('/api/admin/blocked-terms', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const { results } = await c.env.DB.prepare('SELECT * FROM blocked_terms ORDER BY term').all();
+  return c.json({ blocked_terms: results });
+});
+
+app.post('/api/admin/blocked-terms', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const body = await c.req.json<{ term?: string }>().catch(() => null);
+  const term = body?.term?.trim().toLowerCase();
+  if (!term) return c.json({ error: 'invalid', reason: 'term_required' }, 400);
+  await c.env.DB.prepare('INSERT OR IGNORE INTO blocked_terms (term) VALUES (?)').bind(term).run();
+  return c.json({ ok: true }, 201);
+});
+
+app.delete('/api/admin/blocked-terms/:term', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const r = await c.env.DB.prepare('DELETE FROM blocked_terms WHERE term = ?').bind(c.req.param('term')).run();
+  if (!r.meta.changes) return c.json({ error: 'not_found' }, 404);
+  return c.json({ ok: true });
+});
+
+// ---- error logs admin (0006)
+app.get('/api/admin/error-logs', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const { results } = await c.env.DB.prepare('SELECT * FROM error_logs ORDER BY created_at DESC LIMIT 200').all();
+  return c.json({ error_logs: results });
+});
+
+app.delete('/api/admin/error-logs/:id', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const r = await c.env.DB.prepare('DELETE FROM error_logs WHERE id = ?').bind(c.req.param('id')).run();
+  if (!r.meta.changes) return c.json({ error: 'not_found' }, 404);
+  return c.json({ ok: true });
+});
+
+// ---- member privilege management (profiles_admin 0001 + guard 0026 + audit 0018).
+// Only role/status here; verified_at changes flow through verification review.
+// Upstream has NO last-admin or self-demotion guard - mirrored, documented.
+app.patch('/api/admin/members/:id', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const { caller } = gate as { caller: Caller };
+  const target = await getProfileFull(c.env.DB, c.req.param('id'));
+  if (!target) return c.json({ error: 'not_found' }, 404);
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body) return c.json({ error: 'invalid_json' }, 400);
+  const role = body.role === undefined ? target.role : String(body.role);
+  const status = body.status === undefined ? target.status : String(body.status);
+  if (!['user', 'admin'].includes(role)) return c.json({ error: 'invalid', reason: 'bad_role' }, 400);
+  if (!['active', 'suspended', 'deleted'].includes(status)) return c.json({ error: 'invalid', reason: 'bad_status' }, 400);
+  if (body.verified_at !== undefined)
+    return c.json({ error: 'invalid', reason: 'verified_at_via_verification_review_only' }, 400);
+  await c.env.DB.batch([
+    c.env.DB.prepare('UPDATE profiles SET role = ?, status = ? WHERE id = ?').bind(role, status, target.id),
+    ...(role !== target.role || status !== target.status
+      ? [c.env.DB.prepare(
+          'INSERT INTO privilege_audit (actor_id, target_id, old_role, new_role, old_status, new_status) VALUES (?,?,?,?,?,?)',
+        ).bind(caller.cohortUserId, target.id, target.role, role, target.status, status)]
+      : []),
+  ]);
+  return c.json({ ok: true });
+});
+
+// ---- admin read-only surfaces (0032 / 0018)
+app.get('/api/admin/activity-log', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const { results } = await c.env.DB.prepare('SELECT * FROM activity_log ORDER BY created_at DESC LIMIT 200').all();
+  return c.json({ activity: results });
+});
+
+app.get('/api/admin/privilege-audit', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const { results } = await c.env.DB.prepare('SELECT * FROM privilege_audit ORDER BY changed_at DESC LIMIT 200').all();
+  return c.json({ privilege_audit: results });
+});
+
+app.get('/api/admin/trash', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const { results } = await c.env.DB.prepare('SELECT * FROM trash ORDER BY trashed_at DESC LIMIT 200').all();
+  return c.json({ trash: results });
+});
+
+// ---- admin trash / restore / purge (0035). FK/ownership handling mirrors
+// admin_restore: ownership passes to the restoring admin when the original
+// owner is gone or deleted; dependents re-insert on-conflict-skip AFTER the
+// parent row so parent/child foreign keys hold; the whole restore is one
+// batch (transaction) so an FK failure rolls back like the PG exception.
+const TRASHABLE = ['posts', 'jobs', 'resources'] as const;
+const OWNER_COL: Record<string, string> = { posts: 'author_id', jobs: 'posted_by', resources: 'owner_id' };
+
+app.post('/api/admin/trash', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const { caller, me } = gate as { caller: Caller; me: Profile };
+  const body = await c.req.json<{ table?: string; id?: string }>().catch(() => null);
+  const table = String(body?.table ?? '');
+  if (!(TRASHABLE as readonly string[]).includes(table))
+    return c.json({ error: 'invalid', reason: 'unsupported_table' }, 400);
+  const entityId = String(body?.id ?? '');
+  const row = await c.env.DB.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(entityId).first<Record<string, unknown>>();
+  if (!row) return c.json({ error: 'not_found' }, 404);
+  const payload: Record<string, unknown> = { ...row };
+  if (table === 'jobs')
+    payload._applications = (await c.env.DB.prepare('SELECT * FROM applications WHERE job_id = ?').bind(entityId).all()).results;
+  if (table === 'posts') {
+    payload._comments = (await c.env.DB.prepare('SELECT * FROM comments WHERE post_id = ?').bind(entityId).all()).results;
+    payload._likes = (await c.env.DB.prepare('SELECT * FROM post_likes WHERE post_id = ?').bind(entityId).all()).results;
+  }
+  const tid = crypto.randomUUID();
+  await c.env.DB.batch([
+    c.env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(entityId),
+    c.env.DB.prepare('INSERT INTO trash (id, entity_table, entity_id, payload, trashed_by, trashed_by_name) VALUES (?,?,?,?,?,?)')
+      .bind(tid, table, entityId, JSON.stringify(payload), caller.cohortUserId, me.full_name ?? ''),
+  ]);
+  await logActivity(c.env.DB, caller.cohortUserId, me.full_name ?? '', `${table}_trashed`, table, entityId, {
+    title: (payload.title as string) || (payload.role as string) || String(payload.body ?? '').slice(0, 80),
+  });
+  return c.json({ id: tid }, 201);
+});
+
+app.post('/api/admin/trash/:tid/restore', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const { caller, me } = gate as { caller: Caller; me: Profile };
+  const t = await c.env.DB.prepare('SELECT * FROM trash WHERE id = ? AND restored_at IS NULL').bind(c.req.param('tid'))
+    .first<{ id: string; entity_table: string; entity_id: string; payload: string }>();
+  if (!t) return c.json({ error: 'not_found' }, 404);
+  const full = JSON.parse(t.payload) as Record<string, unknown>;
+  const deps = {
+    applications: (full._applications ?? []) as Record<string, unknown>[],
+    comments: (full._comments ?? []) as Record<string, unknown>[],
+    likes: (full._likes ?? []) as Record<string, unknown>[],
+  };
+  delete full._applications; delete full._comments; delete full._likes;
+  // ownership: gone/deleted owner -> restoring admin takes ownership (0035)
+  const ownerCol = OWNER_COL[t.entity_table];
+  const owner = full[ownerCol];
+  const ownerAlive = typeof owner === 'string' &&
+    (await c.env.DB.prepare("SELECT 1 AS x FROM profiles WHERE id = ? AND status <> 'deleted'").bind(owner).first());
+  if (!ownerAlive) full[ownerCol] = caller.cohortUserId;
+  const cols = Object.keys(full);
+  const stmts: D1PreparedStatement[] = [
+    c.env.DB.prepare(`INSERT INTO ${t.entity_table} (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`)
+      .bind(...cols.map((k) => full[k] as string | number | null)),
+  ];
+  const depSpec: [Record<string, unknown>[], string][] = [];
+  if (t.entity_table === 'jobs') depSpec.push([deps.applications, 'applications']);
+  if (t.entity_table === 'posts') {
+    depSpec.push([deps.comments, 'comments'], [deps.likes, 'post_likes']);
+  }
+  for (const [rows, tbl] of depSpec)
+    for (const d of rows) {
+      const dcols = Object.keys(d);
+      stmts.push(
+        c.env.DB.prepare(`INSERT OR IGNORE INTO ${tbl} (${dcols.join(',')}) VALUES (${dcols.map(() => '?').join(',')})`)
+          .bind(...dcols.map((k) => d[k] as string | number | null)),
+      );
+    }
+  stmts.push(c.env.DB.prepare("UPDATE trash SET restored_at = datetime('now') WHERE id = ?").bind(t.id));
+  try {
+    await c.env.DB.batch(stmts);
+  } catch {
+    return c.json({ error: 'conflict', reason: 'restore_failed_fk_or_conflict' }, 409);
+  }
+  await logActivity(c.env.DB, caller.cohortUserId, me.full_name ?? '', `${t.entity_table}_restored`, t.entity_table, t.entity_id, {
+    title: (full.title as string) || (full.role as string) || String(full.body ?? '').slice(0, 80),
+  });
+  return c.json({ ok: true });
+});
+
+app.post('/api/admin/trash/:tid/purge', async (c) => {
+  const gate = await requireAdmin(c);
+  if ('error' in gate) return gate.error;
+  const { caller, me } = gate as { caller: Caller; me: Profile };
+  const t = await c.env.DB.prepare('SELECT * FROM trash WHERE id = ?').bind(c.req.param('tid'))
+    .first<{ id: string; entity_table: string; entity_id: string; payload: string }>();
+  if (!t) return c.json({ error: 'not_found' }, 404);
+  // fail-closed mirror of the storage_cleanup_required guard: resource bytes
+  // are not ported (no bucket), so a trashed resource with a file_path can
+  // never be verified clean - refuse its purge outright.
+  const payload = JSON.parse(t.payload) as Record<string, unknown>;
+  if (t.entity_table === 'resources' && typeof payload.file_path === 'string' && payload.file_path.length > 0)
+    return c.json({ error: 'conflict', reason: 'storage_cleanup_required' }, 409);
+  await c.env.DB.prepare('DELETE FROM trash WHERE id = ?').bind(t.id).run();
+  await logActivity(c.env.DB, caller.cohortUserId, me.full_name ?? '', `${t.entity_table}_purged`, t.entity_table, t.entity_id, {
+    title: (payload.title as string) || (payload.role as string) || String(payload.body ?? '').slice(0, 80),
+  });
   return c.json({ ok: true });
 });
 
