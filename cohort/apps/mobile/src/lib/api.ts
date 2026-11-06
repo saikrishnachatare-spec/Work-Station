@@ -57,6 +57,10 @@ export async function api<T = unknown>(
     if (token) headers.Authorization = `Bearer ${token}`;
     else if (opts.auth === 'required') throw new ApiError(401, { error: 'unauthorized' });
   }
+  // Fail closed: an auth-required call must NEVER go out unauthenticated,
+  // even if the token bridge has not registered yet (startup race).
+  if (opts.auth === 'required' && !headers.Authorization)
+    throw new ApiError(401, { error: 'unauthorized' });
   let res: Response;
   try {
     res = await fetch(`${CLERK_PREP_API_URL}${path}`, {
