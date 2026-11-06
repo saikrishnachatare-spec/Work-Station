@@ -51,7 +51,8 @@ INSERT OR REPLACE INTO profiles (id, full_name, role, status) VALUES
  ('user_varallow','Var Allowlisted Vic','user','active');
 INSERT OR REPLACE INTO preview_bootstrap_allowlist (sub) VALUES
  ('user_bootIndi'),('user_bootFirm'),('user_bootEnt'),('user_bootCoerce'),
- ('user_bootBadCourse'),('user_bootBadLevel'),('user_bootConc'),('user_bootRetry');
+ ('user_bootBadCourse'),('user_bootBadLevel'),('user_bootConc'),('user_bootRetry'),
+ ('user_bootExec'),('user_bootMember');
 " >/dev/null
 
 mint() { MINT_ISSUER="https://synthetic.clerk.accounts.dev" node test/mint-token.mjs "$TMP/key.pem" "$1" "${2:--}" "${3:-300}"; }
@@ -64,6 +65,8 @@ TBADC=$(mint user_bootBadCourse)
 TBADL=$(mint user_bootBadLevel)
 TCONC=$(mint user_bootConc)
 TRETRY=$(mint user_bootRetry)
+TEXEC=$(mint user_bootExec)
+TMEM=$(mint user_bootMember)
 TNOA=$(mint user_noallow)           # valid token, NOT on bootstrap allowlist
 
 start_worker() { (npx wrangler dev --local --port $PORT >"$TMP/wrangler.log" 2>&1) & WPID=$!; for i in $(seq 1 60); do curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1 && break; sleep 1; done; }
@@ -111,6 +114,12 @@ check 'firm org_name stored, level cleared'       'Synthetic Audit LLP|' "$(echo
 check 'enterprise bootstrap -> 201'               201 "$(code -X POST -H "$J" -H "Authorization: Bearer $TENT" -d '{"full_name":"Ent Owner","phone":"+919123456781","account_type":"enterprise","org_name":"Synthetic Corp","course":"CMA"}' "$BASE/api/me/bootstrap")"
 check 'bad account_type coerces individual'       'individual' "$(curl -s -X POST -H "$J" -H "Authorization: Bearer $TCOE" -d '{"full_name":"Coerce Cary","phone":"+919123456782","account_type":"bogus","course":"CA","level":"Inter"}' "$BASE/api/me/bootstrap" | jfield 'r.account_type')"
 check 'bad course coerces empty'                  '' "$(jget /api/profiles/user_bootBadCourse "$TBADC" >/dev/null 2>&1; curl -s -X POST -H "$J" -H "Authorization: Bearer $TBADC" -d '{"full_name":"Bad Course","phone":"+919123456783","course":"MBA","level":"Inter"}' "$BASE/api/me/bootstrap" >/dev/null; jget /api/profiles/user_bootBadCourse "$TBADC" | jfield 'r.profile.course')"
+
+echo '--- widened level set (upstream 0031 parity)'
+check 'CS Executive signup -> 201'                201 "$(code -X POST -H "$J" -H "Authorization: Bearer $TEXEC" -d '{"full_name":"Exec Erin","phone":"+919123456785","course":"CS","level":"Executive"}' "$BASE/api/me/bootstrap")"
+check 'CS Executive stored'                       'CS|Executive' "$(jget /api/profiles/user_bootExec "$TEXEC" | jfield 'r.profile.course+"|"+r.profile.level')"
+check 'Member level signup -> 201'                201 "$(code -X POST -H "$J" -H "Authorization: Bearer $TMEM" -d '{"full_name":"Member Mel","phone":"+919123456786","course":"CA","level":"Member"}' "$BASE/api/me/bootstrap")"
+check 'Member level stored'                       'Member' "$(jget /api/profiles/user_bootMember "$TMEM" | jfield 'r.profile.level')"
 
 echo '--- repeat + concurrency'
 check 'repeat bootstrap -> 409'                   409 "$(code -X POST -H "$J" -H "Authorization: Bearer $TIND" -d '{"full_name":"Indi Ivy","phone":"+919876543210","course":"CA","level":"Inter"}' "$BASE/api/me/bootstrap")"
