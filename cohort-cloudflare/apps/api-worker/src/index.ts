@@ -887,6 +887,15 @@ async function isGroupMember2(db: D1Database, groupId: string, userId: string): 
   return !!r;
 }
 
+// Audit and deletion share one D1 transaction; no event for a missing row.
+function membershipRemovalAudit(db:D1Database,gid:string,uid:string,actor:string){
+  return db.prepare(`INSERT INTO activity_log(id,actor_id,actor_name,action,entity_type,entity_id,detail)
+    SELECT ?,?,COALESCE((SELECT full_name FROM profiles WHERE id=?),''),?,'group_members',?,
+      json_object('member',COALESCE((SELECT full_name FROM profiles WHERE id=m.user_id),''),'group',g.name)
+    FROM group_members m JOIN groups g ON g.id=m.group_id WHERE m.group_id=? AND m.user_id=?`)
+    .bind(crypto.randomUUID(),actor,actor,actor===uid?'member_left':'member_removed',gid,gid,uid);
+}
+
 // members_delete self path (0001): leave. No active-member check upstream -
 // suspended members can leave (mirrored).
 app.post('/api/groups/:id/leave', async (c) => {
@@ -894,9 +903,12 @@ app.post('/api/groups/:id/leave', async (c) => {
   if (!caller) return c.json({ error: 'unauthorized' }, 401);
   if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
   const gid = c.req.param('id');
-  const del = await c.env.DB.prepare('DELETE FROM group_members WHERE group_id = ? AND user_id = ?').bind(gid, caller.cohortUserId).run();
+  const [,del] = await c.env.DB.batch([
+    membershipRemovalAudit(c.env.DB,gid,caller.cohortUserId,caller.cohortUserId),
+    c.env.DB.prepare('DELETE FROM group_members WHERE group_id = ? AND user_id = ?').bind(gid, caller.cohortUserId),
+    recountMembers(c.env.DB, gid),
+  ]);
   if (!del.meta.changes) return c.json({ error: 'not_found', reason: 'not_a_member' }, 404);
-  await recountMembers(c.env.DB, gid).run();
   return c.json({ ok: true });
 });
 
@@ -948,9 +960,12 @@ app.delete('/api/groups/:id/members/:uid', async (c) => {
     isAdmin(me) ||
     ((await isGroupAdmin(c.env.DB, gid, caller.cohortUserId)) && uid !== caller.cohortUserId && uid !== g.created_by);
   if (!ok) return c.json({ error: 'forbidden', reason: 'cannot_remove_member' }, 403);
-  const del = await c.env.DB.prepare('DELETE FROM group_members WHERE group_id = ? AND user_id = ?').bind(gid, uid).run();
+  const [,del] = await c.env.DB.batch([
+    membershipRemovalAudit(c.env.DB,gid,uid,caller.cohortUserId),
+    c.env.DB.prepare('DELETE FROM group_members WHERE group_id = ? AND user_id = ?').bind(gid, uid),
+    recountMembers(c.env.DB, gid),
+  ]);
   if (!del.meta.changes) return c.json({ error: 'not_found', reason: 'not_a_member' }, 404);
-  await recountMembers(c.env.DB, gid).run();
   return c.json({ ok: true });
 });
 
@@ -1824,22 +1839,27 @@ app.patch('/api/admin/members/:id', async (c) => {
   // exists. The guard lives INSIDE the UPDATE statement (single statement,
   // executed under SQLite's write lock) - not a preflight COUNT - so two
   // concurrent demotions of the last two admins cannot both pass.
-  const targetIsActiveAdmin = target.role === 'admin' && target.status === 'active';
-  const losesActiveAdmin = role !== 'admin' || status !== 'active';
-  if (targetIsActiveAdmin && losesActiveAdmin) {
-    const guarded = await c.env.DB.prepare(
-      `UPDATE profiles SET role = ?, status = ? WHERE id = ?
-         AND EXISTS (SELECT 1 FROM profiles WHERE role = 'admin' AND status = 'active' AND id <> ?)`,
-    ).bind(role, status, target.id, target.id).run();
-    if (!guarded.meta.changes)
-      return c.json({ error: 'conflict', reason: 'last_active_admin' }, 409);
-  } else {
-    await c.env.DB.prepare('UPDATE profiles SET role = ?, status = ? WHERE id = ?').bind(role, status, target.id).run();
-  }
-  if (role !== target.role || status !== target.status)
-    await c.env.DB.prepare(
-      'INSERT INTO privilege_audit (actor_id, target_id, old_role, new_role, old_status, new_status) VALUES (?,?,?,?,?,?)',
-    ).bind(caller.cohortUserId, target.id, target.role, role, target.status, status).run();
+  // Evaluate old values and the last-admin guard under the same write lock as
+  // the update. Preflight target above supplies defaults only, not audit truth.
+  const eligible=`id=? AND (NOT(role='admin' AND status='active') OR (?='admin' AND ?='active') OR EXISTS(SELECT 1 FROM profiles p WHERE p.role='admin' AND p.status='active' AND p.id<>profiles.id))`;
+  const args=[target.id,role,status];
+  const statements=[
+    c.env.DB.prepare(`INSERT INTO privilege_audit(actor_id,target_id,old_role,new_role,old_status,new_status)
+      SELECT ?,id,role,?,status,? FROM profiles WHERE ${eligible} AND (role<>? OR status<>?)`)
+      .bind(caller.cohortUserId,role,status,...args,role,status),
+    c.env.DB.prepare(`INSERT INTO activity_log(id,actor_id,actor_name,action,entity_type,entity_id)
+      SELECT ?,?,COALESCE((SELECT full_name FROM profiles WHERE id=?),''),'admin_role_'||?,'profile',id
+      FROM profiles WHERE ${eligible} AND role<>?`)
+      .bind(crypto.randomUUID(),caller.cohortUserId,caller.cohortUserId,role,...args,role),
+    c.env.DB.prepare(`INSERT INTO activity_log(id,actor_id,actor_name,action,entity_type,entity_id,detail)
+      SELECT ?,?,COALESCE((SELECT full_name FROM profiles WHERE id=?),''),'account_'||?,'profile',id,
+       json_object('member',CASE WHEN ?='deleted' THEN '' ELSE full_name END)
+      FROM profiles WHERE ${eligible} AND status<>?`)
+      .bind(crypto.randomUUID(),caller.cohortUserId,caller.cohortUserId,status,status,...args,status),
+    c.env.DB.prepare(`UPDATE profiles SET role=?,status=? WHERE ${eligible}`).bind(role,status,...args),
+  ];
+  const results=await c.env.DB.batch(statements);
+  if(!results[3].meta.changes)return c.json({error:'conflict',reason:'last_active_admin'},409);
   return c.json({ ok: true });
 });
 
