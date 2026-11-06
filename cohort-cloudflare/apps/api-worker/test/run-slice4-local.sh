@@ -280,6 +280,24 @@ check 'purge resource with file refused (fail-closed)' 409 "$(code -X POST -H "A
 check 'purge missing'                          404 "$(code -X POST -H "Authorization: Bearer $TADM" "$BASE/api/admin/trash/nope/purge")"
 check 'trash list as member'                   403 "$(code -H "Authorization: Bearer $TA" "$BASE/api/admin/trash")"
 
+# ---- anon error-log bucket boundary (fresh window; end of script)
+for i in $(seq 1 30); do curl -s -o /dev/null -X POST -H "$J" -d "{\"message\":\"anon $i\"}" "$BASE/api/error-logs"; done
+check 'anon bucket full at 30/min'             403 "$(code -X POST -H "$J" -d '{"message":"anon 31"}' "$BASE/api/error-logs")"
+check 'fresh authed user unaffected by full anon bucket' 201 "$(code -X POST -H "$J" -H "Authorization: Bearer $TV" -d '{"message":"vera crash"}' "$BASE/api/error-logs")"
+
+# ---- concurrent last-two-admins demotion (atomic guard test)
+check 'setup: promote V to admin'              200 "$(code -X PATCH -H "$J" -H "Authorization: Bearer $TADM" -d '{"role":"admin"}' "$BASE/api/admin/members/$V")"
+check 'setup: promote C to admin'              200 "$(code -X PATCH -H "$J" -H "Authorization: Bearer $TADM" -d '{"role":"admin"}' "$BASE/api/admin/members/$C")"
+check 'setup: original admin steps down (2 remain)' 200 "$(code -X PATCH -H "$J" -H "Authorization: Bearer $TADM" -d '{"role":"user"}' "$BASE/api/admin/members/$ADM")"
+(code -X PATCH -H "$J" -H "Authorization: Bearer $TC" -d '{"role":"user"}' "$BASE/api/admin/members/$C" > "$TMP/rC") & JC=$!
+(code -X PATCH -H "$J" -H "Authorization: Bearer $TV" -d '{"role":"user"}' "$BASE/api/admin/members/$V" > "$TMP/rV") & JV=$!
+wait $JC $JV
+check 'concurrent last-two demotions: exactly one wins' '200,409,' "$(sort "$TMP/rC" "$TMP/rV" | tr '\n' ',')"
+SURVIVOR_T=$TC; SURVIVOR_I=$C
+[ "$(cat "$TMP/rC")" = "409" ] || { SURVIVOR_T=$TV; SURVIVOR_I=$V; }
+check 'surviving admin retains admin access'   200 "$(code -H "Authorization: Bearer $SURVIVOR_T" "$BASE/api/admin/reports")"
+check 'losing admin lost admin access'         403 "$(if [ "$SURVIVOR_I" = "$C" ]; then code -H "Authorization: Bearer $TV" "$BASE/api/admin/reports"; else code -H "Authorization: Bearer $TC" "$BASE/api/admin/reports"; fi)"
+
 echo
 echo "slice4: PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ]

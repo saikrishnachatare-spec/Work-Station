@@ -1646,24 +1646,25 @@ app.patch('/api/admin/members/:id', async (c) => {
   // USER-APPROVED FIX (2026-11-06, prep branch only): upstream has no
   // last-admin guard. Here a change that would strip the target's ACTIVE
   // admin standing (role or status) is refused when no OTHER active admin
-  // exists, so Cohort can never be left with zero active admins.
+  // exists. The guard lives INSIDE the UPDATE statement (single statement,
+  // executed under SQLite's write lock) - not a preflight COUNT - so two
+  // concurrent demotions of the last two admins cannot both pass.
   const targetIsActiveAdmin = target.role === 'admin' && target.status === 'active';
   const losesActiveAdmin = role !== 'admin' || status !== 'active';
   if (targetIsActiveAdmin && losesActiveAdmin) {
-    const { c: otherAdmins } = await c.env.DB.prepare(
-      "SELECT COUNT(*) AS c FROM profiles WHERE role = 'admin' AND status = 'active' AND id <> ?",
-    ).bind(target.id).first<{ c: number }>().then((r) => ({ c: r?.c ?? 0 }));
-    if (otherAdmins === 0)
+    const guarded = await c.env.DB.prepare(
+      `UPDATE profiles SET role = ?, status = ? WHERE id = ?
+         AND EXISTS (SELECT 1 FROM profiles WHERE role = 'admin' AND status = 'active' AND id <> ?)`,
+    ).bind(role, status, target.id, target.id).run();
+    if (!guarded.meta.changes)
       return c.json({ error: 'conflict', reason: 'last_active_admin' }, 409);
+  } else {
+    await c.env.DB.prepare('UPDATE profiles SET role = ?, status = ? WHERE id = ?').bind(role, status, target.id).run();
   }
-  await c.env.DB.batch([
-    c.env.DB.prepare('UPDATE profiles SET role = ?, status = ? WHERE id = ?').bind(role, status, target.id),
-    ...(role !== target.role || status !== target.status
-      ? [c.env.DB.prepare(
-          'INSERT INTO privilege_audit (actor_id, target_id, old_role, new_role, old_status, new_status) VALUES (?,?,?,?,?,?)',
-        ).bind(caller.cohortUserId, target.id, target.role, role, target.status, status)]
-      : []),
-  ]);
+  if (role !== target.role || status !== target.status)
+    await c.env.DB.prepare(
+      'INSERT INTO privilege_audit (actor_id, target_id, old_role, new_role, old_status, new_status) VALUES (?,?,?,?,?,?)',
+    ).bind(caller.cohortUserId, target.id, target.role, role, target.status, status).run();
   return c.json({ ok: true });
 });
 

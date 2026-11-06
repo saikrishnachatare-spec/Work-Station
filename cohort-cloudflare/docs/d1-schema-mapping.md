@@ -322,7 +322,10 @@ Mirrored non-obvious upstream semantics (observations, NOT changes):
   ALL). FIXED in this worker with the owner's approval (2026-11-06, prep
   branch only): self-demotion and demoting other admins stay allowed while
   another active admin exists, but a change that would strip the LAST active
-  admin (role or status) is refused (409 last_active_admin).
+  admin (role or status) is refused (409 last_active_admin). The guard lives
+  INSIDE the UPDATE statement (single statement under SQLite's write lock),
+  not a preflight COUNT, so concurrent demotions of the last two admins
+  cannot both pass; tested with simultaneous requests (one 200, one 409).
   role/status/verified_at are mutable ONLY via /api/admin/members/:id
   (role/status) and verification review (verified_at); no generic profile
   update endpoint exists, so the privilege guard (0026) cannot be bypassed.
@@ -340,9 +343,9 @@ Mirrored non-obvious upstream semantics (observations, NOT changes):
   (storage_cleanup_required, fail-closed) because no bucket exists to
   verify byte removal.
 
-test/run-slice4-local.sh: 150/150 assertions PASS (2026-11-06), synthetic
+test/run-slice4-local.sh: 158/158 assertions PASS (2026-11-06), synthetic
 issuer + seeded local D1 only. Fresh regression after 0004: slice2 39/39,
-slice3 84/84, slice5 90/90, slice4 150/150 in sequence (363 total).
+slice3 84/84, slice5 90/90, slice4 158/158 in sequence (371 total). The anon error-log bucket is enforced at 30/min regardless of caller mixing (tested at the boundary).
 
 Not ported (explicit gaps): notification enqueue side-effects (job_match
 0055, application_status, verification-review + report notifications),
