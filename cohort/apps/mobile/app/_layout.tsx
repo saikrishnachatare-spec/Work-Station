@@ -1,3 +1,5 @@
+import { screenName, mayTrackScreen } from '@/lib/screenTracking';
+import { api } from '@/lib/api';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
@@ -88,12 +90,12 @@ function ScreenTracker() {
   useEffect(() => {
     // Prep flag on: screen-view logging rides on the Supabase rpc, which the
     // preview worker does not implement (admin analytics is item 7) - skip.
-    if (CLERK_PREP_ENABLED) return;
-    if (!session || getConsent() !== 'accepted') return;
-    const parts = (segments as string[]).filter((s) => s !== '(tabs)' && s !== '(auth)');
-    const screen = (parts.length === 0 ? 'home' : parts.map((s) => (/^[0-9a-f-]{8,}$/i.test(s) ? ':id' : s)).join('/')).slice(0, 60);
-    if (!screen || screen === last.current) return;
-    last.current = screen;
+    if (!session || !mayTrackScreen(!!session,getConsent())) return;
+    const screen=screenName(segments as string[]);
+    const trackingKey=CLERK_PREP_ENABLED ? `${session.user.id}:${screen}` : screen;
+    if (!screen || trackingKey === last.current) return;
+    last.current = trackingKey;
+    if(CLERK_PREP_ENABLED){void api('/api/screen-views',{auth:'required',body:{screen}}).catch(()=>{last.current='';});return;}
     supabase.rpc('log_screen_view', { p_screen: screen }).then(({ error }) => {
       if (error) last.current = '';
     });

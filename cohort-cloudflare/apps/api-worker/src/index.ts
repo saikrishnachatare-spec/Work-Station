@@ -31,6 +31,7 @@
  * Count upkeep (like_count/comment_count) replaces the PG triggers 0001/0010.
  */
 import { Hono } from 'hono';
+import { registerAnalytics } from './analytics';
 import { registerStorage, readyFile, deleteFile } from './storage';
 import { jobMatchStatements } from './notifications';
 import { cors } from 'hono/cors';
@@ -846,11 +847,14 @@ app.delete('/api/groups/:id', async (c) => {
   const caller = await getCaller(c);
   if (!caller) return c.json({ error: 'unauthorized' }, 401);
   if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
-  const g = await c.env.DB.prepare('SELECT id, created_by FROM groups WHERE id = ?').bind(c.req.param('id')).first<{ id: string; created_by: string }>();
+  const g = await c.env.DB.prepare('SELECT id, created_by,name FROM groups WHERE id = ?').bind(c.req.param('id')).first<{ id: string; created_by: string;name:string }>();
   if (!g) return c.json({ error: 'not_found' }, 404);
   const me = await getProfile(c.env.DB, caller.cohortUserId);
   if (g.created_by !== caller.cohortUserId && !isAdmin(me)) return c.json({ error: 'forbidden', reason: 'not_creator_or_admin' }, 403);
-  await c.env.DB.prepare('DELETE FROM groups WHERE id = ?').bind(g.id).run();
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM groups WHERE id = ?').bind(g.id),
+    c.env.DB.prepare(`INSERT INTO activity_log(id,actor_id,actor_name,action,entity_type,entity_id,detail) VALUES(?,?,?,'group_removed','groups',?,?)`).bind(crypto.randomUUID(),caller.cohortUserId,me?.full_name??'',g.id,JSON.stringify({name:g.name}))
+  ]);
   return c.json({ ok: true });
 });
 
@@ -1508,10 +1512,10 @@ app.patch('/api/applications/:id/status', async (c) => {
   if (!caller) return c.json({ error: 'unauthorized' }, 401);
   if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
   const appRow = await c.env.DB.prepare(
-    'SELECT a.id, a.job_id, a.user_id, j.posted_by FROM applications a JOIN jobs j ON j.id = a.job_id WHERE a.id = ?',
+    'SELECT a.id, a.job_id, a.user_id, a.status, j.posted_by FROM applications a JOIN jobs j ON j.id = a.job_id WHERE a.id = ?',
   )
     .bind(c.req.param('id'))
-    .first<{ id: string; job_id: string; user_id: string; posted_by: string | null }>();
+    .first<{ id: string; job_id: string; user_id: string; status:string; posted_by: string | null }>();
   if (!appRow) return c.json({ error: 'not_found' }, 404);
   if (appRow.posted_by !== caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'not_job_poster' }, 403);
   const body = await c.req.json<Record<string, unknown>>().catch(() => null);
@@ -1523,7 +1527,12 @@ app.patch('/api/applications/:id/status', async (c) => {
     return c.json({ error: 'forbidden', reason: 'application_identity_immutable' }, 403);
   const status = String(body.status ?? '');
   if (!(APP_STATUS as readonly string[]).includes(status)) return c.json({ error: 'invalid', reason: 'bad_status' }, 400);
-  await c.env.DB.prepare('UPDATE applications SET status = ? WHERE id = ?').bind(status, appRow.id).run();
+  await c.env.DB.batch([
+    c.env.DB.prepare('UPDATE applications SET status = ? WHERE id = ?').bind(status,appRow.id),
+    c.env.DB.prepare(`INSERT INTO activity_log(id,actor_id,actor_name,action,entity_type,entity_id,detail)
+      SELECT ?,?,COALESCE((SELECT full_name FROM profiles WHERE id=?),''),?,'applications',?,json_object('role',j.role,'firm',j.firm,'applicant',COALESCE((SELECT full_name FROM profiles WHERE id=a.user_id),'')) FROM applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=? AND ?<>?`)
+      .bind(crypto.randomUUID(),caller.cohortUserId,caller.cohortUserId,'application_'+status,appRow.id,appRow.id,status,appRow.status)
+  ]);
   return c.json({ ok: true });
 });
 
@@ -1717,6 +1726,9 @@ app.post('/api/admin/verification-requests/:id/review', async (c) => {
   ];
   if (body.approve)
     stmts.push(c.env.DB.prepare("UPDATE profiles SET verified_at = datetime('now') WHERE id = ?").bind(vr.user_id));
+  if(body.approve)stmts.push(c.env.DB.prepare(`INSERT INTO activity_log(id,actor_id,actor_name,action,entity_type,entity_id,detail)
+    SELECT ?,?,COALESCE((SELECT full_name FROM profiles WHERE id=?),''),'verified','profile',?,json_object('member',full_name) FROM profiles WHERE id=?`)
+    .bind(crypto.randomUUID(),gate.caller.cohortUserId,gate.caller.cohortUserId,vr.user_id,vr.user_id));
   await c.env.DB.batch(stmts);
   return c.json({ ok: true });
 });
@@ -1835,8 +1847,8 @@ app.patch('/api/admin/members/:id', async (c) => {
 app.get('/api/admin/activity-log', async (c) => {
   const gate = await requireAdmin(c);
   if ('error' in gate) return gate.error;
-  const { results } = await c.env.DB.prepare('SELECT * FROM activity_log ORDER BY created_at DESC LIMIT 200').all();
-  return c.json({ activity: results });
+  const { results } = await c.env.DB.prepare(`SELECT * FROM activity_log ORDER BY created_at DESC,id DESC LIMIT ${Math.min(1000,Math.max(1,Number(c.req.query('limit'))||200))}`).all();
+  return c.json({ activity: results.map(r=>({...r,detail:typeof r.detail==='string'?JSON.parse(r.detail):r.detail})) });
 });
 
 app.get('/api/admin/privilege-audit', async (c) => {
@@ -2251,3 +2263,5 @@ app.get('/api/resources/:id', async (c) => {
 export default app;
 
 registerStorage(app, {getCaller, getProfile, isAdmin, isActiveMember});
+
+registerAnalytics(app,{getCaller,getProfile,isAdmin});

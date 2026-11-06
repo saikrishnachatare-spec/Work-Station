@@ -137,7 +137,7 @@ export default function AdminScreen() {
     queryKey: ['admin-db-overview'],
     enabled: !!isAdmin,
     queryFn: async (): Promise<{ table: string; rows: number }[]> => {
-      if (CLERK_PREP_ENABLED) throw previewUnavailable('The database browser', 'a later checklist item');
+      if (CLERK_PREP_ENABLED) return (await api<{tables:{table:string;rows:number}[]}>('/api/admin/db-overview',{auth:'required'})).tables;
       const { data, error } = await supabase.rpc('admin_db_overview');
       if (error) throw error;
       return (data as { table: string; rows: number }[]) ?? [];
@@ -148,7 +148,7 @@ export default function AdminScreen() {
     queryKey: ['admin-db-recent', dbTable],
     enabled: !!isAdmin && !!dbTable,
     queryFn: async (): Promise<Record<string, unknown>[]> => {
-      if (CLERK_PREP_ENABLED) throw previewUnavailable('The database browser', 'a later checklist item');
+      if (CLERK_PREP_ENABLED) return (await api<{rows:Record<string,unknown>[]}>(`/api/admin/db-recent/${encodeURIComponent(dbTable)}`,{auth:'required'})).rows;
       const { data, error } = await supabase.rpc('admin_db_recent', { p_table: dbTable });
       if (error) throw error;
       return (data as Record<string, unknown>[]) ?? [];
@@ -156,7 +156,7 @@ export default function AdminScreen() {
   });
 
   const refresh = () => {
-    for (const key of ['profiles', 'posts', 'groups', 'jobs', 'resources', 'error_logs', 'activity-log', 'trash', 'admin-analytics']) {
+    for (const key of ['profiles', 'posts', 'groups', 'jobs', 'resources', 'error_logs', 'activity-log', 'trash', 'admin-analytics','admin-db-overview','admin-db-recent']) {
       qc.invalidateQueries({ queryKey: [key] });
     }
   };
@@ -515,8 +515,7 @@ export default function AdminScreen() {
         return (
           <View style={{ gap: spacing.md }}>
             <Text style={styles.meta}>
-              Real recorded activity only - nothing estimated or backfilled. Sign-ins and content counts come from the
-              activity log (recording since {a.log_since ? new Date(a.log_since).toLocaleDateString() : 'no events yet'}).
+              {CLERK_PREP_ENABLED ? 'Preview content counts are current inventory. Clerk sign-in capture is not connected; active/sign-in zeroes are incomplete, not proof of no activity. No backfilled events. ' : 'Real recorded activity only - nothing estimated or backfilled. Sign-ins and content counts come from the activity log '} (recording since {a.log_since ? new Date(a.log_since).toLocaleDateString() : 'no events yet'}).
               Screen views are counted only since {a.screen_tracking_since ? new Date(parseTs(a.screen_tracking_since)).toLocaleString() : 'not yet recorded'},
               only for signed-in members who accepted analytics in the consent note, screen names only. Message contents are never tracked.
             </Text>
@@ -568,8 +567,8 @@ export default function AdminScreen() {
             <Text style={styles.meta}>{a.funnel.scope}</Text>
             <View style={styles.statGrid}>
               {[
-                ['Total', a.funnel.total], ['Waiting', a.funnel.pending], ['Reviewed', a.funnel.reviewed],
-                ['Shortlisted', a.funnel.shortlisted], ['Declined', a.funnel.declined],
+                ['Total', a.funnel.total], ['Waiting', CLERK_PREP_ENABLED ? a.funnel.new : a.funnel.pending], ['Reviewed', a.funnel.reviewed],
+                ['Shortlisted', a.funnel.shortlisted], ['Declined', CLERK_PREP_ENABLED ? a.funnel.rejected : a.funnel.declined],
               ].map(([label, n]) => (
                 <Card key={label as string} style={styles.stat}>
                   <Text style={styles.statNum}>{n}</Text>
@@ -598,7 +597,7 @@ export default function AdminScreen() {
                   <Text style={styles.strong}>{j.role} · {j.firm}</Text>
                   <Text style={styles.meta}>
                     {j.status} · {j.applications} application{j.applications === 1 ? '' : 's'}
-                    {j.shortlisted ? ` · ${j.shortlisted} shortlisted` : ''}{j.declined ? ` · ${j.declined} declined` : ''}
+                    {j.shortlisted ? ` · ${j.shortlisted} shortlisted` : ''}{(CLERK_PREP_ENABLED ? j.rejected : j.declined) ? ` · ${CLERK_PREP_ENABLED ? j.rejected : j.declined} declined` : ''}
                   </Text>
                 </View>
               </Card>
