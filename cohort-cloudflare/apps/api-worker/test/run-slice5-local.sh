@@ -41,8 +41,8 @@ C='66666666-6666-4666-8666-666666666666'
 DEL='77777777-7777-4777-8777-777777777777'
 
 rm -rf .wrangler/state
-npx wrangler d1 migrations apply cohort-app-prep-2 --local >/dev/null 2>&1
-npx wrangler d1 execute cohort-app-prep-2 --local --command "
+npx wrangler d1 migrations apply cohort-app-prep-3 --local >/dev/null 2>&1
+npx wrangler d1 execute cohort-app-prep-3 --local --command "
 INSERT INTO profiles (id, full_name, role, status, account_type) VALUES
  ('$A','Alice Active','user','active','individual'),
  ('$B','Bob Active','user','active','individual'),

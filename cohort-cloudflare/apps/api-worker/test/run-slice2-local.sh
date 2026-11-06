@@ -43,8 +43,8 @@ S='cccccccc-3333-4333-8333-cccccccccccc'
 ADM='dddddddd-4444-4444-8444-dddddddddddd'
 
 rm -rf .wrangler/state
-npx wrangler d1 migrations apply cohort-app-prep-2 --local >/dev/null 2>&1
-npx wrangler d1 execute cohort-app-prep-2 --local --command "
+npx wrangler d1 migrations apply cohort-app-prep-3 --local >/dev/null 2>&1
+npx wrangler d1 execute cohort-app-prep-3 --local --command "
 INSERT OR REPLACE INTO profiles (id, full_name, role, status) VALUES
  ('$A','Alice Active','user','active'),
  ('$B','Bob Active','user','active'),
@@ -119,7 +119,7 @@ check 'like/comment counts net to 0/0' '0/0' "$LC"
 # --- rate-limit boundaries (0044: <10 own posts/hour, <20 own comments/10min)
 # A already has 1 post this hour from the matrix above; seed 9 more directly.
 SEED_POST=$(node -e 'console.log(crypto.randomUUID())')
-npx wrangler d1 execute cohort-app-prep-2 --local --command "
+npx wrangler d1 execute cohort-app-prep-3 --local --command "
 INSERT INTO posts (id, author_id, author_name, author_role, body) VALUES ('$SEED_POST','$B','Bob Active','user','seed post');
 INSERT INTO posts (id, author_id, author_name, author_role, body)
  WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<9)
@@ -127,7 +127,7 @@ INSERT INTO posts (id, author_id, author_name, author_role, body)
 check 'post create at 10/hour boundary -> 403' 403 "$(code -X POST -H "$J" -H "Authorization: Bearer $TA" -d '{"body":"eleventh"}' "$BASE/api/posts")"
 check 'post create under limit (other user)'  201 "$(code -X POST -H "$J" -H "Authorization: Bearer $TB" -d '{"body":"bob still fine"}' "$BASE/api/posts")"
 # 20 comments by A within 10 minutes on the dedicated seed post.
-npx wrangler d1 execute cohort-app-prep-2 --local --command "
+npx wrangler d1 execute cohort-app-prep-3 --local --command "
 INSERT INTO comments (id, post_id, author_id, body)
  WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<20)
  SELECT lower(hex(randomblob(16))), '$SEED_POST', '$A', 'seed comment' FROM c;" | tail -1

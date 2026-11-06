@@ -4,11 +4,13 @@ main = "src/index.ts"
 compatibility_date = "2026-11-05"
 compatibility_flags = ["nodejs_compat"]
 
+# Previous populated preview retained unchanged for rollback:
+# database_name = "cohort-app-prep-2", database_id = "93964a27-a902-4e15-abc6-a5081e8f5f24"
 [[d1_databases]]
 binding = "DB"
 # rollback: original preview DB kept intact, database_name = "cohort-app-prep", database_id = "7b7caf0c-8c3d-4ebc-8abf-5660eaab9f8f"
-database_name = "cohort-app-prep-2"
-database_id = "93964a27-a902-4e15-abc6-a5081e8f5f24"
+database_name = "cohort-app-prep-3"
+database_id = "026fb5e5-3772-4083-8ae8-792553aa9d6f"
 
 # R2 is intentionally NOT bound yet: R2 requires billing enrollment (separate user
 # approval, item 4). The /health probe and file routes handle a missing binding.

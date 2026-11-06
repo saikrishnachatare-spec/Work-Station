@@ -2018,7 +2018,7 @@ app.patch('/api/profiles/:id', async (c) => {
     sets.push('course = ?'); vals.push(body.course as string);
   }
   if (body.level !== undefined) {
-    if (!['', 'Foundation', 'Inter', 'Final'].includes(body.level as string)) return c.json({ error: 'invalid', reason: 'level' }, 400);
+    if (!['', 'Foundation', 'Inter', 'Final', 'CSEET', 'Executive', 'Professional', 'Member'].includes(body.level as string)) return c.json({ error: 'invalid', reason: 'level' }, 400);
     sets.push('level = ?'); vals.push(body.level as string);
   }
   if (body.avatar_path !== undefined) {

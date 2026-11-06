@@ -45,8 +45,8 @@ write_vars enabled
 pkill -f 'wrangler dev' 2>/dev/null; pkill -f workerd 2>/dev/null; sleep 1
 
 rm -rf .wrangler/state
-npx wrangler d1 migrations apply cohort-app-prep-2 --local >/dev/null 2>&1
-npx wrangler d1 execute cohort-app-prep-2 --local --command "
+npx wrangler d1 migrations apply cohort-app-prep-3 --local >/dev/null 2>&1
+npx wrangler d1 execute cohort-app-prep-3 --local --command "
 INSERT OR REPLACE INTO profiles (id, full_name, role, status) VALUES
  ('user_varallow','Var Allowlisted Vic','user','active');
 INSERT OR REPLACE INTO preview_bootstrap_allowlist (sub) VALUES
@@ -93,7 +93,7 @@ check 'short phone -> 400'                        400 "$(code -X POST -H "$J" -H
 check 'missing full_name -> 400'                  400 "$(code -X POST -H "$J" -H "Authorization: Bearer $TIND" -d '{"phone":"+919876543210","course":"CA","level":"Inter"}' "$BASE/api/me/bootstrap")"
 check 'failed validation wrote nothing (unmapped)' 'null' "$(jget /api/me "$TRETRY" | jfield 'r.cohortUserId')"
 check 'retry with valid body after failure -> 201' 201 "$(code -X POST -H "$J" -H "Authorization: Bearer $TRETRY" -d '{"full_name":"Retry Raj","phone":"+919876543210","course":"CA","level":"Inter"}' "$BASE/api/me/bootstrap")"
-check 'invalid level (CSEET) -> 400 level_invalid' 'level_invalid' "$(curl -s -X POST -H "$J" -H "Authorization: Bearer $TBADL" -d '{"full_name":"Bad Level","phone":"+919876543210","course":"CS","level":"CSEET"}' "$BASE/api/me/bootstrap" | jfield 'r.reason')"
+check 'unknown level -> 400 level_invalid' 'level_invalid' "$(curl -s -X POST -H "$J" -H "Authorization: Bearer $TBADL" -d '{"full_name":"Bad Level","phone":"+919876543210","course":"CS","level":"UnknownLevel"}' "$BASE/api/me/bootstrap" | jfield 'r.reason')"
 check 'bad level wrote nothing'                   'null' "$(jget /api/me "$TBADL" | jfield 'r.cohortUserId')"
 
 echo '--- happy paths + coercion parity'
@@ -105,7 +105,7 @@ check 'profile name synthetic-prefixed'           '[SYNTHETIC] Indi Ivy' "$(echo
 check 'profile course/level stored'               'CA|Inter' "$(echo "$P" | jfield 'r.profile.course+"|"+r.profile.level')"
 check 'profile account_type individual'           'individual' "$(echo "$P" | jfield 'r.profile.account_type')"
 check 'phone NOT in profile response'             'false' "$(echo "$P" | node -pe 'const r=JSON.parse(require("fs").readFileSync(0)); String(JSON.stringify(r).includes("919876543210"))')"
-Q=$(npx wrangler d1 execute cohort-app-prep-2 --local --json --command "SELECT phone FROM profile_contacts WHERE user_id='user_bootIndi'" 2>/dev/null)
+Q=$(npx wrangler d1 execute cohort-app-prep-3 --local --json --command "SELECT phone FROM profile_contacts WHERE user_id='user_bootIndi'" 2>/dev/null)
 check 'phone stored in profile_contacts'          '+919876543210' "$(echo "$Q" | node -pe 'JSON.parse(require("fs").readFileSync(0))[0].results[0].phone')"
 
 check 'firm bootstrap -> 201 firm'                'firm' "$(curl -s -X POST -H "$J" -H "Authorization: Bearer $TFIRM" -d '{"full_name":"Firm Owner","phone":"+919123456780","account_type":"firm","org_name":"Synthetic Audit LLP","course":"CA","level":"Final"}' "$BASE/api/me/bootstrap" | jfield 'r.account_type')"
@@ -121,6 +121,24 @@ check 'CS Executive stored'                       'CS|Executive' "$(jget /api/pr
 check 'Member level signup -> 201'                201 "$(code -X POST -H "$J" -H "Authorization: Bearer $TMEM" -d '{"full_name":"Member Mel","phone":"+919123456786","course":"CA","level":"Member"}' "$BASE/api/me/bootstrap")"
 check 'Member level stored'                       'Member' "$(jget /api/profiles/user_bootMember "$TMEM" | jfield 'r.profile.level')"
 
+echo '--- every app course-level choice, signup and profile edit'
+for course in CA CMA CS; do
+  if [ "$course" = CS ]; then levels='CSEET Executive Professional Member'; else levels='Foundation Inter Final Member'; fi
+  for level in $levels; do
+    sub="user_matrix_${course}_${level}"
+    npx wrangler d1 execute cohort-app-prep-3 --local --command "INSERT INTO preview_bootstrap_allowlist(sub) VALUES ('$sub')" >/dev/null 2>&1
+    token=$(mint "$sub")
+    body="{\"full_name\":\"Synthetic Matrix\",\"phone\":\"+919000000099\",\"course\":\"$course\",\"level\":\"$level\"}"
+    check "$course $level signup" 201 "$(code -X POST -H "$J" -H "Authorization: Bearer $token" -d "$body" "$BASE/api/me/bootstrap")"
+    check "$course $level stored" "$course|$level" "$(jget /api/profiles/$sub "$token" | jfield 'r.profile.course+"|"+r.profile.level')"
+    check "$course $level profile edit" 200 "$(code -X PATCH -H "$J" -H "Authorization: Bearer $TIND" -d "{\"course\":\"$course\",\"level\":\"$level\"}" "$BASE/api/profiles/user_bootIndi")"
+    check "$course $level edit persisted" "$course|$level" "$(jget /api/profiles/user_bootIndi "$TIND" | jfield 'r.profile.course+"|"+r.profile.level')"
+    check "$course $level phone private" false "$(jget /api/profiles/$sub "$token" | node -pe 'const r=JSON.parse(require("fs").readFileSync(0)); String(JSON.stringify(r).includes("919000000099"))')"
+  done
+done
+check 'unknown edit level rejected' 400 "$(code -X PATCH -H "$J" -H "Authorization: Bearer $TIND" -d '{"level":"UnknownLevel"}' "$BASE/api/profiles/user_bootIndi")"
+check 'empty legacy level accepted' 200 "$(code -X PATCH -H "$J" -H "Authorization: Bearer $TIND" -d '{"level":""}' "$BASE/api/profiles/user_bootIndi")"
+
 echo '--- repeat + concurrency'
 check 'repeat bootstrap -> 409'                   409 "$(code -X POST -H "$J" -H "Authorization: Bearer $TIND" -d '{"full_name":"Indi Ivy","phone":"+919876543210","course":"CA","level":"Inter"}' "$BASE/api/me/bootstrap")"
 # FINDING (2026-11-06): two SIMULTANEOUS same-sub bootstrap requests hang the
@@ -133,7 +151,7 @@ check 'repeat bootstrap -> 409'                   409 "$(code -X POST -H "$J" -H
 check 'first bootstrap for that sub -> 201'       201 "$(code -X POST -H "$J" -H "Authorization: Bearer $TCONC" -d '{"full_name":"Conc Cora","phone":"+919123456784","course":"CA","level":"Inter"}' "$BASE/api/me/bootstrap")"
 check 'second attempt now mapped -> 409'          409 "$(code -X POST -H "$J" -H "Authorization: Bearer $TCONC" -d '{"full_name":"Conc Cora","phone":"+919123456784","course":"CA","level":"Inter"}' "$BASE/api/me/bootstrap")"
 check 'third attempt still 409'                   409 "$(code -X POST -H "$J" -H "Authorization: Bearer $TCONC" -d '{"full_name":"Conc Cora","phone":"+919123456784","course":"CA","level":"Inter"}' "$BASE/api/me/bootstrap")"
-NR=$(npx wrangler d1 execute cohort-app-prep-2 --local --json --command "SELECT COUNT(*) AS c FROM profiles WHERE id='user_bootConc'" 2>/dev/null)
+NR=$(npx wrangler d1 execute cohort-app-prep-3 --local --json --command "SELECT COUNT(*) AS c FROM profiles WHERE id='user_bootConc'" 2>/dev/null)
 check 'single profile row after duplicates'       '1' "$(echo "$NR" | node -pe 'String(JSON.parse(require("fs").readFileSync(0))[0].results[0].c)')"
 
 echo '--- production-inert gate (route hidden when binding disabled)'

@@ -44,8 +44,8 @@ C='66666666-6666-4666-8666-666666666666'
 DEL='77777777-7777-4777-8777-777777777777'
 
 rm -rf .wrangler/state
-npx wrangler d1 migrations apply cohort-app-prep-2 --local >/dev/null 2>&1
-npx wrangler d1 execute cohort-app-prep-2 --local --command "
+npx wrangler d1 migrations apply cohort-app-prep-3 --local >/dev/null 2>&1
+npx wrangler d1 execute cohort-app-prep-3 --local --command "
 INSERT INTO profiles (id, full_name, role, status, account_type) VALUES
  ('$A','Alice Active','user','active','individual'),
  ('$B','Bob Active','user','active','individual'),
@@ -191,7 +191,7 @@ check 'SUSPENDED cleanup delete (mirrored)' 200 "$(code -X DELETE -H "Authorizat
 check 'respond missing connection'        404 "$(code -X POST -H "$J" -H "Authorization: Bearer $TA" -d '{"action":"accept"}' "$BASE/api/connections/nope/respond")"
 
 # --- rate limit boundary + start_dm bypass (mirrored upstream gap)
-npx wrangler d1 execute cohort-app-prep-2 --local --command "
+npx wrangler d1 execute cohort-app-prep-3 --local --command "
 INSERT INTO messages (id, thread_id, sender_id, body)
  WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x<30)
  SELECT lower(hex(randomblob(16))), 't1', '$B', 'burst ' || x FROM c;" >/dev/null 2>&1
