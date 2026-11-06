@@ -39,6 +39,33 @@ editing the app itself (`cohort/apps/mobile`). Those edits are:
   error in `app/(auth)/login.tsx` predates this work.
 - Web static export builds with the flag on; the signed-out prep screen
   renders correctly (screenshot-verified locally).
+- Interactive web end-to-end (2026-11-06, screenshot-verified): served the
+  flag-on web build through a temporary tunnel to a clean browser profile
+  and signed in as the synthetic CohortTest user through the app's own
+  /clerk-prep screen. Flow: email+password (`signIn.password`) -> Clerk
+  returned `needs_client_trust` (new device; Device Trust) -> emailed
+  6-digit code to the test alias (`signIn.mfa.sendEmailCode` /
+  `verifyEmailCode`) -> `finalize()` -> signed in. "Call prep API worker"
+  then sent `getToken()` to the local api-worker: HTTP 200 with the correct
+  `clerkUserId`/`sessionId`, `cohortUserId: null` (no import yet). Tunnels
+  and servers torn down after; nothing left running.
+- Operational learnings from that run:
+  - The worker's `authorizedParties` pinning works as designed: the app's
+    own origin (here the temporary test origin) must be listed or
+    verification 401s. For real stages, the app origin(s) - web domain and
+    any native redirect origins - go in CLERK_AUTHORIZED_PARTIES.
+  - New-device sign-ins get the Device Trust email-code step; this will be
+    ordinary for users on new devices and must stay in the UX plan.
+  - `@clerk/expo` v4 uses the "future" sign-in resource API
+    (`signIn.password` / `signIn.mfa.*` / `finalize`), not the v3
+    `signIn.create` + `attemptSecondFactor` shape.
+
+## Not verified
+
+- Android (or iOS): no emulator/device run happened; the SDK is installed
+  and typechecks, but native behavior - SecureStore tokenCache, deep links
+  back into the app after email verification - is untested and needs a real
+  device run with his permission on his phone or an emulator.
 
 ## The older sketch below remains the full-app target
 

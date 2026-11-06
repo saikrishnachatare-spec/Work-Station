@@ -54,7 +54,9 @@ function SignInCard() {
     if (signIn.status === 'complete') {
       const fin = await signIn.finalize();
       if (fin.error) setError(fin.error.message ?? 'Could not activate session');
-    } else if (signIn.status === 'needs_second_factor') {
+    } else if (signIn.status === 'needs_second_factor' || signIn.status === 'needs_client_trust') {
+      // needs_client_trust = new device; Clerk proves it via an emailed code
+      // (Device Trust), same mfa email-code path as a second factor.
       const sent = await signIn.mfa.sendEmailCode();
       if (sent.error) {
         setError(sent.error.message ?? 'Could not send email code');
