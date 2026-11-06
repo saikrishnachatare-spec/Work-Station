@@ -287,3 +287,78 @@ messages_notify 0050, connections_notify_* 0053, group/invite notifications)
 - there is deliberately no client insert route; realtime push; unread
 badges; multi-instance concurrency; PG error shapes; storage buckets for
 resource/note files (metadata rows only).
+
+## Slice 4: jobs / applications / verification / admin (0004)
+
+Migration 0004_jobs_admin.sql adds jobs (0001+0010+0033+0044+0065),
+applications (0002+0030+0049), verification_requests (0056), content_reports
+(0016), job_alert_prefs (0021), blocked_terms (0052, seeds the upstream 13
+terms; slices 2/3 in-code list replaced - all spam checks now read the table,
+so admin edits are live), error_logs (0006+0044), activity_log (0032), trash
+(0032+0035), privilege_audit (0018).
+
+Endpoints: jobs CRUD (anon reads open only; poster own-any-status; admin
+all), apply/mine/poster-applicants/status-update/withdraw, verification
+request + admin review, reports create/mine + admin review, job-alert-prefs
+own row, PUBLIC error_logs insert, and admin-only surfaces under
+/api/admin/* (members role/status, blocked-terms, error-logs, activity-log,
+privilege-audit, trash + restore + purge). Read vs write admin actions are
+separate routes.
+
+Mirrored non-obvious upstream semantics (observations, NOT changes):
+- applications SELECT = own OR admin OR poster-of-job (0002+0029). The FULL
+  row incl. resume_path/resume_name is visible to all three - no column
+  masking upstream. Resume metadata appears only on those authenticated
+  routes; no public route exposes it. Resume BYTES are not ported (no
+  storage bucket) - the paths are dangling metadata, documented.
+- applications UPDATE is POSTER ONLY (0030): not the applicant, not an
+  admin who did not post the job. DELETE is applicant only - no admin
+  override. Both tested.
+- applications INSERT does not force status='new' upstream: a client may
+  self-insert 'shortlisted' (0033 policy + 0030 enum). Mirrored, tested,
+  flagged as an upstream quirk - not "fixed".
+- No last-admin or self-demotion guard exists (profiles_admin FOR ALL):
+  an admin can demote themselves and the last admin. Mirrored + tested.
+  role/status/verified_at are mutable ONLY via /api/admin/members/:id
+  (role/status) and verification review (verified_at); no generic profile
+  update endpoint exists, so the privilege guard (0026) cannot be bypassed.
+- error_logs insert is PUBLIC incl. anonymous, dual rate limit (10/min
+  authed, 30/min anon) with sanitize truncation (0006+0044). Upstream quirk
+  mirrored: the limiter counts rows whose stored user_id equals the caller,
+  so a client that always forges user_id never accumulates (tested).
+- admin_restore (0035): ownership passes to the restoring admin when the
+  original owner is gone/deleted; dependents re-insert on-conflict-skip
+  after the parent (parent/child FK order); the restore is one D1 batch so
+  an FK failure rolls back like the PG exception.
+- admin_purge of a resource with file_path is refused outright
+  (storage_cleanup_required, fail-closed) because no bucket exists to
+  verify byte removal.
+
+test/run-slice4-local.sh: 144/144 assertions PASS (2026-11-06), synthetic
+issuer + seeded local D1 only. Fresh regression after 0004: slice2 39/39,
+slice3 84/84, slice5 90/90, slice4 144/144 in sequence (357 total).
+
+Not ported (explicit gaps): notification enqueue side-effects (job_match
+0055, application_status, verification-review + report notifications),
+admin analytics functions (0037/0038/0042/0061/0062 incl. log_screen_view,
+admin_analytics, admin_db_overview, admin_db_recent, live admin feed),
+account deletion flow delete_my_account (0022-0057 chain, auth-coupled),
+storage buckets (resumes 0049, resource files 0014, post images 0063,
+avatars 0067), error digest (0059), activity triggers log_auth_activity
+(0033) and log_content_activity (0061), privilege_audit auto-write on any
+non-admin path (only the admin endpoint writes it), realtime, unread
+badges, PG error shapes, multi-isolate atomicity.
+
+## Remaining-work inventory (no complete-migration claim)
+
+1. Slice-4 deferrals above (analytics, account deletion, storage, digest).
+2. Notification system server-side: enqueue triggers, delivery, push.
+3. Realtime subscriptions (Supabase Realtime replacement).
+4. Signup/onboarding flows (phone 0040, account types 0029, profile insert
+   guard 0017) partially unported; controlled_test_accounts unported.
+5. Front-end rewiring: Expo app still talks to Supabase directly; API
+   client swap not started.
+6. Pages deployment + env/secrets + stable test preview (awaiting user
+   decision); Clerk prod instance + DNS cutover undecided.
+7. Real data export/import - out of bounds until the user asks.
+8. R2/storage replacement - independent billing decision, not authorized.
