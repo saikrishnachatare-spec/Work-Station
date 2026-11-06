@@ -177,6 +177,7 @@ export type PostImageFile = { uri: string; name: string; mimeType?: string; size
 
 /** Upload a post image (PNG/JPEG/WebP, max 10 MB like other member uploads) and return its storage path. */
 async function uploadPostImage(userId: string, image: PostImageFile): Promise<string> {
+  if (CLERK_PREP_ENABLED) throw previewUnavailable('Post image upload', 'item 4');
   const mime = image.mimeType || 'image/jpeg';
   if (!['image/png', 'image/jpeg', 'image/webp'].includes(mime)) throw new Error('Images must be PNG, JPEG or WebP');
   if ((image.size ?? 0) > 10 * 1024 * 1024) throw new Error('Image must be under 10 MB');
@@ -523,6 +524,7 @@ export type ResumeFile = { mimeType?: string; name: string; size?: number; uri: 
 
 /** Upload a resume PDF and return its storage path. */
 async function uploadResume(userId: string, jobId: string, resume: ResumeFile): Promise<string> {
+  if (CLERK_PREP_ENABLED) throw previewUnavailable('Resume upload', 'item 4');
   if (resume.mimeType !== 'application/pdf') throw new Error('Resumes must be PDF files');
   if ((resume.size ?? 0) > 5 * 1024 * 1024) throw new Error('Resume PDF must be under 5 MB');
   const safeName = resume.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-60);
