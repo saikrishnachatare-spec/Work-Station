@@ -120,6 +120,8 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
       <StatusBar style="dark" />
+      <View style={{ flex: 1, minHeight: 0 }}>
+      <View style={{ flex: 1, minHeight: 0 }}>
       <AuthGate>
         <ScreenTracker />
         <Stack
@@ -167,7 +169,9 @@ export default function RootLayout() {
           />
         </Stack>
       </AuthGate>
+      </View>
       <ConsentBanner />
+      </View>
       </ToastProvider>
     </QueryClientProvider>
     </ClerkPrepProvider>

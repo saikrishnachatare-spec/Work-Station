@@ -6,7 +6,7 @@
  * Native builds never see this; optional tracking stays off there by default.
  */
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { getConsent, setConsent } from '@/lib/analytics';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -30,7 +30,7 @@ export function ConsentBanner() {
 
   return (
     <View style={styles.wrap}>
-      <View style={{ flex: 1, gap: 2 }}>
+      <ScrollView style={{ maxHeight: 120 }} contentContainerStyle={{ gap: 2 }}>
         <Text style={styles.title}>A quick note on analytics</Text>
         <Text style={styles.meta}>
           With your OK, Cohort counts which screens signed-in members open (screen names only,
@@ -38,13 +38,15 @@ export function ConsentBanner() {
           used. Decline and none of this is collected. Sign-in and security records are kept
           either way to protect accounts.
         </Text>
-      </View>
-      <Pressable onPress={() => choose('accepted')} style={styles.accept}>
+      </ScrollView>
+      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+      <Pressable accessibilityRole="button" onPress={() => choose('accepted')} style={styles.accept}>
         <Text style={styles.acceptText}>Accept</Text>
       </Pressable>
-      <Pressable onPress={() => choose('declined')} style={styles.decline}>
+      <Pressable accessibilityRole="button" onPress={() => choose('declined')} style={styles.decline}>
         <Text style={styles.declineText}>Decline</Text>
       </Pressable>
+      </View>
     </View>
   );
 }
@@ -52,9 +54,8 @@ export function ConsentBanner() {
 const styles = StyleSheet.create({
   wrap: {
     alignItems: 'center', backgroundColor: colors.card, borderColor: colors.lineWarm,
-    borderRadius: radius.card, borderWidth: 1, bottom: spacing.lg, flexDirection: 'row',
-    gap: spacing.sm, left: spacing.lg, padding: spacing.md, position: 'absolute',
-    right: spacing.lg, zIndex: 50,
+    borderRadius: radius.card, borderWidth: 1, flexDirection: 'column',
+    gap: spacing.sm, margin: spacing.sm, padding: spacing.md, flexShrink: 0,
   },
   title: { ...typeScale.body, color: colors.ink, fontWeight: '600' },
   meta: { ...typeScale.caption, color: colors.ink3 },

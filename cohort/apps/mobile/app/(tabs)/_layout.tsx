@@ -38,7 +38,8 @@ export default function TabsLayout() {
             <Ionicons color={color as string} name={ICONS[route.name] ?? "ellipse-outline"} size={size} />
           ),
           tabBarInactiveTintColor: colors.ink3,
-          tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.lineWarm },
+          tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.lineWarm, height: 68, paddingBottom: 8, paddingTop: 4 },
+          tabBarLabelStyle: { fontSize: 11, lineHeight: 16, marginBottom: 2 },
           title: TITLES[route.name] ?? route.name,
         })}
       >

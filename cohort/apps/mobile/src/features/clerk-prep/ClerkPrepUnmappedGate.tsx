@@ -66,8 +66,8 @@ export function ClerkPrepUnmappedGate() {
         // completion proof: confirm /api/me resolves the mapped identity
         // before clearing the payload and reloading.
         try {
-          const me = await api<{ cohortUserId?: string }>('/api/me', { auth: 'required' });
-          if (me.cohortUserId) {
+          const me = await api<{ clerkUserId?: string; cohortUserId?: string }>('/api/me', { auth: 'required' });
+          if (me.clerkUserId === userId && me.cohortUserId) {
             clearPendingBootstrap();
             if (Platform.OS === 'web' && typeof window !== 'undefined') window.location.reload();
             return;
@@ -87,7 +87,7 @@ export function ClerkPrepUnmappedGate() {
     } finally {
       inFlight.current = false;
     }
-  }, [pending]);
+  }, [pending, userId]);
 
   useEffect(() => {
     if (state === 'idle') void attempt();
@@ -115,6 +115,7 @@ export function ClerkPrepUnmappedGate() {
       {(state === 'allowlist-pending' || state === 'error') && (
         <Pressable
           onPress={() => void attempt()}
+          accessibilityRole="button"
           style={{ backgroundColor: colors.brand, borderRadius: 8, marginTop: 16, paddingHorizontal: 20, paddingVertical: 10 }}
         >
           <Text style={{ color: colors.cream, fontWeight: '700' }}>Retry</Text>
