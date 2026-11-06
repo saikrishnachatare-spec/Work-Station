@@ -43,8 +43,8 @@ V='88888888-8888-4888-8888-888888888888'
 ADM2='99999999-9999-4999-8999-999999999999'
 
 rm -rf .wrangler/state
-npx wrangler d1 migrations apply cohort-app-prep --local >/dev/null 2>&1
-npx wrangler d1 execute cohort-app-prep --local --command "
+npx wrangler d1 migrations apply cohort-app-prep-2 --local >/dev/null 2>&1
+npx wrangler d1 execute cohort-app-prep-2 --local --command "
 INSERT INTO profiles (id, full_name, role, status, account_type, verified_at) VALUES
  ('$A','Alice Active','user','active','individual',NULL),
  ('$B','Bob Active','user','active','individual',NULL),

@@ -45,8 +45,8 @@ ALA='user_allowA'
 ALNR='user_allowNoRow'
 
 rm -rf .wrangler/state
-npx wrangler d1 migrations apply cohort-app-prep --local >/dev/null 2>&1
-npx wrangler d1 execute cohort-app-prep --local --command "
+npx wrangler d1 migrations apply cohort-app-prep-2 --local >/dev/null 2>&1
+npx wrangler d1 execute cohort-app-prep-2 --local --command "
 INSERT OR REPLACE INTO profiles (id, full_name, role, status) VALUES
  ('$A','Alice Active','user','active'),
  ('$B','Bob Active','user','active'),

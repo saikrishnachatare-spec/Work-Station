@@ -45,8 +45,8 @@ write_vars enabled
 pkill -f 'wrangler dev' 2>/dev/null; pkill -f workerd 2>/dev/null; sleep 1
 
 rm -rf .wrangler/state
-npx wrangler d1 migrations apply cohort-app-prep --local >/dev/null 2>&1
-npx wrangler d1 execute cohort-app-prep --local --command "
+npx wrangler d1 migrations apply cohort-app-prep-2 --local >/dev/null 2>&1
+npx wrangler d1 execute cohort-app-prep-2 --local --command "
 INSERT OR REPLACE INTO profiles (id, full_name, role, status) VALUES
  ('user_varallow','Var Allowlisted Vic','user','active');
 INSERT OR REPLACE INTO preview_bootstrap_allowlist (sub) VALUES
@@ -105,7 +105,7 @@ check 'profile name synthetic-prefixed'           '[SYNTHETIC] Indi Ivy' "$(echo
 check 'profile course/level stored'               'CA|Inter' "$(echo "$P" | jfield 'r.profile.course+"|"+r.profile.level')"
 check 'profile account_type individual'           'individual' "$(echo "$P" | jfield 'r.profile.account_type')"
 check 'phone NOT in profile response'             'false' "$(echo "$P" | node -pe 'const r=JSON.parse(require("fs").readFileSync(0)); String(JSON.stringify(r).includes("919876543210"))')"
-Q=$(npx wrangler d1 execute cohort-app-prep --local --json --command "SELECT phone FROM profile_contacts WHERE user_id='user_bootIndi'" 2>/dev/null)
+Q=$(npx wrangler d1 execute cohort-app-prep-2 --local --json --command "SELECT phone FROM profile_contacts WHERE user_id='user_bootIndi'" 2>/dev/null)
 check 'phone stored in profile_contacts'          '+919876543210' "$(echo "$Q" | node -pe 'JSON.parse(require("fs").readFileSync(0))[0].results[0].phone')"
 
 check 'firm bootstrap -> 201 firm'                'firm' "$(curl -s -X POST -H "$J" -H "Authorization: Bearer $TFIRM" -d '{"full_name":"Firm Owner","phone":"+919123456780","account_type":"firm","org_name":"Synthetic Audit LLP","course":"CA","level":"Final"}' "$BASE/api/me/bootstrap" | jfield 'r.account_type')"
@@ -133,7 +133,7 @@ check 'repeat bootstrap -> 409'                   409 "$(code -X POST -H "$J" -H
 check 'first bootstrap for that sub -> 201'       201 "$(code -X POST -H "$J" -H "Authorization: Bearer $TCONC" -d '{"full_name":"Conc Cora","phone":"+919123456784","course":"CA","level":"Inter"}' "$BASE/api/me/bootstrap")"
 check 'second attempt now mapped -> 409'          409 "$(code -X POST -H "$J" -H "Authorization: Bearer $TCONC" -d '{"full_name":"Conc Cora","phone":"+919123456784","course":"CA","level":"Inter"}' "$BASE/api/me/bootstrap")"
 check 'third attempt still 409'                   409 "$(code -X POST -H "$J" -H "Authorization: Bearer $TCONC" -d '{"full_name":"Conc Cora","phone":"+919123456784","course":"CA","level":"Inter"}' "$BASE/api/me/bootstrap")"
-NR=$(npx wrangler d1 execute cohort-app-prep --local --json --command "SELECT COUNT(*) AS c FROM profiles WHERE id='user_bootConc'" 2>/dev/null)
+NR=$(npx wrangler d1 execute cohort-app-prep-2 --local --json --command "SELECT COUNT(*) AS c FROM profiles WHERE id='user_bootConc'" 2>/dev/null)
 check 'single profile row after duplicates'       '1' "$(echo "$NR" | node -pe 'String(JSON.parse(require("fs").readFileSync(0))[0].results[0].c)')"
 
 echo '--- production-inert gate (route hidden when binding disabled)'

@@ -48,6 +48,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (!session && !guest && !isPublic) {
       router.replace('/(auth)/login');
     }
+    // A signed-in (mapped) session has no business on the auth screens: route
+    // it into the app. Without this a completed Clerk sign-in could sit on
+    // /login showing 'You're already signed in' (stage-3 E2E finding).
+    if (session && first === '(auth)') {
+      router.replace('/');
+    }
   }, [guest, loading, router, segments, session]);
 
   // Flag-on only: a valid Clerk sign-in with no test-profile binding must
