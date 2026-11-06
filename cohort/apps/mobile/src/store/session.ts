@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 
 import { api, clerkSignOutNow } from '@/lib/api';
 import { CLERK_PREP_ENABLED } from '@/lib/clerk';
+import { queryClient } from '@/lib/queryClient';
 import { supabase } from '@/lib/supabase';
 
 let guest = false;
@@ -133,6 +134,10 @@ export function useAuth(): AuthState {
 
 export async function signOut() {
   leaveGuest();
+  // Clear cached server data on every sign-out so the next session on this
+  // device (a different account, or a guest) never sees the previous
+  // account's private query snapshots (stage-2 browser-verification fix).
+  queryClient.clear();
   if (CLERK_PREP_ENABLED) {
     await clerkSignOutNow();
     return;
