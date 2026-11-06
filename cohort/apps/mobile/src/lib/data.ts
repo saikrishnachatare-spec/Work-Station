@@ -1,3 +1,5 @@
+import { CLERK_PREP_API_URL } from '@/lib/clerk';
+import { uploadPreviewFile } from '@/lib/api';
 /**
  * Live data layer: every screen reads from and writes to Supabase.
  * Reads are public (RLS); writes need a signed-in user.
@@ -188,7 +190,7 @@ export type PostImageFile = { uri: string; name: string; mimeType?: string; size
 
 /** Upload a post image (PNG/JPEG/WebP, max 10 MB like other member uploads) and return its storage path. */
 async function uploadPostImage(userId: string, image: PostImageFile): Promise<string> {
-  if (CLERK_PREP_ENABLED) throw previewUnavailable('Post image upload', 'item 4');
+  if (CLERK_PREP_ENABLED) return uploadPreviewFile('post-images',userId,image);
   const mime = image.mimeType || 'image/jpeg';
   if (!['image/png', 'image/jpeg', 'image/webp'].includes(mime)) throw new Error('Images must be PNG, JPEG or WebP');
   if ((image.size ?? 0) > 10 * 1024 * 1024) throw new Error('Image must be under 10 MB');
@@ -205,7 +207,7 @@ export function postImageUrl(path: string | null | undefined): string | null {
   if (!path) return null;
   // Item 4 (R2 bytes) is not built: the preview serves no image URLs. The
   // feed renders its existing no-image placeholder, never a fake success.
-  if (CLERK_PREP_ENABLED) return null;
+  if (CLERK_PREP_ENABLED) return `${CLERK_PREP_API_URL}/api/files/post-images?path=${encodeURIComponent(path)}`;
   return supabase.storage.from('post-images').getPublicUrl(path).data.publicUrl;
 }
 
@@ -214,8 +216,9 @@ export function useCreatePost() {
   return useMutation({
     mutationFn: async ({ authorId, authorName, body, image }: { authorId: string; authorName: string; body: string; image?: PostImageFile | null }) => {
       if (CLERK_PREP_ENABLED) {
-        if (image) throw previewUnavailable('Post images', 'item 4 - file storage');
-        await api('/api/posts', { auth: 'required', body: { body } });
+        const path=image?await uploadPostImage(authorId,image):null;
+        try { await api('/api/posts', { auth: 'required', body: { body,image_path:path } }); }
+        catch(e) { throw e; }
         return;
       }
       let imagePath: string | null = null;
@@ -535,7 +538,7 @@ export type ResumeFile = { mimeType?: string; name: string; size?: number; uri: 
 
 /** Upload a resume PDF and return its storage path. */
 async function uploadResume(userId: string, jobId: string, resume: ResumeFile): Promise<string> {
-  if (CLERK_PREP_ENABLED) throw previewUnavailable('Resume upload', 'item 4');
+  if (CLERK_PREP_ENABLED) return uploadPreviewFile('resumes',userId,resume);
   if (resume.mimeType !== 'application/pdf') throw new Error('Resumes must be PDF files');
   if ((resume.size ?? 0) > 5 * 1024 * 1024) throw new Error('Resume PDF must be under 5 MB');
   const safeName = resume.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-60);
@@ -553,8 +556,9 @@ export function useApplyToJob(userId: string | undefined) {
     mutationFn: async ({ coverNote, jobId, resume }: { coverNote: string; jobId: string; resume: ResumeFile | null }) => {
       if (!userId) throw new Error('Sign in to apply');
       if (CLERK_PREP_ENABLED) {
-        if (resume) throw previewUnavailable('Resume upload', 'item 4 - file storage');
-        await api(`/api/jobs/${jobId}/apply`, { auth: 'required', body: { cover_note: coverNote.trim().slice(0, 2000) } });
+        const path=resume?await uploadResume(userId,jobId,resume):null;
+        try { await api(`/api/jobs/${jobId}/apply`, { auth: 'required', body: { cover_note: coverNote.trim().slice(0, 2000),resume_path:path,resume_name:resume?.name } }); }
+        catch(e) { throw e; }
         return;
       }
       let resumePath: string | null = null;
@@ -800,7 +804,13 @@ export function useCreateResource() {
       course: string; subject?: string; title: string; uploadedBy: string; userId: string;
       file?: { uri: string; name: string; mimeType?: string; size?: number } | null;
     }) => {
-      if (CLERK_PREP_ENABLED) throw previewUnavailable('Resource upload', 'item 4 - file storage');
+      if (CLERK_PREP_ENABLED) {
+        if(!file) throw new Error('Choose a PDF or image');
+        const path=await uploadPreviewFile('resources',userId,file);
+        try { await api('/api/resources',{auth:'required',body:{cat: 'Notes',course,subject,title,file_path:path,file_name:file.name,mime_type:file.mimeType||'application/pdf',meta:`${Math.ceil((file.size||0)/1024)} KB`}}); }
+        catch(e) { throw e; }
+        return;
+      }
       if (!file) throw new Error('Choose a PDF or image');
       if ((file.size ?? 0) > 10 * 1024 * 1024) throw new Error('Maximum file size is 10 MB');
       const mime = file.mimeType || 'application/pdf';
@@ -845,7 +855,13 @@ export function useUploadStudentNote() {
       file?: { mimeType?: string; name: string; size?: number; uri: string } | null;
       subject?: string; title: string; uploaderName: string; userId: string;
     }) => {
-      if (CLERK_PREP_ENABLED) throw previewUnavailable('Student note upload', 'item 4 - file storage');
+      if (CLERK_PREP_ENABLED) {
+        if(!file) throw new Error('Choose a PDF or image');
+        const path=await uploadPreviewFile('student-notes',userId,file);
+        try { await api('/api/student-notes',{auth:'required',body:{subject,title,file_path:path,file_name:file.name,mime_type:file.mimeType||'application/pdf',meta:`${Math.ceil((file.size||0)/1024)} KB`}}); }
+        catch(e) { throw e; }
+        return;
+      }
       if (!file) throw new Error('Choose a PDF or image');
       if ((file.size ?? 0) > 10 * 1024 * 1024) throw new Error('Maximum file size is 10 MB');
       const mime = file.mimeType || 'application/pdf';

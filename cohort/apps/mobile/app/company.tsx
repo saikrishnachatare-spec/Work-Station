@@ -1,3 +1,4 @@
+import { openPreviewFile } from '@/lib/api';
 /**
  * Company panel (web route: /company): the separate dashboard for firm and
  * company accounts. Member (individual) accounts keep the normal app; org
@@ -144,8 +145,7 @@ export default function CompanyScreen() {
 
   const openResume = async (path: string) => {
     if (CLERK_PREP_ENABLED) {
-      // Item 4 (file bytes) is not built: say so, never a dead link.
-      toast.show('Resumes are not available in the test preview yet.', 'info');
+      try { await openPreviewFile('resumes',path); } catch(e) { toast.show(e instanceof Error?e.message:'Download failed','error'); }
       return;
     }
     const { data, error } = await supabase.storage.from('resumes').createSignedUrl(path, 300);

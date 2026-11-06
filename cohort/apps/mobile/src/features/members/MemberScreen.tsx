@@ -1,3 +1,4 @@
+import { previewFileBlobUrl } from '@/lib/api';
 /** Member profile page: the professional face of a member, for signed-in members. */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link, useRouter } from 'expo-router';
@@ -48,7 +49,8 @@ export function MemberScreen({ id }: { id: string }) {
 
   const avatarPath = profile.data?.avatar_path;
   useEffect(() => {
-    if (!avatarPath || CLERK_PREP_ENABLED) return;
+    if (!avatarPath) return;
+    if(CLERK_PREP_ENABLED){let alive=true;let url='';previewFileBlobUrl('resources',avatarPath).then(u=>{url=u;if(alive)setSignedAvatar({path:avatarPath,url:u});}).catch(()=>undefined);return()=>{alive=false;if(url)URL.revokeObjectURL(url);};}
     let alive = true;
     supabase.storage.from('resources').createSignedUrl(avatarPath, 3600).then(({ data }) => {
       if (alive && data) setSignedAvatar({ path: avatarPath, url: data.signedUrl });

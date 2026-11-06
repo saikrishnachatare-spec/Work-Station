@@ -1,3 +1,5 @@
+import { uploadPreviewFile, previewFileBlobUrl } from '@/lib/api';
+import { openPreviewFile } from '@/lib/api';
 /** Profile tab: profile card and editing. Settings, data management and account
  * actions (data export, legal links, sign out, delete account) live in the
  * three-line menu at the top right. */
@@ -56,7 +58,7 @@ export default function ProfileScreen() {
   const [websiteDraft, setWebsiteDraft] = useState('');
   const [expDraft, setExpDraft] = useState<ProfileExperience[]>([]);
   const [eduDraft, setEduDraft] = useState<ProfileEducation[]>([]);
-  useEffect(()=>{if(CLERK_PREP_ENABLED) return; if(profile.data?.avatar_path) supabase.storage.from('resources').createSignedUrl(profile.data.avatar_path,3600).then(({data})=>{if(data)setPhotoPreview(data.signedUrl);});},[profile.data?.avatar_path]);
+  useEffect(()=>{if(CLERK_PREP_ENABLED) { let live=true;let url='';if(profile.data?.avatar_path) previewFileBlobUrl('resources',profile.data.avatar_path).then(u=>{url=u;if(live)setPhotoPreview(u);}).catch(()=>undefined);return()=>{live=false;if(url)URL.revokeObjectURL(url);}; } if(profile.data?.avatar_path) supabase.storage.from('resources').createSignedUrl(profile.data.avatar_path,3600).then(({data})=>{if(data)setPhotoPreview(data.signedUrl);});},[profile.data?.avatar_path]);
   const toast = useToast();
   const qc = useQueryClient();
 
@@ -93,11 +95,13 @@ export default function ProfileScreen() {
       let avatarPath = profile.data?.avatar_path || null;
       if(photo){
         if(!['image/png','image/jpeg','image/webp'].includes(photo.mimeType || '') || (photo.size || 0)>5*1024*1024) throw new Error('Choose PNG, JPEG or WebP up to 5 MB');
-        if (CLERK_PREP_ENABLED) throw previewUnavailable('Profile photo upload', 'item 4');
+        if (CLERK_PREP_ENABLED) avatarPath=await uploadPreviewFile('resources',user.id,photo,true);
+        else {
         avatarPath = `${user.id}/avatar-${Date.now()}`;
         const bytes=await (await fetch(photo.uri)).arrayBuffer();
         const {error}=await supabase.storage.from('resources').upload(avatarPath,bytes,{contentType:photo.mimeType});
         if(error) throw error;
+        }
       }
       const normUrl = (u: string) => {
         const t = u.trim();
@@ -193,7 +197,7 @@ export default function ProfileScreen() {
   };
 
   const openNote = async (filePath: string) => {
-    if (CLERK_PREP_ENABLED) { toast.show(previewUnavailable('File downloads', 'item 4').message, 'info'); return; }
+    if (CLERK_PREP_ENABLED) { try { await openPreviewFile('student-notes',filePath); } catch(e) { toast.show(e instanceof Error?e.message:'Download failed','error'); } return; }
     const { data, error } = await supabase.storage.from('student-notes').createSignedUrl(filePath, 300);
     if (error || !data) { toast.show('Could not open this file. Try again.', 'error'); return; }
     if (Platform.OS === 'web') window.location.assign(data.signedUrl);

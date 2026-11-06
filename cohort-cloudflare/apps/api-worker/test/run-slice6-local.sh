@@ -9,7 +9,8 @@ TMP=$(mktemp -d)
 PORT=8797
 PASS=0; FAIL=0
 cleanup() {
-  [ -n "${WPID:-}" ] && kill "$WPID" 2>/dev/null
+  [ -n "${WPID:-}" ] && kill -- "-$WPID" 2>/dev/null
+  [ -n "${WPID:-}" ] && wait "$WPID" 2>/dev/null || true
   [ -f "$TMP/dev.vars.bak" ] && cp "$TMP/dev.vars.bak" .dev.vars
   rm -rf "$TMP"
 }
@@ -80,7 +81,7 @@ TALLOW=$(mint "$ALA" -)        # allowlisted sub, profile row exists, no externa
 TALLOWNR=$(mint "$ALNR" -)     # allowlisted sub, NO profile row
 TNOTIN=$(mint user_stranger -) # valid token, not on allowlist, no external_id
 
-(npx wrangler dev --local --port $PORT >"$TMP/wrangler.log" 2>&1) & WPID=$!
+(setsid npx wrangler dev --local --port $PORT >"$TMP/wrangler.log" 2>&1) & WPID=$!
 for i in $(seq 1 60); do curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1 && break; sleep 1; done
 
 check() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "PASS  $1 ($3)"; else FAIL=$((FAIL+1)); echo "FAIL  $1 expected=$2 got=$3"; fi }
@@ -213,11 +214,9 @@ ${process.argv[3]}
 ' "$TMP" "$1" "$2"
 }
 restart() {
-  kill $WPID 2>/dev/null; wait $WPID 2>/dev/null
-  pkill -f "wrangler dev --local --port $PORT" 2>/dev/null
-  pkill -f "workerd" 2>/dev/null
+  kill -- "-$WPID" 2>/dev/null; wait $WPID 2>/dev/null
   for i in $(seq 1 30); do curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1 || break; sleep 1; done
-  (npx wrangler dev --local --port $PORT >>"$TMP/wrangler.log" 2>&1) & WPID=$!
+  (setsid npx wrangler dev --local --port $PORT >>"$TMP/wrangler.log" 2>&1) & WPID=$!
   for i in $(seq 1 60); do curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1 && break; sleep 1; done
 }
 

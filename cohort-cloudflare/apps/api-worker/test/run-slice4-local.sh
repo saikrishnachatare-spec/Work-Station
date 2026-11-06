@@ -7,7 +7,8 @@ TMP=$(mktemp -d)
 PORT=8796
 PASS=0; FAIL=0
 cleanup() {
-  [ -n "${WPID:-}" ] && kill "$WPID" 2>/dev/null
+  [ -n "${WPID:-}" ] && kill -- "-$WPID" 2>/dev/null
+  [ -n "${WPID:-}" ] && wait "$WPID" 2>/dev/null || true
   [ -f "$TMP/dev.vars.bak" ] && cp "$TMP/dev.vars.bak" .dev.vars
   rm -rf "$TMP"
 }
@@ -76,7 +77,7 @@ TA=$(mint user_synth_A "$A"); TB=$(mint user_synth_B "$B"); TS=$(mint user_synth
 TADM=$(mint user_synth_ADM "$ADM"); TC=$(mint user_synth_C "$C"); TDEL=$(mint user_synth_DEL "$DEL")
 TV=$(mint user_synth_V "$V"); TADM2=$(mint user_synth_ADM2 "$ADM2"); TNOEXT=$(mint user_synth_X -)
 
-(npx wrangler dev --local --port $PORT >"$TMP/wrangler.log" 2>&1) & WPID=$!
+(setsid npx wrangler dev --local --port $PORT >"$TMP/wrangler.log" 2>&1) & WPID=$!
 for i in $(seq 1 60); do curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1 && break; sleep 1; done
 
 check() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "PASS  $1 ($3)"; else FAIL=$((FAIL+1)); echo "FAIL  $1 expected=$2 got=$3"; fi; }
@@ -127,8 +128,8 @@ JDEL2=$(curl -s -X POST -H "$J" -H "Authorization: Bearer $TV" -d '{"firm":"Doom
 check 'admin deletes others job (direct)'      200 "$(code -X DELETE -H "Authorization: Bearer $TADM" "$BASE/api/jobs/$JDEL2")"
 
 # ---- applications
-APPC=$(curl -s -X POST -H "$J" -H "Authorization: Bearer $TC" -d '{"resume_name":"cv.pdf","resume_path":"resumes/c/cv.pdf"}' "$BASE/api/jobs/jGig/apply" | jget '.id')
-check 'apply to open job'                      'true' "$([ "$APPC" != "ERR" ] && [ -n "$APPC" ] && echo true || echo false)"
+APPC=$(curl -s -X POST -H "$J" -H "Authorization: Bearer $TC" -d '{"resume_name":"cv.pdf"}' "$BASE/api/jobs/jGig/apply" | jget '.id')
+check 'apply to open job'                      'true' "$([ "$APPC" != "ERR" ] && [ "$APPC" != "undefined" ] && [ -n "$APPC" ] && echo true || echo false)"
 check 'double apply'                           409 "$(code -X POST -H "$J" -H "Authorization: Bearer $TC" -d '{}' "$BASE/api/jobs/jGig/apply")"
 check 'apply to closed job'                    403 "$(code -X POST -H "$J" -H "Authorization: Bearer $TC" -d '{}' "$BASE/api/jobs/jClosed/apply")"
 check 'apply to missing job'                   403 "$(code -X POST -H "$J" -H "Authorization: Bearer $TC" -d '{}' "$BASE/api/jobs/nope/apply")"

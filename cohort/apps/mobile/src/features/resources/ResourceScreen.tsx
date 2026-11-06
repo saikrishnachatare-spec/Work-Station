@@ -1,3 +1,4 @@
+import { openPreviewFile } from '@/lib/api';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -34,7 +35,7 @@ export function ResourceScreen({ id }: { id: string }) {
 
   const download = async () => {
     if (!r.file_path) return;
-    if (CLERK_PREP_ENABLED) { toast.show(previewUnavailable('File downloads', 'item 4').message, 'info'); return; }
+    if (CLERK_PREP_ENABLED) { try { await openPreviewFile('resources',r.file_path); } catch(e) { toast.show(e instanceof Error?e.message:'Download failed','error'); } return; }
     const { data, error } = await supabase.storage.from('resources').createSignedUrl(r.file_path, 300);
     if (error || !data) {
       toast.show('Could not open this file. Try again.', 'error');

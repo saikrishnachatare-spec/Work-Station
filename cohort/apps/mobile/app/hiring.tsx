@@ -1,3 +1,4 @@
+import { openPreviewFile } from '@/lib/api';
 /** Hiring dashboard: firm/company accounts manage their openings and applicants. */
 import { SeoHead } from '@/components/SeoHead';
 import { useState } from 'react';
@@ -118,8 +119,7 @@ export default function HiringScreen() {
 
   const openResume = async (path: string, name?: string | null) => {
     if (CLERK_PREP_ENABLED) {
-      // Item 4 (file bytes) is not built: say so, never a dead link.
-      toast.show('Resumes are not available in the test preview yet.', 'info');
+      try { await openPreviewFile('resumes',path); } catch(e) { toast.show(e instanceof Error?e.message:'Download failed','error'); }
       return;
     }
     const { data, error } = await supabase.storage.from('resumes').createSignedUrl(path, 300);

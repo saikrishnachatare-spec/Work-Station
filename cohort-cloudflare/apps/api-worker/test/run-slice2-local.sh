@@ -11,7 +11,8 @@ TMP=$(mktemp -d)
 PORT=8793
 PASS=0; FAIL=0
 cleanup() {
-  [ -n "${WPID:-}" ] && kill "$WPID" 2>/dev/null
+  [ -n "${WPID:-}" ] && kill -- "-$WPID" 2>/dev/null
+  [ -n "${WPID:-}" ] && wait "$WPID" 2>/dev/null || true
   [ -f "$TMP/dev.vars.bak" ] && cp "$TMP/dev.vars.bak" .dev.vars
   rm -rf "$TMP"
 }
@@ -56,7 +57,7 @@ mint() { node test/mint-token.mjs "$TMP/key.pem" "$1" "$2" "${3:-300}"; }
 TA=$(mint user_synth_A "$A"); TB=$(mint user_synth_B "$B"); TS=$(mint user_synth_S "$S")
 TADM=$(mint user_synth_ADM "$ADM"); TNOEXT=$(mint user_synth_X -); TEXP=$(mint user_synth_A "$A" -30)
 
-(npx wrangler dev --local --port $PORT >"$TMP/wrangler.log" 2>&1) & WPID=$!
+(setsid npx wrangler dev --local --port $PORT >"$TMP/wrangler.log" 2>&1) & WPID=$!
 for i in $(seq 1 60); do curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1 && break; sleep 1; done
 
 check() { # name expected actual

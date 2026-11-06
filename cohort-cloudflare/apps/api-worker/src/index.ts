@@ -31,10 +31,12 @@
  * Count upkeep (like_count/comment_count) replaces the PG triggers 0001/0010.
  */
 import { Hono } from 'hono';
+import { registerStorage, readyFile, deleteFile } from './storage';
+import { jobMatchStatements } from './notifications';
 import { cors } from 'hono/cors';
 import { verifyToken } from '@clerk/backend';
 
-type Bindings = {
+export type Bindings = {
   DB: D1Database;
   FILES?: R2Bucket; // absent until R2 billing enrollment is approved (item 4)
   CLERK_JWT_KEY: string; // PEM public key - not a secret
@@ -47,8 +49,8 @@ type Bindings = {
   PREVIEW_DEV_ISSUER?: string; // exact Clerk dev Frontend API URL the allowlist path is pinned to
 };
 
-type Caller = { clerkUserId: string; cohortUserId: string | null };
-type Profile = { id: string; full_name: string; role: string; status: string; account_type: string };
+export type Caller = { clerkUserId: string; cohortUserId: string | null };
+export type Profile = { id: string; full_name: string; role: string; status: string; account_type: string };
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -184,9 +186,9 @@ app.get('/health', async (c) => {
   await c.env.DB.prepare('SELECT 1 AS one').first();
   let r2 = 'unbound'; // R2 binding removed until billing enrollment is approved (item 4)
   if (c.env.FILES) {
-    await c.env.FILES.put('prep-health.txt', 'ok');
-    const obj = await c.env.FILES.get('prep-health.txt');
-    r2 = obj ? 'ok' : 'mismatch';
+    // Read-only probe: health checks must never generate storage writes.
+    await c.env.FILES.head('prep-health.txt');
+    r2 = 'bound';
   }
   return c.json({ ok: true, service: 'cohort-api-prep', d1: 'ok', r2 });
 });
@@ -305,6 +307,7 @@ app.post('/api/posts', async (c) => {
   if (body.author_id !== undefined && body.author_id !== caller.cohortUserId) {
     return c.json({ error: 'forbidden', reason: 'author_mismatch' }, 403); // policy with-check violation
   }
+  if (body.image_path && !await readyFile(c.env.DB, 'post-images', body.image_path, caller.cohortUserId)) return c.json({error:'invalid',reason:'image_not_ready_or_owned'},400);
   const kind = body.kind ?? 'post';
   if (!['post', 'announcement', 'message'].includes(kind)) {
     return c.json({ error: 'invalid', reason: 'bad_kind' }, 400);
@@ -1118,13 +1121,14 @@ app.post('/api/resources', async (c) => {
   if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
   const me = await getProfile(c.env.DB, caller.cohortUserId);
   if (!isAdmin(me)) return c.json({ error: 'forbidden', reason: 'admin_only' }, 403);
-  const body = await c.req.json<{ title?: string; cat?: string; course?: string; subject?: string; meta?: string; owner_id?: string }>().catch(() => null);
+  const body = await c.req.json<{ title?: string; cat?: string; course?: string; subject?: string; meta?: string; owner_id?: string; file_path?: string; file_name?: string; mime_type?: string }>().catch(() => null);
   if (!body || typeof body.title !== 'string' || body.title.trim() === '') return c.json({ error: 'invalid', reason: 'title_required' }, 400);
   if (body.title.length > 300 || (body.meta ?? '').length > 500) return c.json({ error: 'invalid', reason: 'text_too_long' }, 400);
   if (body.owner_id !== undefined && body.owner_id !== caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'owner_mismatch' }, 403);
+  if (body.file_path && !await readyFile(c.env.DB, 'resources', body.file_path, caller.cohortUserId)) return c.json({error:'invalid',reason:'file_not_ready_or_owned'},400);
   const id = crypto.randomUUID();
-  await c.env.DB.prepare('INSERT INTO resources (id, cat, course, subject, title, uploaded_by, meta, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, body.cat ?? 'Notes', body.course ?? '', body.subject ?? '', body.title, me!.full_name, body.meta ?? '', caller.cohortUserId).run();
+  await c.env.DB.prepare('INSERT INTO resources (id, cat, course, subject, title, uploaded_by, meta, owner_id, file_path, file_name, mime_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, body.cat ?? 'Notes', body.course ?? '', body.subject ?? '', body.title, me!.full_name, body.meta ?? '', caller.cohortUserId, body.file_path ?? null, body.file_name ?? null, body.mime_type ?? null).run();
   return c.json({ id }, 201);
 });
 
@@ -1134,11 +1138,12 @@ for (const method of ['patch', 'delete'] as const) {
     const caller = await getCaller(c);
     if (!caller) return c.json({ error: 'unauthorized' }, 401);
     if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
-    const r = await c.env.DB.prepare('SELECT id, owner_id FROM resources WHERE id = ?').bind(c.req.param('id')).first<{ id: string; owner_id: string }>();
+    const r = await c.env.DB.prepare('SELECT id, owner_id, file_path FROM resources WHERE id = ?').bind(c.req.param('id')).first<{ id: string; owner_id: string; file_path: string | null }>();
     if (!r) return c.json({ error: 'not_found' }, 404);
     const me = await getProfile(c.env.DB, caller.cohortUserId);
     if (r.owner_id !== caller.cohortUserId && !isAdmin(me)) return c.json({ error: 'forbidden', reason: 'not_owner_or_admin' }, 403);
     if (method === 'delete') {
+      if (r.file_path && !await deleteFile(c.env,'resources',r.file_path)) return c.json({error:'conflict',reason:'storage_cleanup_required'},409);
       await c.env.DB.prepare('DELETE FROM resources WHERE id = ?').bind(r.id).run();
       return c.json({ ok: true });
     }
@@ -1165,13 +1170,14 @@ app.post('/api/student-notes', async (c) => {
   if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
   const me = await getProfile(c.env.DB, caller.cohortUserId);
   if (!isActiveMember(me)) return c.json({ error: 'forbidden', reason: 'not_active_member' }, 403);
-  const body = await c.req.json<{ title?: string; subject?: string; meta?: string; owner_id?: string }>().catch(() => null);
+  const body = await c.req.json<{ title?: string; subject?: string; meta?: string; owner_id?: string; file_path?: string; file_name?: string; mime_type?: string }>().catch(() => null);
   if (!body || typeof body.title !== 'string' || body.title.length < 1 || body.title.length > 300) return c.json({ error: 'invalid', reason: 'title_1_300' }, 400);
   if ((body.subject ?? '').length > 120 || (body.meta ?? '').length > 100) return c.json({ error: 'invalid', reason: 'text_too_long' }, 400);
   if (body.owner_id !== undefined && body.owner_id !== caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'owner_mismatch' }, 403);
+  if (body.file_path && !await readyFile(c.env.DB, 'student-notes', body.file_path, caller.cohortUserId)) return c.json({error:'invalid',reason:'file_not_ready_or_owned'},400);
   const id = crypto.randomUUID();
-  await c.env.DB.prepare('INSERT INTO student_notes (id, title, subject, meta, uploader_name, owner_id) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(id, body.title, body.subject ?? '', body.meta ?? '', me!.full_name, caller.cohortUserId).run();
+  await c.env.DB.prepare('INSERT INTO student_notes (id, title, subject, meta, uploader_name, owner_id, file_path, file_name, mime_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, body.title, body.subject ?? '', body.meta ?? '', me!.full_name, caller.cohortUserId, body.file_path ?? null, body.file_name ?? null, body.mime_type ?? null).run();
   return c.json({ id }, 201);
 });
 
@@ -1189,7 +1195,7 @@ for (const method of ['patch', 'delete'] as const) {
       // FAIL CLOSED on byte cleanup (item 2 refinement): a note with a
       // file_path cannot be deleted until R2 byte cleanup lands (item 4) -
       // deleting the row now would orphan storage bytes silently.
-      if (n.file_path) return c.json({ error: 'conflict', reason: 'byte_cleanup_deferred_item4' }, 409);
+      if (n.file_path && !await deleteFile(c.env, 'student-notes', n.file_path)) return c.json({ error: 'conflict', reason: 'byte_cleanup_deferred_item4' }, 409);
       await c.env.DB.prepare('DELETE FROM student_notes WHERE id = ?').bind(n.id).run();
       return c.json({ ok: true });
     }
@@ -1331,7 +1337,7 @@ app.post('/api/jobs', async (c) => {
   if (!(JOB_STATUS as readonly string[]).includes(status))
     return c.json({ error: 'invalid', reason: 'bad_status' }, 400);
   const id = crypto.randomUUID();
-  await c.env.DB.prepare(
+  const insert = c.env.DB.prepare(
     'INSERT INTO jobs (id, cat, firm, role, loc, pay, tags, posted_by, description, deadline, status, openings) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
   )
     .bind(
@@ -1343,7 +1349,9 @@ app.post('/api/jobs', async (c) => {
       typeof body.deadline === 'string' ? body.deadline : null,
       status, openings,
     )
-    .run();
+;
+  const matches=await jobMatchStatements(c.env.DB,{id,firm,role,loc:typeof body.loc==='string'?body.loc:'',tags:Array.isArray(body.tags)?body.tags.filter((t):t is string=>typeof t==='string'):[],posted_by:caller.cohortUserId});
+  await c.env.DB.batch([insert,...matches]);
   return c.json({ id }, 201);
 });
 
@@ -1423,6 +1431,7 @@ app.post('/api/jobs/:id/apply', async (c) => {
     return c.json({ error: 'forbidden', reason: 'forged_user_id' }, 403);
   if (body?.job_id !== undefined && body.job_id !== c.req.param('id'))
     return c.json({ error: 'forbidden', reason: 'job_id_mismatch' }, 403);
+  if (body.resume_path && (typeof body.resume_path !== 'string' || !await readyFile(c.env.DB, 'resumes', body.resume_path, caller.cohortUserId))) return c.json({error:'invalid',reason:'resume_not_ready_or_owned'},400);
   const id = crypto.randomUUID();
   try {
     await c.env.DB.prepare(
@@ -1504,6 +1513,8 @@ app.delete('/api/applications/:id', async (c) => {
   const caller = await getCaller(c);
   if (!caller) return c.json({ error: 'unauthorized' }, 401);
   if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const owned=await c.env.DB.prepare('SELECT resume_path FROM applications WHERE id=? AND user_id=?').bind(c.req.param('id'),caller.cohortUserId).first<{resume_path:string|null}>();
+  if(owned?.resume_path && !await deleteFile(c.env,'resumes',owned.resume_path)) return c.json({error:'conflict',reason:'storage_cleanup_required'},409);
   const del = await c.env.DB.prepare('DELETE FROM applications WHERE id = ? AND user_id = ?').bind(c.req.param('id'), caller.cohortUserId).run();
   if (!del.meta.changes) return c.json({ error: 'not_found' }, 404);
   return c.json({ ok: true });
@@ -1922,7 +1933,7 @@ app.post('/api/admin/trash/:tid/purge', async (c) => {
   // are not ported (no bucket), so a trashed resource with a file_path can
   // never be verified clean - refuse its purge outright.
   const payload = JSON.parse(t.payload) as Record<string, unknown>;
-  if (t.entity_table === 'resources' && typeof payload.file_path === 'string' && payload.file_path.length > 0)
+  if (t.entity_table === 'resources' && typeof payload.file_path === 'string' && payload.file_path.length > 0 && !await deleteFile(c.env,'resources',payload.file_path))
     return c.json({ error: 'conflict', reason: 'storage_cleanup_required' }, 409);
   await c.env.DB.prepare('DELETE FROM trash WHERE id = ?').bind(t.id).run();
   await logActivity(c.env.DB, caller.cohortUserId, me.full_name ?? '', `${t.entity_table}_purged`, t.entity_table, t.entity_id, {
@@ -2022,7 +2033,7 @@ app.patch('/api/profiles/:id', async (c) => {
     sets.push('level = ?'); vals.push(body.level as string);
   }
   if (body.avatar_path !== undefined) {
-    if (body.avatar_path !== null && !str(body.avatar_path, 500)) return c.json({ error: 'invalid', reason: 'avatar_path' }, 400);
+    if (body.avatar_path !== null && (!str(body.avatar_path, 500) || !await readyFile(c.env.DB, 'resources', body.avatar_path as string, id))) return c.json({ error: 'invalid', reason: 'avatar_path' }, 400);
     sets.push('avatar_path = ?'); vals.push(body.avatar_path as string | null);
   }
   if (!setJson('links', body.links, 5, linkOk)) return c.json({ error: 'invalid', reason: 'links' }, 400);
@@ -2114,7 +2125,7 @@ app.delete('/api/posts/:id', async (c) => {
   if (!p) return c.json({ error: 'not_found' }, 404);
   const me = await getProfile(c.env.DB, caller.cohortUserId);
   if (p.author_id !== caller.cohortUserId && !isAdmin(me)) return c.json({ error: 'forbidden', reason: 'not_owner' }, 403);
-  if (p.image_path) return c.json({ error: 'conflict', reason: 'byte_cleanup_deferred_item4' }, 409);
+  if (p.image_path && !await deleteFile(c.env, 'post-images', p.image_path)) return c.json({ error: 'conflict', reason: 'byte_cleanup_deferred_item4' }, 409);
   await c.env.DB.prepare('DELETE FROM post_likes WHERE post_id = ?').bind(p.id).run();
   await c.env.DB.prepare('DELETE FROM comments WHERE post_id = ?').bind(p.id).run();
   await c.env.DB.prepare('DELETE FROM posts WHERE id = ?').bind(p.id).run();
@@ -2219,3 +2230,5 @@ app.get('/api/resources/:id', async (c) => {
 });
 
 export default app;
+
+registerStorage(app, {getCaller, getProfile, isAdmin, isActiveMember});

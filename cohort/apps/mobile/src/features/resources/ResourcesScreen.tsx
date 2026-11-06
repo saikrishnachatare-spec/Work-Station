@@ -1,3 +1,4 @@
+import { openPreviewFile } from '@/lib/api';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
 import { createElement, useState } from 'react';
@@ -42,14 +43,14 @@ export function ResourcesScreen() {
     !q || r.title.toLowerCase().includes(q) || r.course.toLowerCase().includes(q) || (r.subject ?? '').toLowerCase().includes(q);
   const shared = (resources.data ?? []).filter(matches);
   const openResource = async (filePath: string) => {
-    if (CLERK_PREP_ENABLED) { toast.show(previewUnavailable('File downloads', 'item 4').message, 'info'); return; }
+    if (CLERK_PREP_ENABLED) { try { await openPreviewFile('resources',filePath); } catch(e) { toast.show(e instanceof Error?e.message:'Download failed','error'); } return; }
     const { data, error } = await supabase.storage.from('resources').createSignedUrl(filePath, 300);
     if (error || !data) { toast.show('Sign in to open this file, or try again.', 'error'); return; }
     if (Platform.OS === 'web') window.location.assign(data.signedUrl);
     else await Linking.openURL(data.signedUrl);
   };
   const openNote = async (filePath: string) => {
-    if (CLERK_PREP_ENABLED) { toast.show(previewUnavailable('File downloads', 'item 4').message, 'info'); return; }
+    if (CLERK_PREP_ENABLED) { try { await openPreviewFile('student-notes',filePath); } catch(e) { toast.show(e instanceof Error?e.message:'Download failed','error'); } return; }
     const { data, error } = await supabase.storage.from('student-notes').createSignedUrl(filePath, 300);
     if (error || !data) { toast.show('Could not open this file. Try again.', 'error'); return; }
     if (Platform.OS === 'web') window.location.assign(data.signedUrl);

@@ -11,7 +11,8 @@ TMP=$(mktemp -d)
 PORT=8798
 PASS=0; FAIL=0
 cleanup() {
-  [ -n "${WPID:-}" ] && kill "$WPID" 2>/dev/null
+  [ -n "${WPID:-}" ] && kill -- "-$WPID" 2>/dev/null
+  [ -n "${WPID:-}" ] && wait "$WPID" 2>/dev/null || true
   [ -f "$TMP/dev.vars.bak" ] && cp "$TMP/dev.vars.bak" .dev.vars
   rm -rf "$TMP"
 }
@@ -69,8 +70,8 @@ TEXEC=$(mint user_bootExec)
 TMEM=$(mint user_bootMember)
 TNOA=$(mint user_noallow)           # valid token, NOT on bootstrap allowlist
 
-start_worker() { (npx wrangler dev --local --port $PORT >"$TMP/wrangler.log" 2>&1) & WPID=$!; for i in $(seq 1 60); do curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1 && break; sleep 1; done; }
-stop_worker() { kill "$WPID" 2>/dev/null; pkill -f "wrangler dev --local --port $PORT" 2>/dev/null; pkill -f "workerd" 2>/dev/null; sleep 2; }
+start_worker() { (setsid npx wrangler dev --local --port $PORT >"$TMP/wrangler.log" 2>&1) & WPID=$!; for i in $(seq 1 60); do curl -sf "http://localhost:$PORT/health" >/dev/null 2>&1 && break; sleep 1; done; }
+stop_worker() { kill -- "-$WPID" 2>/dev/null; wait "$WPID" 2>/dev/null || true; }
 start_worker
 
 check() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "PASS  $1 ($3)"; else FAIL=$((FAIL+1)); echo "FAIL  $1 expected=$2 got=$3"; fi }
