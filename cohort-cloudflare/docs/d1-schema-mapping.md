@@ -46,3 +46,66 @@ with `wrangler d1 execute --local`, synthetic row insert + join OK).
 5. groups/communities/resources/student_notes + notifications
 6. storage -> R2 with policy-equivalent checks
 7. full export/import rehearsal (needs his approval + CLERK_SECRET_KEY)
+
+## Slice 2: endpoints + ported authorization (2026-11-06)
+
+### Effective-policy replay correction
+
+The earlier "193 policies" figure counted cumulative CREATE POLICY statements
+across all 68 migration files. Policies are dropped and recreated over time,
+so the effective current count comes from a create/drop replay over the
+ordered migrations: ~97 effective policies (text-replay approximation - the
+live database is the final authority). Slice-2 semantics below come from
+reading the effective policy text for these 4 tables directly.
+
+### Ported authorization semantics (worker src/index.ts)
+
+| Rule | Source | Ported as |
+| --- | --- | --- |
+| posts/likes/comments SELECT public (guests included) | 0001 `using (true)` | GET /api/feed, GET /api/posts/:id/comments need no token |
+| profiles SELECT authenticated-only | 0009 | (no profiles endpoint in this slice; rule recorded) |
+| posts INSERT: active member, author_id = caller, kind='post' unless admin | 0001 + 0044 | POST /api/posts; client-sent author_id mismatch -> 403 |
+| post_rate_ok(): <10 own posts/hour | 0044 | COUNT query in worker |
+| likes INSERT: active member, user_id = caller | 0007 | POST /api/posts/:id/like; double like -> 409 (PK) |
+| likes DELETE: user_id = caller only (NO admin override) | 0001 | DELETE .../like; admin deleting another's like -> 404 |
+| comments INSERT: active member, author_id = caller | 0044 | POST /api/posts/:id/comments; body <=2000 (PG CHECK) |
+| comment_rate_ok(): <20 own comments/10min | 0044 | COUNT query in worker |
+| comments DELETE: owner or admin | 0001/0013 | DELETE /api/comments/:id |
+| blocked-terms body filter | 0052 | seeded term list in worker, same rejection message |
+| is_active_member() = profile status 'active' | 0007 | suspended/deleted -> 403 on all writes, reads stay public |
+| is_admin() = role 'admin' AND status 'active' | 0001 | |
+| like_count/comment_count upkeep | 0001/0010 triggers | worker increments/decrements in the same request |
+
+### Known parity gaps / upstream observations (carried, not resolved)
+
+- blocked_terms is admin-editable in Supabase; the worker port uses the
+  seeded static list only. Admin editing -> later slice.
+- posts_guard_flags trigger (0044) guards kind/pinned/author on UPDATE only.
+  This slice ships no post-update endpoint, so there is nothing to guard yet.
+  NOTE: PG policy does NOT guard `pinned` on INSERT (non-admin can insert a
+  pinned post) - mirrored as-is; flagged as an upstream observation, not a
+  port bug.
+- posts_update/post_rate_ok failure returns PG's policy-violation error; the
+  worker returns 403 rate_limited. Status-code shape is a port choice.
+- user_blocks affects DMs only (0016) - out of slice scope, no feed effect.
+- Deleted accounts: PG cascades via FK; D1 schema keeps ON DELETE CASCADE and
+  writes require an active profile row.
+- 20261023000100_profiles.sql is a stale dated draft duplicating 0001 with a
+  different role enum (student/mentor/firm/moderator) and its own policies;
+  applying it after 0001 would error on policy re-creation. Effective schema
+  follows the numbered migrations (role in user/admin). Slice-1 D1 migration
+  corrected accordingly (role enum + status column added).
+
+### Slice-2 local test evidence
+
+test/run-slice2-local.sh: throwaway RSA keypair per run, .dev.vars swapped to
+the synthetic issuer and restored on exit, local D1 reset + seeded with
+synthetic active/suspended/admin profiles, wrangler dev --local. 35/35
+assertions passed (2026-11-06): public reads, 401 no/expired/garbage token,
+suspended -> 403 on all writes, forged author_id -> 403, admin-only
+announcement, blocked terms -> 422, double-like 409, admin-cannot-unlike
+(404), comment delete owner/non-owner/admin matrix, ownership always from the
+token's external_id, count upkeep nets to zero.
+NOT covered by tests: rate-limit counters at the boundary (10 posts/hour,
+20 comments/10min), multi-instance concurrency, real Clerk tokens against
+these endpoints (verified earlier only against /api/me).
