@@ -228,3 +228,62 @@ Mirrored non-obvious upstream semantics (observations, NOT silent changes):
 - Not ported: notification triggers (messages_notify 0050,
   connections_notify_request/accept 0053), realtime, unread-count badges
   (last_read_at carried), PG error shapes.
+
+## Slice 5: groups / communities / resources / student_notes / notifications (0003)
+
+Migration 0003_groups_resources_notifications.sql adds group_invites,
+communities, community_groups, resources, student_notes, notifications
+(final kind enum incl. 'system' per 0050/0053/0055/0059; indexed
+notifications_user_created). Replaces slice-3 stub semantics for groups and
+group_members.
+
+Prep-stage-only schema note: 0002 was edited in place (BEFORE ever being
+applied anywhere) to add CHECK (kind IN ('group','channel')) on groups and
+CHECK (role IN ('admin','member')) on group_members, matching the final
+upstream enums. This in-place rewrite is acceptable only because the
+migration is unapplied throwaway prep state; it must NOT happen after any
+real application.
+
+Endpoints (src/index.ts): groups CRUD + join/leave + members
+add/remove/set-role, invites (member list/create, public token preview,
+join-by-token), communities CRUD + link/unlink, resources (admin-only
+insert), student_notes, notifications (own read + own mark-read only).
+
+Caps: GROUP_CAP=1003 and COMMUNITY_CAP=23 (upstream triggers 0047) enforced
+atomically via INSERT ... SELECT ... WHERE (SELECT COUNT...) < CAP inside a
+D1 batch, with a post-batch membership check returning the PG cap message.
+Atomic only within one D1 database's serialized writes; multi-isolate
+concurrency is not addressed (same scope caveat as slice 2 rate limits).
+
+test/run-slice5-local.sh: 90/90 assertions PASS (2026-11-06), synthetic
+issuer + seeded local D1 only. Fresh regression after 0003: slice2 39/39,
+slice3 84/84, slice5 90/90 run in sequence. Covers: public read vs 401
+matrix; group create (forged created_by, kind enum, suspended/deleted/
+unmapped denied); update role ladder (member < group admin = creator = app
+admin) and DELETE restricted to creator/app-admin ONLY (group admin cannot
+delete - mirrored from 0001); membership join/leave incl. suspended CAN
+leave (no upstream active check - mirrored); add-member policy 0053
+verbatim: group admin AND target active AND (app admin OR connected) - an
+app admin who is not a group admin gets 403 (tested); role changes cannot
+target the creator; cap boundaries at 1003 members / 23 linked groups;
+invites: random 24-hex token, member-only create/read, public preview with
+NO member data, invalid-token 404, idempotent join, suspended denied, 401
+unauthenticated; communities CRUD + link requires community creator AND
+group creator-or-admin (both directions tested, 403); resources insert is
+app-admin-only (0046) with owner-or-admin update/delete; student_notes
+active-only insert with uploader_name from profile, owner update, admin
+delete override; notifications strictly own-only read and mark-read.
+
+Mirrored non-obvious upstream semantics:
+- members_insert_by_group_admin (0053) requires is_group_admin() AND
+  (is_admin() OR are_connected()): app-admin alone does not qualify.
+- groups_delete has no group-admin clause: only creator or app admin.
+- Suspended members can leave groups (no active check in members_delete
+  self path) - mirrored, not strengthened.
+- group_by_invite_token (0008) exposes name/purpose/member_count only.
+
+Not ported (explicit gaps): notification CREATION (server-side triggers
+messages_notify 0050, connections_notify_* 0053, group/invite notifications)
+- there is deliberately no client insert route; realtime push; unread
+badges; multi-instance concurrency; PG error shapes; storage buckets for
+resource/note files (metadata rows only).
