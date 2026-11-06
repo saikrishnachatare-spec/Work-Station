@@ -1,4 +1,4 @@
-# Cohort API worker (Clerk-verified) - PREPARATION ONLY. Not deployed.
+# Cohort API worker (Clerk-verified). Deploys to the isolated TEST preview only.
 name = "cohort-api-prep"
 main = "src/index.ts"
 compatibility_date = "2026-11-05"
@@ -7,8 +7,18 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "cohort-app-prep"
-database_id = "00000000-0000-0000-0000-000000000000" # placeholder, local-only
+database_id = "7b7caf0c-8c3d-4ebc-8abf-5660eaab9f8f"
 
-[[r2_buckets]]
-binding = "FILES"
-bucket_name = "cohort-files-prep" # placeholder, local-only
+# R2 is intentionally NOT bound yet: R2 requires billing enrollment (separate user
+# approval, item 4). The /health probe and file routes handle a missing binding.
+# [[r2_buckets]]
+# binding = "FILES"
+# bucket_name = "cohort-files-prep"
+
+# Deploy-time (non-secret) vars for the isolated TEST preview. The PEM is Clerk's
+# public verification key - safe in-repo. Secrets would go through wrangler secret.
+[vars]
+CLERK_ISSUER = "https://fond-escargot-8888.clerk.accounts.dev"
+CLERK_AUTHORIZED_PARTIES = "https://cohort-test-preview.pages.dev,http://localhost:8789,http://localhost:8081"
+CORS_ORIGINS = "https://cohort-test-preview.pages.dev,http://localhost:8789,http://localhost:8081"
+CLERK_JWT_KEY = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2PWu3w271TDYBG/TL0i+\n5jqwxYgxw3eHn8O+ZAey8JQlzf2VLV1p9VMd/+JgK+fYyd88Pd4/2JxhFaZhwV0Q\nc+p0S5S0px1iFbAs8IQjTRWaQsWjwq+txrGONivA3nEu7ZFF0viGO4MrzLzlI3R6\nW1+GuVNUkaEf2W2A17RYLm/Y9Gap4WrdlhARptb62KcHwucbvYNQLT/X1Sc8FBDd\noQSYIJqyBGrFwJLupPuIDj06HQ3vPQsDzcJHWZENYpvizHivdiZmlxkczCgvgLkY\nrRml1tk9WuwHKgsGEXFeXuMCYqXJydHHgaVJNPlBRUf0iBr4xQOcxhxo2ibxR3X9\ngQIDAQAB\n-----END PUBLIC KEY-----"

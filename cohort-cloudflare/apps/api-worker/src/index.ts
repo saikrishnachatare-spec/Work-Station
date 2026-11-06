@@ -36,7 +36,7 @@ import { verifyToken } from '@clerk/backend';
 
 type Bindings = {
   DB: D1Database;
-  FILES: R2Bucket;
+  FILES?: R2Bucket; // absent until R2 billing enrollment is approved (item 4)
   CLERK_JWT_KEY: string; // PEM public key - not a secret
   CLERK_ISSUER: string; // Frontend API host of the instance
   CORS_ORIGINS?: string;
@@ -131,9 +131,13 @@ app.use(
 
 app.get('/health', async (c) => {
   await c.env.DB.prepare('SELECT 1 AS one').first();
-  await c.env.FILES.put('prep-health.txt', 'ok');
-  const obj = await c.env.FILES.get('prep-health.txt');
-  return c.json({ ok: true, service: 'cohort-api-prep', d1: 'ok', r2: obj ? 'ok' : 'mismatch' });
+  let r2 = 'unbound'; // R2 binding removed until billing enrollment is approved (item 4)
+  if (c.env.FILES) {
+    await c.env.FILES.put('prep-health.txt', 'ok');
+    const obj = await c.env.FILES.get('prep-health.txt');
+    r2 = obj ? 'ok' : 'mismatch';
+  }
+  return c.json({ ok: true, service: 'cohort-api-prep', d1: 'ok', r2 });
 });
 
 app.get('/api/me', async (c) => {
