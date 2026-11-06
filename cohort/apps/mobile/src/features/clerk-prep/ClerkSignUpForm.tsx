@@ -9,16 +9,15 @@
  * the production signup design.
  */
 import { useSignUp } from '@clerk/expo';
-import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Card } from '@/components/Card';
-import { api } from '@/lib/api';
+import { setPendingBootstrap } from './pending-bootstrap';
 import { COURSES, LEVELS } from '@/lib/demo-data';
 import { colors, radius, spacing } from '@/theme';
 
-type Stage = 'form' | 'emailCode' | 'pendingAllowlist';
+type Stage = 'form' | 'emailCode';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+?\d{8,15}$/;
@@ -26,7 +25,6 @@ const normalizePhone = (raw: string) => raw.replace(/[\s().-]/g, '');
 
 export function ClerkSignUpForm() {
   const { signUp } = useSignUp();
-  const router = useRouter();
   const [stage, setStage] = useState<Stage>('form');
   const [acctType, setAcctType] = useState<'individual' | 'firm' | 'enterprise'>('individual');
   const [orgName, setOrgName] = useState('');
@@ -69,27 +67,6 @@ export function ClerkSignUpForm() {
     }
   };
 
-  const bootstrap = async (): Promise<'ok' | 'pending' | 'failed'> => {
-    try {
-      await api('/api/me/bootstrap', {
-        auth: 'required',
-        body: {
-          full_name: name.trim(),
-          account_type: acctType,
-          org_name: acctType === 'individual' ? '' : orgName.trim(),
-          course,
-          level: acctType === 'individual' ? level : '',
-          phone: normalizePhone(phone),
-        },
-      });
-      return 'ok';
-    } catch (e) {
-      const reason = (e as { reason?: string })?.reason;
-      if (reason === 'not_on_bootstrap_allowlist') return 'pending';
-      setError(e instanceof Error ? e.message : 'Onboarding failed');
-      return 'failed';
-    }
-  };
 
   const submitCode = async () => {
     setBusy(true);
@@ -98,37 +75,30 @@ export function ClerkSignUpForm() {
       const { error: err } = await signUp.verifications.verifyEmailCode({ code: code.trim() });
       if (err) { setError(err.message ?? 'Wrong code'); return; }
       if (signUp.status !== 'complete') { setError(`Unexpected status: ${String(signUp.status)}`); return; }
+      // Stash the onboarding payload BEFORE finalize: activating the session
+      // flips AuthGate to the unmapped gate, which unmounts this form. The
+      // gate (identity-bound to this sub) runs POST /api/me/bootstrap and
+      // handles allowlist-pending / retry / reload. See pending-bootstrap.ts.
+      const createdId = signUp.createdUserId;
+      if (!createdId) { setError('Account id missing after verification'); return; }
+      setPendingBootstrap({
+        sub: createdId,
+        full_name: name.trim(),
+        account_type: acctType,
+        org_name: acctType === 'individual' ? '' : orgName.trim(),
+        course,
+        level: acctType === 'individual' ? level : '',
+        phone: normalizePhone(phone),
+      });
       const fin = await signUp.finalize();
       if (fin.error) { setError(fin.error.message ?? 'Could not activate session'); return; }
-      const outcome = await bootstrap();
-      if (outcome === 'pending') { setStage('pendingAllowlist'); return; }
-      if (outcome === 'failed') return;
-      // The session store fetches /api/me once per sign-in; the simplest
-      // reliable refresh on web is a reload (session persists via tokenCache).
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.location.href = acctType === 'individual' ? '/' : '/company';
-        return;
-      }
-      router.replace(acctType === 'individual' ? '/' : '/company');
+      // The unmapped gate takes it from here.
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
   };
-
-  if (stage === 'pendingAllowlist') {
-    return (
-      <Card style={{ gap: spacing.sm }}>
-        <Text style={styles.title}>Preview allowlisting pending</Text>
-        <Text style={styles.muted}>
-          Your account was created and your email is verified. This test preview keeps new accounts blocked until the
-          test owner allowlists the sign-in server-side (a preview-only gate; the production app has no such step).
-          Once allowlisted, sign in again to finish onboarding.
-        </Text>
-      </Card>
-    );
-  }
 
   return (
     <Card>

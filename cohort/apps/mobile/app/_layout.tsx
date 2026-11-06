@@ -17,6 +17,7 @@ import { queryClient } from '@/lib/queryClient';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/session';
 import { colors } from '@/theme';
+import { ClerkPrepUnmappedGate } from '@/features/clerk-prep/ClerkPrepUnmappedGate';
 
 /** Constant header title container style that keeps SSR HTML and client
  * hydration identical (fixes React error #418). Untyped in native-stack. */
@@ -50,16 +51,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   }, [guest, loading, router, segments, session]);
 
   // Flag-on only: a valid Clerk sign-in with no test-profile binding must
-  // never render blank private UI - show the explicit blocked state.
+  // never render blank private UI - show the explicit blocked state. The gate
+  // also completes pending signup onboarding (bootstrap) when a payload was
+  // stashed for this sub; see ClerkPrepUnmappedGate.
   if (unmapped) {
-    return (
-      <View style={{ alignItems: 'center', backgroundColor: colors.cream, flex: 1, justifyContent: 'center', padding: 24 }}>
-        <Text style={{ color: colors.brand, fontSize: 20, fontWeight: '800', marginBottom: 8 }}>Not a preview test account</Text>
-        <Text style={{ color: '#555', textAlign: 'center' }}>
-          This sign-in is not on the preview allowlist, so member features stay off. Only synthetic test identities can use the preview.
-        </Text>
-      </View>
-    );
+    return <ClerkPrepUnmappedGate />;
   }
 
   if (loading && Platform.OS !== 'web') {

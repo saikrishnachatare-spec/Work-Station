@@ -16,6 +16,7 @@ import { useAuth as useClerkAuth, useUser } from '@clerk/expo';
 import { useEffect, useState } from 'react';
 
 import { api, clerkSignOutNow } from '@/lib/api';
+import { clearPendingBootstrap } from '@/features/clerk-prep/pending-bootstrap';
 import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 import { queryClient } from '@/lib/queryClient';
 import { supabase } from '@/lib/supabase';
@@ -139,6 +140,9 @@ export async function signOut() {
   // account's private query snapshots (stage-2 browser-verification fix).
   queryClient.clear();
   if (CLERK_PREP_ENABLED) {
+    // Drop any half-finished signup onboarding with the session so a later
+    // account on this device never inherits it.
+    clearPendingBootstrap();
     await clerkSignOutNow();
     return;
   }
