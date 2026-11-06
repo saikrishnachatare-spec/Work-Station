@@ -105,6 +105,16 @@ async function getCaller(c: {
       const row = await c.env.DB.prepare('SELECT 1 AS x FROM profiles WHERE id = ?').bind(sub).first();
       if (row) return { clerkUserId: sub, cohortUserId: sub };
     }
+    // Stage-3 preview bootstrap (TEST FIXTURE, not production signup design):
+    // subs that completed POST /api/me/bootstrap after owner allowlisting bind
+    // the same way. Same production-inert triple gate above still applies.
+    if (sub) {
+      const bound = await c.env.DB.prepare('SELECT 1 AS x FROM preview_bound_subs WHERE sub = ?').bind(sub).first();
+      if (bound) {
+        const row = await c.env.DB.prepare('SELECT 1 AS x FROM profiles WHERE id = ?').bind(sub).first();
+        if (row) return { clerkUserId: sub, cohortUserId: sub };
+      }
+    }
     return { clerkUserId: sub, cohortUserId: null };
   } catch {
     return null;
@@ -185,6 +195,76 @@ app.get('/api/me', async (c) => {
   const caller = await getCaller(c);
   if (!caller) return c.json({ error: 'unauthorized' }, 401);
   return c.json({ clerkUserId: caller.clerkUserId, cohortUserId: caller.cohortUserId });
+});
+
+// ------------------------------------------------------- signup bootstrap
+// Stage 3 (signup/onboarding), PREVIEW-ONLY test fixture - not a production
+// signup design. Mirrors the upstream handle_new_user trigger (0041) for the
+// fields the signup form collects: phone is required and validated, profile +
+// profile_contacts rows are created, account-type coercion matches
+// (firm/enterprise else individual; org_name only for firms; course whitelisted
+// to CA/CMA/CS else ''; level stored for individuals, bounded by the profiles
+// CHECK constraint set). Differences from production are deliberate and
+// labeled: (1) the caller's sub must sit in the owner-managed
+// preview_bootstrap_allowlist table (wrangler d1 only - no API writes it);
+// (2) stored full_name carries a [SYNTHETIC] prefix so test-created
+// identities stay visibly synthetic. Product validation rules themselves are
+// unchanged. Atomicity: the three inserts run in one D1 batch - a failure
+// leaves no half-onboarded identity; a concurrent/repeat bootstrap loses on
+// the primary key and gets 409. The route is hidden (404) unless the same
+// triple gate as the identity binding holds (PREVIEW_IDENTITY_BINDING=enabled
+// + exact issuer pin + Clerk dev host), so it is inert in production.
+app.post('/api/me/bootstrap', async (c) => {
+  if (c.env.PREVIEW_IDENTITY_BINDING !== 'enabled') return c.json({ error: 'not_found' }, 404);
+  if (!c.env.PREVIEW_DEV_ISSUER || c.env.CLERK_ISSUER !== c.env.PREVIEW_DEV_ISSUER)
+    return c.json({ error: 'not_found' }, 404);
+  let issuerIsDev = false;
+  try { issuerIsDev = new URL(c.env.CLERK_ISSUER).host.endsWith('.clerk.accounts.dev'); } catch { issuerIsDev = false; }
+  if (!issuerIsDev) return c.json({ error: 'not_found' }, 404);
+
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (caller.cohortUserId) return c.json({ error: 'conflict', reason: 'already_provisioned' }, 409);
+  const approved = await c.env.DB
+    .prepare('SELECT 1 AS x FROM preview_bootstrap_allowlist WHERE sub = ?')
+    .bind(caller.clerkUserId)
+    .first();
+  if (!approved) return c.json({ error: 'forbidden', reason: 'not_on_bootstrap_allowlist' }, 403);
+
+  let body: unknown;
+  try { body = await c.req.json(); } catch { return c.json({ error: 'bad_request' }, 400); }
+  const b = (body ?? {}) as Record<string, unknown>;
+  const name = typeof b.full_name === 'string' ? b.full_name.trim().slice(0, 120) : '';
+  if (!name) return c.json({ error: 'bad_request', reason: 'full_name_required' }, 400);
+  const acct = b.account_type === 'firm' || b.account_type === 'enterprise' ? b.account_type : 'individual';
+  const orgName = acct === 'individual' ? '' : (typeof b.org_name === 'string' ? b.org_name.trim().slice(0, 120) : '');
+  const course = b.course === 'CA' || b.course === 'CMA' || b.course === 'CS' ? b.course : '';
+  const level = acct === 'individual' && typeof b.level === 'string' ? b.level.trim() : '';
+  const phone = typeof b.phone === 'string' ? b.phone.trim().slice(0, 32) : '';
+  if (!/^\+?\d{8,15}$/.test(phone))
+    return c.json({ error: 'bad_request', reason: 'phone_number_required_or_invalid' }, 400);
+
+  try {
+    await c.env.DB.batch([
+      c.env.DB
+        .prepare('INSERT INTO profiles (id, full_name, account_type, org_name, course, level) VALUES (?, ?, ?, ?, ?, ?)')
+        .bind(caller.clerkUserId, `[SYNTHETIC] ${name}`, acct, orgName, course, level),
+      c.env.DB
+        .prepare('INSERT INTO profile_contacts (user_id, phone) VALUES (?, ?)')
+        .bind(caller.clerkUserId, phone),
+      c.env.DB
+        .prepare('INSERT INTO preview_bound_subs (sub) VALUES (?)')
+        .bind(caller.clerkUserId),
+    ]);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/CHECK constraint/i.test(msg))
+      return c.json({ error: 'bad_request', reason: 'level_invalid' }, 400);
+    // PRIMARY KEY conflict: concurrent or repeated bootstrap - nothing
+    // half-written, the earlier complete bootstrap stands.
+    return c.json({ error: 'conflict', reason: 'already_provisioned' }, 409);
+  }
+  return c.json({ account_type: acct, cohortUserId: caller.clerkUserId, ok: true }, 201);
 });
 
 // ---------------------------------------------------------------- feed (public)
