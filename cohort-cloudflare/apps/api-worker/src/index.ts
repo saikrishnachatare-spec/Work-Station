@@ -66,8 +66,12 @@ async function getCaller(c: {
       authorizedParties: c.env.CLERK_AUTHORIZED_PARTIES.split(',').map((s) => s.trim()).filter(Boolean),
     });
     const sub = claims.sub;
-    // Real import path (item 10): external_id set through the Clerk Backend API.
-    const ext = (claims.external_id as string) || null;
+    // Real import path (item 10): external_id set through the Clerk Backend
+    // API. Accepted only as a well-formed id string (Clerk user ids /
+    // Supabase UUIDs) from the pinned, verified issuer - a malformed or
+    // wrong-typed claim is treated as ABSENT, never coerced or trusted.
+    const extRaw: unknown = claims.external_id;
+    const ext = typeof extRaw === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(extRaw) ? extRaw : null;
     if (ext) return { clerkUserId: sub, cohortUserId: ext };
     // PREVIEW-ONLY explicit binding (item 2, replaces nothing real): the sub
     // must be on the server-controlled TEST_SUB_ALLOWLIST AND have a D1
@@ -75,6 +79,13 @@ async function getCaller(c: {
     // no auto-provisioning, no other fallback. Anything else gets
     // cohortUserId null, and member-only routes deny it. Item 10 replaces
     // this with the Backend-API external_id mapping for real users.
+    // Structurally inert in production: honored only when the pinned issuer
+    // is a Clerk DEVELOPMENT instance (*.clerk.accounts.dev hosts; production
+    // instances use clerk.<domain> hosts), so the path cannot activate
+    // against a production deployment even if the var were set by mistake.
+    let issuerIsDev = false;
+    try { issuerIsDev = new URL(c.env.CLERK_ISSUER).host.endsWith('.clerk.accounts.dev'); } catch { issuerIsDev = false; }
+    if (!issuerIsDev) return { clerkUserId: sub, cohortUserId: null };
     const allowed = (c.env.TEST_SUB_ALLOWLIST ?? '').split(',').map((s) => s.trim()).filter(Boolean);
     if (sub && allowed.includes(sub)) {
       const row = await c.env.DB.prepare('SELECT 1 AS x FROM profiles WHERE id = ?').bind(sub).first();

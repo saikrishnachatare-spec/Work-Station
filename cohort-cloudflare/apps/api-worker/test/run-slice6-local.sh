@@ -30,7 +30,7 @@ const pub = readFileSync(process.argv[1] + "/pub.pem", "utf8").trim().replace(/\
 writeFileSync(".dev.vars",
 `# SYNTHETIC LOCAL TEST VALUES - written by test/run-slice6-local.sh, restored on exit
 CLERK_JWT_KEY="${pub}"
-CLERK_ISSUER="https://synthetic.test"
+CLERK_ISSUER="https://synthetic.clerk.accounts.dev"
 CLERK_AUTHORIZED_PARTIES="https://synthetic.test"
 TEST_SUB_ALLOWLIST="user_allowA,user_allowNoRow"
 `);
@@ -67,7 +67,7 @@ INSERT OR REPLACE INTO notifications (id, user_id, kind, title) VALUES
  ('n3','$B','system','for bob');
 " >/dev/null
 
-mint() { node test/mint-token.mjs "$TMP/key.pem" "$1" "$2" "${3:-300}"; }
+mint() { MINT_ISSUER="https://synthetic.clerk.accounts.dev" node test/mint-token.mjs "$TMP/key.pem" "$1" "$2" "${3:-300}"; }
 TA=$(mint sub_synth_A "$A"); TB=$(mint sub_synth_B "$B"); TADM=$(mint sub_synth_ADM "$ADM")
 TALLOW=$(mint "$ALA" -)        # allowlisted sub, profile row exists, no external_id
 TALLOWNR=$(mint "$ALNR" -)     # allowlisted sub, NO profile row
@@ -151,6 +151,30 @@ check 'search anon: posts found'                 1 "$(echo "$ANON" | node -pe 'J
 AUTH=$(curl -s -H "Authorization: Bearer $TA" "$BASE/api/search?q=alice")
 check 'search authed: people found'              1 "$(echo "$AUTH" | node -pe 'JSON.parse(require("fs").readFileSync(0)).people.length')"
 check 'search short query empty'                 0 "$(curl -s "$BASE/api/search?q=a" | node -pe 'JSON.parse(require("fs").readFileSync(0)).posts.length')"
+
+echo '--- external_id claim strictness (item 10 path)'
+BADEXT1=$(MINT_ISSUER="https://synthetic.clerk.accounts.dev" node -e '
+const { createSign } = require("node:crypto");
+const { readFileSync } = require("node:fs");
+const b64u = (b) => Buffer.from(b).toString("base64url");
+const now = Math.floor(Date.now()/1000);
+const h = b64u(JSON.stringify({alg:"RS256",typ:"JWT",kid:"synthetic-test-key"}));
+const p = b64u(JSON.stringify({sub:"sub_badext",iss:process.env.MINT_ISSUER,azp:"https://synthetic.test",iat:now-10,nbf:now-10,exp:now+300,sid:"s",external_id:12345}));
+const s = createSign("RSA-SHA256"); s.update(h+"."+p);
+console.log(h+"."+p+"."+s.sign(readFileSync(process.argv[1],"utf8")).toString("base64url"));
+' "$TMP/key.pem")
+check 'external_id numeric claim treated as absent'   'null' "$(curl -s -H "Authorization: Bearer $(echo "$BADEXT1" | sed -n 1p)" "$BASE/api/me" | node -pe 'String(JSON.parse(require("fs").readFileSync(0)).cohortUserId)' 2>/dev/null || echo curlfail)"
+BADEXT2=$(MINT_ISSUER="https://synthetic.clerk.accounts.dev" node -e '
+const { createSign } = require("node:crypto");
+const { readFileSync } = require("node:fs");
+const b64u = (b) => Buffer.from(b).toString("base64url");
+const now = Math.floor(Date.now()/1000);
+const h = b64u(JSON.stringify({alg:"RS256",typ:"JWT",kid:"synthetic-test-key"}));
+const p = b64u(JSON.stringify({sub:"sub_badext2",iss:process.env.MINT_ISSUER,azp:"https://synthetic.test",iat:now-10,nbf:now-10,exp:now+300,sid:"s",external_id:"../../etc/passwd $evil"}));
+const s = createSign("RSA-SHA256"); s.update(h+"."+p);
+console.log(h+"."+p+"."+s.sign(readFileSync(process.argv[1],"utf8")).toString("base64url"));
+' "$TMP/key.pem")
+check 'external_id malformed string treated as absent' 'null' "$(curl -s -H "Authorization: Bearer $BADEXT2" "$BASE/api/me" | node -pe 'String(JSON.parse(require("fs").readFileSync(0)).cohortUserId)')"
 
 echo
 echo "slice6: $PASS passed, $FAIL failed"

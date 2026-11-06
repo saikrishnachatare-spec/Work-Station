@@ -12,7 +12,7 @@ const now = Math.floor(Date.now() / 1000);
 const header = b64u(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: 'synthetic-test-key' }));
 const claims = {
   sub,
-  iss: 'https://synthetic.test',
+  iss: process.env.MINT_ISSUER ?? 'https://synthetic.test',
   azp: 'https://synthetic.test',
   iat: now - 10,
   nbf: now - 10,
