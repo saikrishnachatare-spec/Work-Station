@@ -192,3 +192,39 @@ RPCs the app calls (must become worker endpoints in the endpoints slice):
 - Group-channel posting rule depends on groups.kind + is_group_admin (stubs); full group semantics arrive in slice 5 - until then group-thread rules are mapped but only stub-testable.
 - messages.sender_id is nullable in PG (0001) - kept nullable; worker always sets it from the token.
 - sqlite min()/max() scalar functions replicate PG least()/greatest() in the pair index.
+
+### Slice-3 endpoints + tests (2026-11-06)
+
+Worker endpoints (apps/api-worker/src/index.ts): POST /api/dm (start_dm port),
+GET /api/threads (threads_read as list; admin sees all), GET/POST
+/api/threads/:id/messages (messages_read/insert ports), POST
+/api/threads/:id/read (mark_thread_read port), GET/POST /api/connections +
+POST /api/connections/:id/respond + DELETE /api/connections/:id,
+GET/POST/DELETE /api/blocks (user_blocks own rows).
+
+test/run-slice3-local.sh: 84/84 assertions PASS (2026-11-06), synthetic
+issuer + seeded local D1 only. Covers: 401/403 auth matrix incl. expired and
+unmapped tokens; DM gate (connected/admin-recipient/firm-caller exemptions,
+reuse, blank-first, blocked-term and length on first message); message read
+rules incl. NO admin override on DM bodies (mirrored) and group membership;
+message insert rules incl. forged sender_id, channel-vs-group posting via
+group-admin distinction; block/unblock both directions + cross-user
+isolation; mark-read own-row-only; connection request/respond/delete matrix
+incl. reverse-duplicate 409, re-request after decline (0060), block and
+suspension checks; rate-limit boundary (31st/min -> 403) + per-user
+isolation; start_dm first-message rate-limit bypass (mirrored upstream gap).
+
+Mirrored non-obvious upstream semantics (observations, NOT silent changes):
+- Suspension deny is NOT blanket: it blocks start_dm, messages_insert,
+  connections_request (source checks is_active_member) but NOT
+  connections_respond, connections_remove, user_blocks CRUD or
+  mark_thread_read (no upstream check) - a suspended member can still accept
+  a pending request, remove connections, manage blocks and mark read.
+- start_dm's first-message insert bypasses the 30/min rate limit (security
+  definer bypasses RLS; the blocked-terms TRIGGER still applies) - mirrored.
+- Admin can list DM threads but cannot read their message bodies.
+- Group/channel rules tested against STUB groups/group_members rows only;
+  full group semantics land in slice 5.
+- Not ported: notification triggers (messages_notify 0050,
+  connections_notify_request/accept 0053), realtime, unread-count badges
+  (last_read_at carried), PG error shapes.
