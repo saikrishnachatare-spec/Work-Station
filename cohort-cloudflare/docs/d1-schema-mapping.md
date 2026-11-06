@@ -138,3 +138,57 @@ the /clerk-prep route) - and every new endpoint uses that same verification
 helper. Still open by design: external_id-bearing imported-user tokens
 (untestable until the scoped import rehearsal; external_id is
 Backend-API-only).
+
+## Slice 3: messaging + connections schema and authorization mapping (2026-11-06)
+
+`apps/api-worker/migrations/0002_messaging_connections.sql` APPLIES on local D1
+(verified 2026-11-06: synthetic seed across all tables; reversed-pair duplicate
+rejected by `connections_pair_unique`; empty body rejected by the 1..4000 CHECK;
+self-block rejected; re-request after decline accepted (0060 semantics);
+DM-thread message/participant join OK). Schema + mapping only - NO endpoints yet.
+
+### Tables (D1)
+
+| Table | Source | Notes |
+| --- | --- | --- |
+| groups (STUB) | 0001 + kind 0045 | only the columns messaging authz needs; slice 5 expands |
+| group_members (STUB) | 0001 + role 0036 | same |
+| threads | 0001 + group_id 0008 | group_id NULL = DM; non-NULL = group/channel chat |
+| thread_participants | 0001 + last_read_at 0020 | last_read_at powers unread counts |
+| messages | 0001 + cap 0044 | CHECK length(body) 1..4000; indexes on (thread_id,created_at),(sender_id,created_at) |
+| connections | 0053 + 0060 | partial unique pair index on (min(r,a), max(r,a)) WHERE status IN (pending,accepted) - declined rows do not hold the pair (re-request allowed) |
+| user_blocks | 0016 | PG default blocker_id=auth.uid() moves to worker code |
+
+### Effective authorization semantics (create/drop replay, then direct reads)
+
+threads (2 policies):
+- threads_read (0043): authenticated AND (is_thread_member(id) OR (group_id set AND is_group_member) OR is_admin()).
+- threads_insert (0043): group threads only - group_id set + is_group_member + is_active_member. DM threads are NOT insertable directly; start_dm RPC (security definer) creates them.
+
+messages (2 policies):
+- messages_read (0008): is_thread_member(thread_id) OR is_group_thread_member(thread_id). No admin override in the policy text (admin DM visibility comes from 0058 only via start_dm access, not read). No `to authenticated` clause, but the helper functions all key on auth.uid(), so guests get nothing.
+- messages_insert (0045): sender_id = caller AND active member AND (thread member OR (group-thread member AND (channel kind = 'group' OR group admin))) AND no block between caller and ANY thread participant AND message_rate_ok() (<30 own messages/minute, 0044).
+
+thread_participants (1 policy):
+- participants_read (0004): self OR admin OR fellow member of the same thread. No direct insert policy - participants are written by start_dm (definer) / group-join paths.
+
+connections (4 policies, 0053):
+- connections_read: caller involved OR status='accepted' (accepted connections are visible to EVERY signed-in member - profiles show them) OR admin.
+- connections_request (insert): requester = caller AND active member AND status='pending' AND no block either way AND addressee profile exists and is active.
+- connections_respond (update): addressee only, from 'pending' to 'accepted'/'declined'.
+- connections_remove (delete): requester OR addressee (withdraw pending / end connection).
+- 0060: pair uniqueness only over live states - after a decline, either side may re-request.
+
+user_blocks (1 policy, 0016): blocks_own - full CRUD on rows where blocker_id = caller. has_block_between(a,b) checks both directions (0016).
+
+RPCs the app calls (must become worker endpoints in the endpoints slice):
+- start_dm(p_other, p_first) (final def 0058): auth + active member; recipient exists+active; no block; GATE: is_admin() OR are_connected OR recipient is admin OR caller account_type in (firm,enterprise) - else 'Connect with this member first'; reuses existing 2-person DM thread else creates thread + 2 participants; blank first message opens thread without a message; non-blank inserts it (body trim).
+- mark_thread_read(p_thread) (0020): updates ONLY the caller's thread_participants.last_read_at; not_a_participant error otherwise.
+
+### Parity gaps / carried observations (slice 3)
+
+- Trigger side-effects NOT ported: messages_notify (0050, notifications on new message), messages_clean (0052, blocked-terms on message bodies - the filter itself ports as worker code like slice 2), connections_notify_request/accept (0053).
+- unread-count/read-state semantics: last_read_at column carried; app-side unread counting to be ported with endpoints.
+- Group-channel posting rule depends on groups.kind + is_group_admin (stubs); full group semantics arrive in slice 5 - until then group-thread rules are mapped but only stub-testable.
+- messages.sender_id is nullable in PG (0001) - kept nullable; worker always sets it from the token.
+- sqlite min()/max() scalar functions replicate PG least()/greatest() in the pair index.
