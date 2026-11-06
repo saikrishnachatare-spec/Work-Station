@@ -1,6 +1,4 @@
 import { queryPollDelay, useForeground } from '@/lib/liveUpdates';
-import { CLERK_PREP_API_URL } from '@/lib/clerk';
-import { uploadPreviewFile } from '@/lib/api';
 /**
  * Live data layer: every screen reads from and writes to Supabase.
  * Reads are public (RLS); writes need a signed-in user.
@@ -8,8 +6,8 @@ import { uploadPreviewFile } from '@/lib/api';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { api, previewUnavailable } from '@/lib/api';
-import { CLERK_PREP_ENABLED } from '@/lib/clerk';
+import { api, uploadPreviewFile } from '@/lib/api';
+import { CLERK_PREP_ENABLED, CLERK_PREP_API_URL } from '@/lib/clerk';
 import { supabase } from '@/lib/supabase';
 
 export type Post = {

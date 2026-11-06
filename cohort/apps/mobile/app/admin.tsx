@@ -22,7 +22,7 @@ import {
   timeAgo, useActivityLog, useLiveAdminFeed, useGroups, useJobs, useMyProfile, usePosts, useProfiles, useResources, useTrash,
   type ActivityRow, type TrashRow, useCreateResource,
   usePendingVerificationRequests, useReviewVerificationRequest, parseTs } from '@/lib/data';
-import { api, previewUnavailable } from '@/lib/api';
+import { api } from '@/lib/api';
 import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/session';
