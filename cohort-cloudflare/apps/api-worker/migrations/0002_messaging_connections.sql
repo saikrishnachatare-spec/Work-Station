@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS groups (
   name TEXT NOT NULL,
   purpose TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
-  kind TEXT NOT NULL DEFAULT 'group',             -- 0045 (group / channel)
+  kind TEXT NOT NULL DEFAULT 'group' CHECK (kind IN ('group','channel')), -- 0045
   member_count INTEGER NOT NULL DEFAULT 0,
   created_by TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS groups (
 CREATE TABLE IF NOT EXISTS group_members (
   group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'member',            -- 0036 (member / admin)
+  role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin','member')), -- 0036
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (group_id, user_id)
 );

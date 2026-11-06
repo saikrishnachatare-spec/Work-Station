@@ -627,4 +627,476 @@ app.delete('/api/blocks/:id', async (c) => {
   return c.json({ ok: true });
 });
 
+
+// ================================================================ slice 5
+// Groups/communities/resources/student_notes/notifications. Rules mirrored
+// from the EFFECTIVE policies (docs/d1-schema-mapping.md slice 5). member_count
+// upkeep replaces the bump_member_count trigger (absolute recompute in-batch);
+// the 0047 caps (1003 members/group, 23 groups/community) replace the cap
+// triggers (checked inside the same batch as the insert).
+
+const GROUP_CAP = 1003; // 0047
+const COMMUNITY_CAP = 23; // 0047
+
+function recountMembers(db: D1Database, groupId: string): D1PreparedStatement {
+  return db.prepare('UPDATE groups SET member_count = (SELECT COUNT(*) FROM group_members WHERE group_id = ?) WHERE id = ?')
+    .bind(groupId, groupId);
+}
+
+// groups_read (0001): public. my_role included when a mapped token is sent.
+app.get('/api/groups', async (c) => {
+  const caller = await getCaller(c);
+  const { results } = await c.env.DB.prepare('SELECT id, name, purpose, description, kind, member_count, created_by, created_at FROM groups ORDER BY created_at DESC LIMIT 200').all();
+  if (!caller?.cohortUserId) return c.json({ groups: results });
+  const mine = await c.env.DB.prepare('SELECT group_id, role FROM group_members WHERE user_id = ?').bind(caller.cohortUserId).all<{ group_id: string; role: string }>();
+  const roles = new Map(mine.results.map((r) => [r.group_id, r.role]));
+  return c.json({ groups: results.map((g: Record<string, unknown>) => ({ ...g, my_role: roles.get(g.id as string) ?? null })) });
+});
+
+// groups_insert (0007): created_by = caller, active member. The app flow adds
+// the creator as an admin member - done in the same batch.
+app.post('/api/groups', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (!isActiveMember(me)) return c.json({ error: 'forbidden', reason: 'not_active_member' }, 403);
+  const body = await c.req.json<{ name?: string; purpose?: string; description?: string; kind?: string; created_by?: string }>().catch(() => null);
+  if (!body || typeof body.name !== 'string' || body.name.trim() === '') return c.json({ error: 'invalid', reason: 'name_required' }, 400);
+  if (body.created_by !== undefined && body.created_by !== caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'creator_mismatch' }, 403);
+  const kind = body.kind ?? 'group';
+  if (!['group', 'channel'].includes(kind)) return c.json({ error: 'invalid', reason: 'bad_kind' }, 400);
+  const id = crypto.randomUUID();
+  await c.env.DB.batch([
+    c.env.DB.prepare('INSERT INTO groups (id, name, purpose, description, kind, created_by) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(id, body.name, body.purpose ?? '', body.description ?? '', kind, caller.cohortUserId),
+    c.env.DB.prepare("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, 'admin')").bind(id, caller.cohortUserId),
+    recountMembers(c.env.DB, id),
+  ]);
+  return c.json({ id }, 201);
+});
+
+// groups_update (0001) + groups_update_by_group_admin (0036): creator, app
+// admin, or group admin.
+app.patch('/api/groups/:id', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const g = await c.env.DB.prepare('SELECT id, created_by FROM groups WHERE id = ?').bind(c.req.param('id')).first<{ id: string; created_by: string }>();
+  if (!g) return c.json({ error: 'not_found' }, 404);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  const ok = g.created_by === caller.cohortUserId || isAdmin(me) || (await isGroupAdmin(c.env.DB, g.id, caller.cohortUserId));
+  if (!ok) return c.json({ error: 'forbidden', reason: 'not_group_manager' }, 403);
+  const body = await c.req.json<{ name?: string; purpose?: string; description?: string; kind?: string }>().catch(() => null);
+  if (!body) return c.json({ error: 'invalid' }, 400);
+  if (body.kind !== undefined && !['group', 'channel'].includes(body.kind)) return c.json({ error: 'invalid', reason: 'bad_kind' }, 400);
+  await c.env.DB.prepare('UPDATE groups SET name = COALESCE(?, name), purpose = COALESCE(?, purpose), description = COALESCE(?, description), kind = COALESCE(?, kind) WHERE id = ?')
+    .bind(body.name ?? null, body.purpose ?? null, body.description ?? null, body.kind ?? null, g.id).run();
+  return c.json({ ok: true });
+});
+
+// groups_delete (0001): creator or APP admin only - group admins cannot
+// delete (0036 extended update only). Mirrored.
+app.delete('/api/groups/:id', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const g = await c.env.DB.prepare('SELECT id, created_by FROM groups WHERE id = ?').bind(c.req.param('id')).first<{ id: string; created_by: string }>();
+  if (!g) return c.json({ error: 'not_found' }, 404);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (g.created_by !== caller.cohortUserId && !isAdmin(me)) return c.json({ error: 'forbidden', reason: 'not_creator_or_admin' }, 403);
+  await c.env.DB.prepare('DELETE FROM groups WHERE id = ?').bind(g.id).run();
+  return c.json({ ok: true });
+});
+
+// members_insert (0036 self-join path): user = caller, active, role member.
+// Cap trigger (0047) replaced by an in-batch count check.
+app.post('/api/groups/:id/join', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (!isActiveMember(me)) return c.json({ error: 'forbidden', reason: 'not_active_member' }, 403);
+  const g = await c.env.DB.prepare('SELECT id FROM groups WHERE id = ?').bind(c.req.param('id')).first();
+  if (!g) return c.json({ error: 'not_found' }, 404);
+  const gid = c.req.param('id');
+  try {
+    await c.env.DB.batch([
+      c.env.DB.prepare("INSERT INTO group_members (group_id, user_id, role) SELECT ?, ?, 'member' WHERE (SELECT COUNT(*) FROM group_members WHERE group_id = ?) < " + GROUP_CAP)
+        .bind(gid, caller.cohortUserId, gid),
+      recountMembers(c.env.DB, gid),
+    ]);
+  } catch {
+    return c.json({ error: 'conflict', reason: 'already_member' }, 409);
+  }
+  const isMember = await isGroupMember2(c.env.DB, gid, caller.cohortUserId);
+  if (!isMember) return c.json({ error: 'forbidden', reason: 'This group is full (1003 members).' }, 403);
+  return c.json({ ok: true }, 201);
+});
+async function isGroupMember2(db: D1Database, groupId: string, userId: string): Promise<boolean> {
+  const r = await db.prepare('SELECT 1 AS x FROM group_members WHERE group_id = ? AND user_id = ?').bind(groupId, userId).first();
+  return !!r;
+}
+
+// members_delete self path (0001): leave. No active-member check upstream -
+// suspended members can leave (mirrored).
+app.post('/api/groups/:id/leave', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const gid = c.req.param('id');
+  const del = await c.env.DB.prepare('DELETE FROM group_members WHERE group_id = ? AND user_id = ?').bind(gid, caller.cohortUserId).run();
+  if (!del.meta.changes) return c.json({ error: 'not_found', reason: 'not_a_member' }, 404);
+  await recountMembers(c.env.DB, gid).run();
+  return c.json({ ok: true });
+});
+
+// members_insert_by_group_admin (0053): group admin adds ANOTHER member;
+// role member; target active; app admin OR connected to the target.
+app.post('/api/groups/:id/members', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const gid = c.req.param('id');
+  const g = await c.env.DB.prepare('SELECT id, created_by FROM groups WHERE id = ?').bind(gid).first<{ id: string; created_by: string }>();
+  if (!g) return c.json({ error: 'not_found' }, 404);
+  if (!(await isGroupAdmin(c.env.DB, gid, caller.cohortUserId))) return c.json({ error: 'forbidden', reason: 'not_group_admin' }, 403);
+  const body = await c.req.json<{ user_id?: string }>().catch(() => null);
+  if (!body?.user_id) return c.json({ error: 'invalid', reason: 'user_id_required' }, 400);
+  if (body.user_id === caller.cohortUserId) return c.json({ error: 'invalid', reason: 'use_join_for_self' }, 400);
+  const target = await getProfile(c.env.DB, body.user_id);
+  if (!target || target.status !== 'active') return c.json({ error: 'forbidden', reason: 'recipient_unavailable' }, 403);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (!isAdmin(me) && !(await areConnected(c.env.DB, caller.cohortUserId, body.user_id))) {
+    return c.json({ error: 'forbidden', reason: 'not_connected' }, 403);
+  }
+  try {
+    await c.env.DB.batch([
+      c.env.DB.prepare("INSERT INTO group_members (group_id, user_id, role) SELECT ?, ?, 'member' WHERE (SELECT COUNT(*) FROM group_members WHERE group_id = ?) < " + GROUP_CAP)
+        .bind(gid, body.user_id, gid),
+      recountMembers(c.env.DB, gid),
+    ]);
+  } catch {
+    return c.json({ error: 'conflict', reason: 'already_member' }, 409);
+  }
+  if (!(await isGroupMember2(c.env.DB, gid, body.user_id))) return c.json({ error: 'forbidden', reason: 'This group is full (1003 members).' }, 403);
+  return c.json({ ok: true }, 201);
+});
+
+// members_delete (0001) + members_delete_by_group_admin (0036): self, app
+// admin, or group admin removing another non-creator member.
+app.delete('/api/groups/:id/members/:uid', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const gid = c.req.param('id');
+  const uid = c.req.param('uid');
+  const g = await c.env.DB.prepare('SELECT id, created_by FROM groups WHERE id = ?').bind(gid).first<{ id: string; created_by: string }>();
+  if (!g) return c.json({ error: 'not_found' }, 404);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  const ok =
+    uid === caller.cohortUserId ||
+    isAdmin(me) ||
+    ((await isGroupAdmin(c.env.DB, gid, caller.cohortUserId)) && uid !== caller.cohortUserId && uid !== g.created_by);
+  if (!ok) return c.json({ error: 'forbidden', reason: 'cannot_remove_member' }, 403);
+  const del = await c.env.DB.prepare('DELETE FROM group_members WHERE group_id = ? AND user_id = ?').bind(gid, uid).run();
+  if (!del.meta.changes) return c.json({ error: 'not_found', reason: 'not_a_member' }, 404);
+  await recountMembers(c.env.DB, gid).run();
+  return c.json({ ok: true });
+});
+
+// members_update_by_group_admin (0036): group admin sets a non-creator
+// member's role (promote/demote).
+app.patch('/api/groups/:id/members/:uid', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const gid = c.req.param('id');
+  const uid = c.req.param('uid');
+  const g = await c.env.DB.prepare('SELECT id, created_by FROM groups WHERE id = ?').bind(gid).first<{ id: string; created_by: string }>();
+  if (!g) return c.json({ error: 'not_found' }, 404);
+  if (!(await isGroupAdmin(c.env.DB, gid, caller.cohortUserId)) || uid === g.created_by) {
+    return c.json({ error: 'forbidden', reason: 'not_group_admin' }, 403);
+  }
+  const body = await c.req.json<{ role?: string }>().catch(() => null);
+  if (!body || !['admin', 'member'].includes(body.role ?? '')) return c.json({ error: 'invalid', reason: 'bad_role' }, 400);
+  const r = await c.env.DB.prepare('UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?').bind(body.role, gid, uid).run();
+  if (!r.meta.changes) return c.json({ error: 'not_found', reason: 'not_a_member' }, 404);
+  return c.json({ ok: true });
+});
+
+// ---------------------------------------------------------------- invites
+// invites_read (0008): group members only.
+app.get('/api/groups/:id/invites', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const gid = c.req.param('id');
+  if (!(await isGroupMember2(c.env.DB, gid, caller.cohortUserId))) return c.json({ error: 'forbidden', reason: 'not_member' }, 403);
+  const { results } = await c.env.DB.prepare('SELECT id, token, created_by, created_at FROM group_invites WHERE group_id = ?').bind(gid).all();
+  return c.json({ invites: results });
+});
+
+// invites_insert (0008): created_by = caller AND group member.
+app.post('/api/groups/:id/invites', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const gid = c.req.param('id');
+  if (!(await isGroupMember2(c.env.DB, gid, caller.cohortUserId))) return c.json({ error: 'forbidden', reason: 'not_member' }, 403);
+  const token = Array.from(crypto.getRandomValues(new Uint8Array(12))).map((b) => b.toString(16).padStart(2, '0')).join('');
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare('INSERT INTO group_invites (id, group_id, token, created_by) VALUES (?, ?, ?, ?)').bind(id, gid, token, caller.cohortUserId).run();
+  return c.json({ id, token }, 201);
+});
+
+// group_by_invite_token (0008): PUBLIC preview - basics only, no member data.
+app.get('/api/invites/:token', async (c) => {
+  const row = await c.env.DB.prepare(
+    'SELECT g.id AS group_id, g.name, g.purpose, g.member_count FROM group_invites i JOIN groups g ON g.id = i.group_id WHERE i.token = ?',
+  ).bind(c.req.param('token')).first();
+  if (!row) return c.json({ error: 'not_found', reason: 'invalid_invite' }, 404);
+  return c.json({ group: row });
+});
+
+// join_group_by_token (0039 def): auth, active member, invalid -> error,
+// idempotent rejoin (on conflict do nothing). Cap trigger replaced in-batch.
+app.post('/api/invites/:token/join', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (!isActiveMember(me)) return c.json({ error: 'forbidden', reason: 'account_suspended' }, 403);
+  const inv = await c.env.DB.prepare('SELECT group_id FROM group_invites WHERE token = ?').bind(c.req.param('token')).first<{ group_id: string }>();
+  if (!inv) return c.json({ error: 'not_found', reason: 'invalid_invite' }, 404);
+  await c.env.DB.batch([
+    c.env.DB.prepare("INSERT OR IGNORE INTO group_members (group_id, user_id, role) SELECT ?, ?, 'member' WHERE (SELECT COUNT(*) FROM group_members WHERE group_id = ?) < " + GROUP_CAP)
+      .bind(inv.group_id, caller.cohortUserId, inv.group_id),
+    recountMembers(c.env.DB, inv.group_id),
+  ]);
+  if (!(await isGroupMember2(c.env.DB, inv.group_id, caller.cohortUserId))) {
+    return c.json({ error: 'forbidden', reason: 'This group is full (1003 members).' }, 403);
+  }
+  return c.json({ group_id: inv.group_id });
+});
+
+// ---------------------------------------------------------------- communities
+// communities_read / community_groups_read (0045): public.
+app.get('/api/communities', async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT id, name, about, created_by, created_at FROM communities ORDER BY created_at DESC LIMIT 100').all<{ id: string }>();
+  const out = [];
+  for (const comm of results) {
+    const groups = await c.env.DB.prepare(
+      'SELECT g.id, g.name, g.kind, g.member_count FROM community_groups cg JOIN groups g ON g.id = cg.group_id WHERE cg.community_id = ?',
+    ).bind(comm.id).all();
+    out.push({ ...comm, groups: groups.results });
+  }
+  return c.json({ communities: out });
+});
+
+// communities_insert (0045): created_by = caller, active member.
+app.post('/api/communities', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (!isActiveMember(me)) return c.json({ error: 'forbidden', reason: 'not_active_member' }, 403);
+  const body = await c.req.json<{ name?: string; about?: string; created_by?: string }>().catch(() => null);
+  if (!body || typeof body.name !== 'string' || body.name.length < 1 || body.name.length > 120) return c.json({ error: 'invalid', reason: 'name_1_120' }, 400);
+  if ((body.about ?? '').length > 1000) return c.json({ error: 'invalid', reason: 'about_too_long' }, 400);
+  if (body.created_by !== undefined && body.created_by !== caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'creator_mismatch' }, 403);
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare('INSERT INTO communities (id, name, about, created_by) VALUES (?, ?, ?, ?)').bind(id, body.name, body.about ?? '', caller.cohortUserId).run();
+  return c.json({ id }, 201);
+});
+
+// communities_update/delete (0045): creator or app admin.
+app.patch('/api/communities/:id', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const comm = await c.env.DB.prepare('SELECT id, created_by FROM communities WHERE id = ?').bind(c.req.param('id')).first<{ id: string; created_by: string }>();
+  if (!comm) return c.json({ error: 'not_found' }, 404);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (comm.created_by !== caller.cohortUserId && !isAdmin(me)) return c.json({ error: 'forbidden', reason: 'not_creator_or_admin' }, 403);
+  const body = await c.req.json<{ name?: string; about?: string }>().catch(() => null);
+  if (!body) return c.json({ error: 'invalid' }, 400);
+  if (body.name !== undefined && (body.name.length < 1 || body.name.length > 120)) return c.json({ error: 'invalid', reason: 'name_1_120' }, 400);
+  if (body.about !== undefined && body.about.length > 1000) return c.json({ error: 'invalid', reason: 'about_too_long' }, 400);
+  await c.env.DB.prepare('UPDATE communities SET name = COALESCE(?, name), about = COALESCE(?, about) WHERE id = ?').bind(body.name ?? null, body.about ?? null, comm.id).run();
+  return c.json({ ok: true });
+});
+app.delete('/api/communities/:id', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const comm = await c.env.DB.prepare('SELECT id, created_by FROM communities WHERE id = ?').bind(c.req.param('id')).first<{ id: string; created_by: string }>();
+  if (!comm) return c.json({ error: 'not_found' }, 404);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (comm.created_by !== caller.cohortUserId && !isAdmin(me)) return c.json({ error: 'forbidden', reason: 'not_creator_or_admin' }, 403);
+  await c.env.DB.prepare('DELETE FROM communities WHERE id = ?').bind(comm.id).run();
+  return c.json({ ok: true });
+});
+
+// community_groups_insert (0045): active + (community creator or app admin)
+// + (group creator or group admin or app admin). Cap 23 (0047) in-batch.
+app.post('/api/communities/:id/groups', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (!isActiveMember(me)) return c.json({ error: 'forbidden', reason: 'not_active_member' }, 403);
+  const comm = await c.env.DB.prepare('SELECT id, created_by FROM communities WHERE id = ?').bind(c.req.param('id')).first<{ id: string; created_by: string }>();
+  if (!comm) return c.json({ error: 'not_found' }, 404);
+  const body = await c.req.json<{ group_id?: string }>().catch(() => null);
+  if (!body?.group_id) return c.json({ error: 'invalid', reason: 'group_id_required' }, 400);
+  const g = await c.env.DB.prepare('SELECT id, created_by FROM groups WHERE id = ?').bind(body.group_id).first<{ id: string; created_by: string }>();
+  if (!g) return c.json({ error: 'not_found', reason: 'no_such_group' }, 404);
+  const commOk = comm.created_by === caller.cohortUserId || isAdmin(me);
+  const groupOk = g.created_by === caller.cohortUserId || (await isGroupAdmin(c.env.DB, g.id, caller.cohortUserId)) || isAdmin(me);
+  if (!commOk || !groupOk) return c.json({ error: 'forbidden', reason: 'not_authorized_for_pair' }, 403);
+  try {
+    await c.env.DB.prepare('INSERT INTO community_groups (community_id, group_id) SELECT ?, ? WHERE (SELECT COUNT(*) FROM community_groups WHERE community_id = ?) < ' + COMMUNITY_CAP)
+      .bind(comm.id, g.id, comm.id).run();
+  } catch {
+    return c.json({ error: 'conflict', reason: 'already_linked' }, 409);
+  }
+  const linked = await c.env.DB.prepare('SELECT 1 AS x FROM community_groups WHERE community_id = ? AND group_id = ?').bind(comm.id, g.id).first();
+  if (!linked) return c.json({ error: 'forbidden', reason: 'This community is full (23 groups).' }, 403);
+  return c.json({ ok: true }, 201);
+});
+
+// community_groups_delete (0045): community creator or app admin.
+app.delete('/api/communities/:id/groups/:gid', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const comm = await c.env.DB.prepare('SELECT id, created_by FROM communities WHERE id = ?').bind(c.req.param('id')).first<{ id: string; created_by: string }>();
+  if (!comm) return c.json({ error: 'not_found' }, 404);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (comm.created_by !== caller.cohortUserId && !isAdmin(me)) return c.json({ error: 'forbidden', reason: 'not_creator_or_admin' }, 403);
+  const r = await c.env.DB.prepare('DELETE FROM community_groups WHERE community_id = ? AND group_id = ?').bind(comm.id, c.req.param('gid')).run();
+  if (!r.meta.changes) return c.json({ error: 'not_found', reason: 'not_linked' }, 404);
+  return c.json({ ok: true });
+});
+
+// ---------------------------------------------------------------- resources
+// resources_read (0001): public.
+app.get('/api/resources', async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT * FROM resources ORDER BY created_at DESC LIMIT 200').all();
+  return c.json({ resources: results });
+});
+
+// resources_insert (0046): owner = caller AND app ADMIN - regular members
+// cannot add resources upstream (mirrored, notable).
+app.post('/api/resources', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (!isAdmin(me)) return c.json({ error: 'forbidden', reason: 'admin_only' }, 403);
+  const body = await c.req.json<{ title?: string; cat?: string; course?: string; subject?: string; meta?: string; owner_id?: string }>().catch(() => null);
+  if (!body || typeof body.title !== 'string' || body.title.trim() === '') return c.json({ error: 'invalid', reason: 'title_required' }, 400);
+  if (body.title.length > 300 || (body.meta ?? '').length > 500) return c.json({ error: 'invalid', reason: 'text_too_long' }, 400);
+  if (body.owner_id !== undefined && body.owner_id !== caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'owner_mismatch' }, 403);
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare('INSERT INTO resources (id, cat, course, subject, title, uploaded_by, meta, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, body.cat ?? 'Notes', body.course ?? '', body.subject ?? '', body.title, me!.full_name, body.meta ?? '', caller.cohortUserId).run();
+  return c.json({ id }, 201);
+});
+
+// resources_update/delete (0001): owner or app admin.
+for (const method of ['patch', 'delete'] as const) {
+  app[method]('/api/resources/:id', async (c) => {
+    const caller = await getCaller(c);
+    if (!caller) return c.json({ error: 'unauthorized' }, 401);
+    if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+    const r = await c.env.DB.prepare('SELECT id, owner_id FROM resources WHERE id = ?').bind(c.req.param('id')).first<{ id: string; owner_id: string }>();
+    if (!r) return c.json({ error: 'not_found' }, 404);
+    const me = await getProfile(c.env.DB, caller.cohortUserId);
+    if (r.owner_id !== caller.cohortUserId && !isAdmin(me)) return c.json({ error: 'forbidden', reason: 'not_owner_or_admin' }, 403);
+    if (method === 'delete') {
+      await c.env.DB.prepare('DELETE FROM resources WHERE id = ?').bind(r.id).run();
+      return c.json({ ok: true });
+    }
+    const body = await c.req.json<{ title?: string; cat?: string; course?: string; subject?: string; meta?: string }>().catch(() => null);
+    if (!body) return c.json({ error: 'invalid' }, 400);
+    if ((body.title ?? '').length > 300 || (body.meta ?? '').length > 500) return c.json({ error: 'invalid', reason: 'text_too_long' }, 400);
+    await c.env.DB.prepare('UPDATE resources SET title = COALESCE(?, title), cat = COALESCE(?, cat), course = COALESCE(?, course), subject = COALESCE(?, subject), meta = COALESCE(?, meta) WHERE id = ?')
+      .bind(body.title ?? null, body.cat ?? null, body.course ?? null, body.subject ?? null, body.meta ?? null, r.id).run();
+    return c.json({ ok: true });
+  });
+}
+
+// ---------------------------------------------------------------- student_notes
+// student_notes_read (0046): public.
+app.get('/api/student-notes', async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT * FROM student_notes ORDER BY created_at DESC LIMIT 200').all();
+  return c.json({ notes: results });
+});
+
+// student_notes_insert (0046): owner = caller AND active member.
+app.post('/api/student-notes', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (!isActiveMember(me)) return c.json({ error: 'forbidden', reason: 'not_active_member' }, 403);
+  const body = await c.req.json<{ title?: string; subject?: string; meta?: string; owner_id?: string }>().catch(() => null);
+  if (!body || typeof body.title !== 'string' || body.title.length < 1 || body.title.length > 300) return c.json({ error: 'invalid', reason: 'title_1_300' }, 400);
+  if ((body.subject ?? '').length > 120 || (body.meta ?? '').length > 100) return c.json({ error: 'invalid', reason: 'text_too_long' }, 400);
+  if (body.owner_id !== undefined && body.owner_id !== caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'owner_mismatch' }, 403);
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare('INSERT INTO student_notes (id, title, subject, meta, uploader_name, owner_id) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(id, body.title, body.subject ?? '', body.meta ?? '', me!.full_name, caller.cohortUserId).run();
+  return c.json({ id }, 201);
+});
+
+// student_notes_update/delete (0046): owner or app admin.
+for (const method of ['patch', 'delete'] as const) {
+  app[method]('/api/student-notes/:id', async (c) => {
+    const caller = await getCaller(c);
+    if (!caller) return c.json({ error: 'unauthorized' }, 401);
+    if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+    const n = await c.env.DB.prepare('SELECT id, owner_id FROM student_notes WHERE id = ?').bind(c.req.param('id')).first<{ id: string; owner_id: string }>();
+    if (!n) return c.json({ error: 'not_found' }, 404);
+    const me = await getProfile(c.env.DB, caller.cohortUserId);
+    if (n.owner_id !== caller.cohortUserId && !isAdmin(me)) return c.json({ error: 'forbidden', reason: 'not_owner_or_admin' }, 403);
+    if (method === 'delete') {
+      await c.env.DB.prepare('DELETE FROM student_notes WHERE id = ?').bind(n.id).run();
+      return c.json({ ok: true });
+    }
+    const body = await c.req.json<{ title?: string; subject?: string; meta?: string }>().catch(() => null);
+    if (!body) return c.json({ error: 'invalid' }, 400);
+    if (body.title !== undefined && (body.title.length < 1 || body.title.length > 300)) return c.json({ error: 'invalid', reason: 'title_1_300' }, 400);
+    if ((body.subject ?? '').length > 120 || (body.meta ?? '').length > 100) return c.json({ error: 'invalid', reason: 'text_too_long' }, 400);
+    await c.env.DB.prepare('UPDATE student_notes SET title = COALESCE(?, title), subject = COALESCE(?, subject), meta = COALESCE(?, meta) WHERE id = ?')
+      .bind(body.title ?? null, body.subject ?? null, body.meta ?? null, n.id).run();
+    return c.json({ ok: true });
+  });
+}
+
+// ---------------------------------------------------------------- notifications
+// notifications_read_own (0050): own rows only. Inserts stay trigger-side
+// (NOT ported - documented behavior gap), so there is no client insert route.
+app.get('/api/notifications', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ notifications: [] });
+  const { results } = await c.env.DB.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 100').bind(caller.cohortUserId).all();
+  return c.json({ notifications: results });
+});
+
+// notifications_mark_read (0050): own rows only.
+app.post('/api/notifications/:id/read', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const n = await c.env.DB.prepare('SELECT id, user_id FROM notifications WHERE id = ?').bind(c.req.param('id')).first<{ id: string; user_id: string }>();
+  if (!n) return c.json({ error: 'not_found' }, 404);
+  if (n.user_id !== caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'not_own_notification' }, 403);
+  await c.env.DB.prepare("UPDATE notifications SET read_at = datetime('now') WHERE id = ?").bind(n.id).run();
+  return c.json({ ok: true });
+});
+
 export default app;
