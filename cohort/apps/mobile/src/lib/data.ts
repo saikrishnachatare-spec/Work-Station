@@ -5,6 +5,8 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { api, previewUnavailable } from '@/lib/api';
+import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 import { supabase } from '@/lib/supabase';
 
 export type Post = {
@@ -20,6 +22,10 @@ export type Post = {
   comment_count: number;
   created_at: string;
 };
+
+/** D1 stores pinned as 0/1; the app uses boolean. Normalizer for worker rows. */
+type RawPost = Omit<Post, 'pinned'> & { pinned: boolean | number };
+const normPost = (p: RawPost): Post => ({ ...p, pinned: !!p.pinned });
 
 export type Group = {
   id: string;
@@ -112,6 +118,10 @@ export function usePosts() {
   return useQuery({
     queryKey: ['posts'],
     queryFn: async (): Promise<Post[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ posts: RawPost[] }>('/api/feed');
+        return r.posts.map(normPost);
+      }
       const { data, error } = await supabase
         .from('posts')
         .select('*')
@@ -128,6 +138,10 @@ export function useMyLikes(userId: string | undefined) {
     enabled: !!userId,
     queryKey: ['likes', userId],
     queryFn: async (): Promise<Set<string>> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ postIds: string[] }>('/api/me/likes', { auth: 'required' });
+        return new Set(r.postIds);
+      }
       const { data, error } = await supabase.from('post_likes').select('post_id').eq('user_id', userId!);
       if (error) throw error;
       return new Set((data as { post_id: string }[]).map((r) => r.post_id));
@@ -140,6 +154,10 @@ export function useToggleLike(userId: string | undefined) {
   return useMutation({
     mutationFn: async ({ postId, liked }: { liked: boolean; postId: string }) => {
       if (!userId) throw new Error('Sign in to like posts');
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/posts/${postId}/like`, { auth: 'required', method: liked ? 'DELETE' : 'POST' });
+        return;
+      }
       if (liked) {
         const { error } = await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', userId);
         if (error) throw error;
@@ -173,6 +191,9 @@ async function uploadPostImage(userId: string, image: PostImageFile): Promise<st
 /** Public URL for a post image. The post-images bucket is public, matching the posts themselves (posts_read is public). */
 export function postImageUrl(path: string | null | undefined): string | null {
   if (!path) return null;
+  // Item 4 (R2 bytes) is not built: the preview serves no image URLs. The
+  // feed renders its existing no-image placeholder, never a fake success.
+  if (CLERK_PREP_ENABLED) return null;
   return supabase.storage.from('post-images').getPublicUrl(path).data.publicUrl;
 }
 
@@ -180,6 +201,11 @@ export function useCreatePost() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ authorId, authorName, body, image }: { authorId: string; authorName: string; body: string; image?: PostImageFile | null }) => {
+      if (CLERK_PREP_ENABLED) {
+        if (image) throw previewUnavailable('Post images', 'item 4 - file storage');
+        await api('/api/posts', { auth: 'required', body: { body } });
+        return;
+      }
       let imagePath: string | null = null;
       if (image) imagePath = await uploadPostImage(authorId, image);
       const { error } = await supabase
@@ -1053,6 +1079,15 @@ export function usePost(id: string | null) {
     enabled: !!id,
     queryKey: ['post', id],
     queryFn: async (): Promise<Post | null> => {
+      if (CLERK_PREP_ENABLED) {
+        try {
+          const r = await api<{ post: RawPost }>(`/api/posts/${id}`);
+          return normPost(r.post);
+        } catch (e) {
+          if ((e as { status?: number }).status === 404) return null;
+          throw e;
+        }
+      }
       const { data, error } = await supabase.from('posts').select('*').eq('id', id!).maybeSingle();
       if (error) throw error;
       return (data as Post) ?? null;
@@ -1079,6 +1114,10 @@ export function useComments(postId: string | null) {
     enabled: !!postId,
     queryKey: ['comments', postId],
     queryFn: async (): Promise<Comment[]> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<{ comments: Comment[] }>(`/api/posts/${postId}/comments`);
+        return r.comments;
+      }
       const { data, error } = await supabase
         .from('comments')
         .select('*')
@@ -1095,6 +1134,10 @@ export function useAddComment(userId: string | undefined) {
   return useMutation({
     mutationFn: async ({ body, postId }: { body: string; postId: string }) => {
       if (!userId) throw new Error('Sign in to comment');
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/posts/${postId}/comments`, { auth: 'required', body: { body } });
+        return;
+      }
       const { error } = await supabase.from('comments').insert({ author_id: userId, body, post_id: postId });
       if (error) throw error;
     },
@@ -1112,6 +1155,10 @@ export function useEditOwnContent(table: 'posts' | 'comments', userId: string | 
   return useMutation({
     mutationFn: async ({ id, body }: { id: string; body: string }) => {
       if (!userId || !body.trim()) throw new Error('Sign in and enter text');
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/${table}/${id}`, { auth: 'required', body: { body: body.trim() }, method: 'PATCH' });
+        return;
+      }
       const { data, error } = await supabase.from(table).update({ body: body.trim() })
         .eq('id', id).eq('author_id', userId).select('id').single();
       if (error || !data) throw error || new Error('Nothing updated');
@@ -1124,6 +1171,12 @@ export function useDeleteOwnContent(table: 'posts' | 'comments', userId: string 
   return useMutation({
     mutationFn: async (id: string) => {
       if (!userId) throw new Error('Sign in first');
+      if (CLERK_PREP_ENABLED) {
+        // The worker fails closed (409) on posts with image bytes until item 4;
+        // the 409 message surfaces to the user instead of a silent orphan.
+        await api(`/api/${table}/${id}`, { auth: 'required', method: 'DELETE' });
+        return;
+      }
       let imagePath: string | null = null;
       if (table === 'posts') {
         const { data: row } = await supabase.from('posts').select('image_path').eq('id', id).eq('author_id', userId).maybeSingle();
@@ -1347,6 +1400,10 @@ export function useSearch(rawQuery: string) {
     enabled: q.length >= 2,
     queryKey: ['search', q],
     queryFn: async (): Promise<SearchResults> => {
+      if (CLERK_PREP_ENABLED) {
+        const r = await api<SearchResults>(`/api/search?q=${encodeURIComponent(q)}`);
+        return { ...r, posts: (r.posts as RawPost[]).map(normPost) };
+      }
       const like = `%${q}%`;
       const [posts, resources, groups, jobs, people] = await Promise.all([
         supabase.from('posts').select('*').or(`body.ilike.${like},author_name.ilike.${like}`).order('created_at', { ascending: false }).limit(20),

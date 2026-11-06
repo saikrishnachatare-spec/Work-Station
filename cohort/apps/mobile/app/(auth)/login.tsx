@@ -9,6 +9,8 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { useRouter } from 'expo-router';
 
 import { Card } from '@/components/Card';
+import { ClerkSignInForm } from '@/features/clerk-prep/ClerkSignInForm';
+import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 import { supabase } from '@/lib/supabase';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 import { Turnstile } from '@/components/Turnstile';
@@ -25,6 +27,20 @@ const normalizePhone = (raw: string) => raw.replace(/[\s().-]/g, '');
 
 export default function LoginScreen() {
   const router = useRouter();
+  // Prep flag on: Clerk dev-instance sign-in only. Signup, password reset
+  // and the phone/org onboarding fields are item-3 scope - say so plainly
+  // instead of offering dead Supabase-backed controls.
+  if (CLERK_PREP_ENABLED) {
+    return (
+      <ScrollView contentContainerStyle={{ gap: spacing.md, padding: spacing.lg }}>
+        <Text style={{ color: colors.brand, fontSize: 24, fontWeight: '800' }}>Cohort test preview</Text>
+        <Text style={{ color: '#555' }}>
+          Sign in with a synthetic test account. Creating an account and resetting a password are not available in the preview yet.
+        </Text>
+        <ClerkSignInForm />
+      </ScrollView>
+    );
+  }
   const [mode, setMode] = useState<Mode>('signin');
   const [acctType, setAcctType] = useState<'individual' | 'firm' | 'enterprise'>('individual');
   const [orgName, setOrgName] = useState('');

@@ -33,7 +33,7 @@ export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Pro
 
 /** Sends unauthenticated, non-guest users to the login screen. */
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { guest, loading, session } = useAuth();
+  const { guest, loading, session, unmapped } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -48,6 +48,19 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       router.replace('/(auth)/login');
     }
   }, [guest, loading, router, segments, session]);
+
+  // Flag-on only: a valid Clerk sign-in with no test-profile binding must
+  // never render blank private UI - show the explicit blocked state.
+  if (unmapped) {
+    return (
+      <View style={{ alignItems: 'center', backgroundColor: colors.cream, flex: 1, justifyContent: 'center', padding: 24 }}>
+        <Text style={{ color: colors.brand, fontSize: 20, fontWeight: '800', marginBottom: 8 }}>Not a preview test account</Text>
+        <Text style={{ color: '#555', textAlign: 'center' }}>
+          This sign-in is not on the preview allowlist, so member features stay off. Only synthetic test identities can use the preview.
+        </Text>
+      </View>
+    );
+  }
 
   if (loading && Platform.OS !== 'web') {
     return (
@@ -71,6 +84,9 @@ function ScreenTracker() {
   const { session } = useAuth();
   const last = useRef('');
   useEffect(() => {
+    // Prep flag on: screen-view logging rides on the Supabase rpc, which the
+    // preview worker does not implement (admin analytics is item 7) - skip.
+    if (CLERK_PREP_ENABLED) return;
     if (!session || getConsent() !== 'accepted') return;
     const parts = (segments as string[]).filter((s) => s !== '(tabs)' && s !== '(auth)');
     const screen = (parts.length === 0 ? 'home' : parts.map((s) => (/^[0-9a-f-]{8,}$/i.test(s) ? ':id' : s)).join('/')).slice(0, 60);
