@@ -103,9 +103,20 @@ export type Profile = {
 export type Thread = { id: string; created_at: string };
 export type Message = { id: string; thread_id: string; sender_id: string | null; body: string; created_at: string };
 
+/** Parse a timestamp from either backend. D1 stores UTC as naive
+ * 'YYYY-MM-DD HH:MM:SS' (no zone marker) which Date() would read as LOCAL
+ * time; Supabase returns ISO with an offset. Normalize the D1 shape to UTC. */
+export function parseTs(ts: string): number {
+  if (!ts) return NaN;
+  const norm = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?(\.\d+)?$/.test(ts)
+    ? ts.replace(' ', 'T') + 'Z'
+    : ts;
+  return new Date(norm).getTime();
+}
+
 /** Relative label like "2h ago" for timestamps. */
 export function timeAgo(iso: string): string {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  const mins = Math.max(0, Math.round((Date.now() - parseTs(iso)) / 60000));
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.round(mins / 60);

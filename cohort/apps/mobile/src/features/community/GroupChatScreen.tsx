@@ -11,8 +11,7 @@ import { useToast } from '@/components/Toast';
 import {
   getGroupInviteLink, useAddGroupMembers, useGroup, useGroupMemberRows, useGroupMembers, useGroupThread,
   useLeaveGroup, useMarkThreadRead, useProfiles, useRemoveGroupMember, useSendMessage, useSetGroupMemberRole,
-  useThreadMessages,
-} from '@/lib/data';
+  useThreadMessages, parseTs } from '@/lib/data';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
 
@@ -281,7 +280,7 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
           const day = new Date(m.created_at).toDateString();
           const showDay = i === 0 || new Date(arr[i - 1].created_at).toDateString() !== day;
           const mine = m.sender_id === userId;
-          const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const time = new Date(parseTs(m.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           return (
             <View key={m.id} style={{ gap: 6 }}>
               {showDay && (

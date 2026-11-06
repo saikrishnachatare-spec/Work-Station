@@ -21,8 +21,7 @@ import {
   useAdminAnalytics,
   timeAgo, useActivityLog, useLiveAdminFeed, useGroups, useJobs, useMyProfile, usePosts, useProfiles, useResources, useTrash,
   type ActivityRow, type TrashRow, useCreateResource,
-  usePendingVerificationRequests, useReviewVerificationRequest,
-} from '@/lib/data';
+  usePendingVerificationRequests, useReviewVerificationRequest, parseTs } from '@/lib/data';
 import { api, previewUnavailable } from '@/lib/api';
 import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 import { supabase } from '@/lib/supabase';
@@ -417,10 +416,10 @@ export default function AdminScreen() {
               ['Job listings', jobs.data?.length ?? 0],
               ['Sign-ins (7d)', analytics.data?.active_members.signin_7d ??
                 // eslint-disable-next-line react-hooks/purity -- fallback recency cutoff while analytics load; recomputing per render keeps the 7d window current
-                (activity.data ?? []).filter((a: ActivityRow) => a.action === 'sign_in' && Date.now() - new Date(a.created_at).getTime() < 7 * 864e5).length],
+                (activity.data ?? []).filter((a: ActivityRow) => a.action === 'sign_in' && Date.now() - parseTs(a.created_at) < 7 * 864e5).length],
               ['New members (7d)', analytics.data ? analytics.data.by_day.slice(-7).reduce((n, d) => n + d.new_members, 0) :
                 // eslint-disable-next-line react-hooks/purity -- fallback recency cutoff while analytics load, same as above
-                (activity.data ?? []).filter((a: ActivityRow) => a.action === 'signup' && Date.now() - new Date(a.created_at).getTime() < 7 * 864e5).length],
+                (activity.data ?? []).filter((a: ActivityRow) => a.action === 'signup' && Date.now() - parseTs(a.created_at) < 7 * 864e5).length],
             ].map(([label, n]) => {
               const target = ({
                 Members: 'Users', Admins: 'Users', 'Feed posts': 'Posts', Announcements: 'Announcements',
@@ -518,7 +517,7 @@ export default function AdminScreen() {
             <Text style={styles.meta}>
               Real recorded activity only - nothing estimated or backfilled. Sign-ins and content counts come from the
               activity log (recording since {a.log_since ? new Date(a.log_since).toLocaleDateString() : 'no events yet'}).
-              Screen views are counted only since {a.screen_tracking_since ? new Date(a.screen_tracking_since).toLocaleString() : 'not yet recorded'},
+              Screen views are counted only since {a.screen_tracking_since ? new Date(parseTs(a.screen_tracking_since)).toLocaleString() : 'not yet recorded'},
               only for signed-in members who accepted analytics in the consent note, screen names only. Message contents are never tracked.
             </Text>
             {([
@@ -849,10 +848,10 @@ export default function AdminScreen() {
       {section === 'Live' && (() => {
         const now = nowMs;
         const all = (activity.data ?? []) as ActivityRow[];
-        const recent = all.filter((a) => now - new Date(a.created_at).getTime() < 5 * 60000 && a.actor_name);
+        const recent = all.filter((a) => now - parseTs(a.created_at) < 5 * 60000 && a.actor_name);
         const activeNames = Array.from(new Set(recent.map((a) => a.actor_name)));
-        const lastHour = all.filter((a) => now - new Date(a.created_at).getTime() < 3600000);
-        const errs = (errorLogs.data ?? []).filter((e: { created_at: string }) => now - new Date(e.created_at).getTime() < 3600000).length;
+        const lastHour = all.filter((a) => now - parseTs(a.created_at) < 3600000);
+        const errs = (errorLogs.data ?? []).filter((e: { created_at: string }) => now - parseTs(e.created_at) < 3600000).length;
         return (
           <View style={{ gap: spacing.sm }}>
             <Text style={styles.strong}>{liveConnected ? '● Live' : '○ Reconnecting (refreshing every 30s)'}</Text>
@@ -902,7 +901,7 @@ export default function AdminScreen() {
           if (a.action === 'screen_view' && !actorFilter.trim() && actionFilter !== 'Screens') return false;
           if (actorFilter.trim() && !(a.actor_name || '').toLowerCase().includes(actorFilter.trim().toLowerCase())) return false;
           if (actionFilter !== 'All' && !(CATEGORIES[actionFilter] ?? []).includes(a.action)) return false;
-          if (windowMs && Date.now() - new Date(a.created_at).getTime() > windowMs) return false;
+          if (windowMs && Date.now() - parseTs(a.created_at) > windowMs) return false;
           return true;
         });
         return (
