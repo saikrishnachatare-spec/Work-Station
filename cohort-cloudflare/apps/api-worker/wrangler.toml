@@ -21,4 +21,8 @@ database_id = "7b7caf0c-8c3d-4ebc-8abf-5660eaab9f8f"
 CLERK_ISSUER = "https://fond-escargot-8888.clerk.accounts.dev"
 CLERK_AUTHORIZED_PARTIES = "https://cohort-test-preview.pages.dev,http://localhost:8789,http://localhost:8081"
 CORS_ORIGINS = "https://cohort-test-preview.pages.dev,http://localhost:8789,http://localhost:8081"
+# Item-2 PREVIEW-ONLY identity binding: synthetic Clerk dev-user subs allowed to
+# bind to the same-id D1 profile row. Server-controlled; not a secret. Item 10
+# replaces this with Backend-API external_id mapping for real users.
+TEST_SUB_ALLOWLIST = "user_3LfjRoTDNbKKoIokRRE50PtERCb"
 CLERK_JWT_KEY = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2PWu3w271TDYBG/TL0i+\n5jqwxYgxw3eHn8O+ZAey8JQlzf2VLV1p9VMd/+JgK+fYyd88Pd4/2JxhFaZhwV0Q\nc+p0S5S0px1iFbAs8IQjTRWaQsWjwq+txrGONivA3nEu7ZFF0viGO4MrzLzlI3R6\nW1+GuVNUkaEf2W2A17RYLm/Y9Gap4WrdlhARptb62KcHwucbvYNQLT/X1Sc8FBDd\noQSYIJqyBGrFwJLupPuIDj06HQ3vPQsDzcJHWZENYpvizHivdiZmlxkczCgvgLkY\nrRml1tk9WuwHKgsGEXFeXuMCYqXJydHHgaVJNPlBRUf0iBr4xQOcxhxo2ibxR3X9\ngQIDAQAB\n-----END PUBLIC KEY-----"

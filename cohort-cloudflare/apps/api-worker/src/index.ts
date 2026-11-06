@@ -42,6 +42,7 @@ type Bindings = {
   CORS_ORIGINS?: string;
   CLERK_AUTHORIZED_PARTIES: string; // comma-separated origins allowed as azp
   CLERK_SECRET_KEY?: string; // only for Backend API calls (import script), not verification
+  TEST_SUB_ALLOWLIST?: string; // PREVIEW-ONLY (item 2): comma-separated synthetic Clerk dev-user subs allowed to bind to a same-id D1 profile row
 };
 
 type Caller = { clerkUserId: string; cohortUserId: string | null };
@@ -64,7 +65,22 @@ async function getCaller(c: {
       issuer: c.env.CLERK_ISSUER,
       authorizedParties: c.env.CLERK_AUTHORIZED_PARTIES.split(',').map((s) => s.trim()).filter(Boolean),
     });
-    return { clerkUserId: claims.sub, cohortUserId: (claims.external_id as string) ?? null };
+    const sub = claims.sub;
+    // Real import path (item 10): external_id set through the Clerk Backend API.
+    const ext = (claims.external_id as string) || null;
+    if (ext) return { clerkUserId: sub, cohortUserId: ext };
+    // PREVIEW-ONLY explicit binding (item 2, replaces nothing real): the sub
+    // must be on the server-controlled TEST_SUB_ALLOWLIST AND have a D1
+    // profile row with the same id. No client-supplied id is ever trusted,
+    // no auto-provisioning, no other fallback. Anything else gets
+    // cohortUserId null, and member-only routes deny it. Item 10 replaces
+    // this with the Backend-API external_id mapping for real users.
+    const allowed = (c.env.TEST_SUB_ALLOWLIST ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (sub && allowed.includes(sub)) {
+      const row = await c.env.DB.prepare('SELECT 1 AS x FROM profiles WHERE id = ?').bind(sub).first();
+      if (row) return { clerkUserId: sub, cohortUserId: sub };
+    }
+    return { clerkUserId: sub, cohortUserId: null };
   } catch {
     return null;
   }
@@ -122,7 +138,7 @@ app.use(
       return allowed.includes(origin) ? origin : '';
     },
     allowHeaders: ['Content-Type', 'Authorization'],
-    allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
   }),
 );
@@ -1060,11 +1076,15 @@ for (const method of ['patch', 'delete'] as const) {
     const caller = await getCaller(c);
     if (!caller) return c.json({ error: 'unauthorized' }, 401);
     if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
-    const n = await c.env.DB.prepare('SELECT id, owner_id FROM student_notes WHERE id = ?').bind(c.req.param('id')).first<{ id: string; owner_id: string }>();
+    const n = await c.env.DB.prepare('SELECT id, owner_id, file_path FROM student_notes WHERE id = ?').bind(c.req.param('id')).first<{ id: string; owner_id: string; file_path: string | null }>();
     if (!n) return c.json({ error: 'not_found' }, 404);
     const me = await getProfile(c.env.DB, caller.cohortUserId);
     if (n.owner_id !== caller.cohortUserId && !isAdmin(me)) return c.json({ error: 'forbidden', reason: 'not_owner_or_admin' }, 403);
     if (method === 'delete') {
+      // FAIL CLOSED on byte cleanup (item 2 refinement): a note with a
+      // file_path cannot be deleted until R2 byte cleanup lands (item 4) -
+      // deleting the row now would orphan storage bytes silently.
+      if (n.file_path) return c.json({ error: 'conflict', reason: 'byte_cleanup_deferred_item4' }, 409);
       await c.env.DB.prepare('DELETE FROM student_notes WHERE id = ?').bind(n.id).run();
       return c.json({ ok: true });
     }
@@ -1800,6 +1820,253 @@ app.post('/api/admin/trash/:tid/purge', async (c) => {
     title: (payload.title as string) || (payload.role as string) || String(payload.body ?? '').slice(0, 80),
   });
   return c.json({ ok: true });
+});
+
+// ================================================================ item 2
+// App-rewire endpoint additions. Guards mirror the EFFECTIVE Supabase policy
+// state named on each route; nothing is widened past the source policy.
+
+// ---- profile JSON helpers (0048 columns stored as JSON text in D1)
+function parseJsonArray(v: unknown): unknown[] {
+  if (typeof v !== 'string') return [];
+  try { const p: unknown = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; }
+}
+const PROFILE_COLS =
+  'id, full_name, role, status, course, level, avatar_path, verified_at, account_type, org_name, city, headline, bio, links, skills, experience, education, created_at';
+function rowToProfile(r: Record<string, unknown>) {
+  return {
+    ...r,
+    links: parseJsonArray(r.links),
+    skills: parseJsonArray(r.skills),
+    experience: parseJsonArray(r.experience),
+    education: parseJsonArray(r.education),
+  };
+}
+
+// ---------------------------------------------------------------- profiles
+// profiles_read (0009): authenticated only - NOT public. A valid Clerk token
+// mirrors auth.role()='authenticated'; a mapped user is not required to read.
+app.get('/api/profiles', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  const { results } = await c.env.DB.prepare(`SELECT ${PROFILE_COLS} FROM profiles ORDER BY created_at DESC LIMIT 500`).all();
+  return c.json({ profiles: (results as Record<string, unknown>[]).map(rowToProfile) });
+});
+
+app.get('/api/profiles/:id', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  const r = await c.env.DB.prepare(`SELECT ${PROFILE_COLS} FROM profiles WHERE id = ?`).bind(c.req.param('id')).first<Record<string, unknown>>();
+  if (!r) return c.json({ error: 'not_found' }, 404);
+  return c.json({ profile: rowToProfile(r) });
+});
+
+// profiles update (0001 RLS + guard_profile_privileges 0015/0017): non-admins
+// edit ONLY their own row and can never change role/status/id/account_type.
+// Admins may edit anyone's ordinary fields here; privilege fields stay on the
+// admin route (0023 last-admin guard) and are rejected here for everyone.
+app.patch('/api/profiles/:id', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (!isActiveMember(me)) return c.json({ error: 'forbidden', reason: 'not_active_member' }, 403);
+  const id = c.req.param('id');
+  const admin = isAdmin(me);
+  if (!admin && id !== caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'not_owner' }, 403);
+  const body = await c.req.json<Record<string, unknown>>().catch(() => null);
+  if (!body || typeof body !== 'object') return c.json({ error: 'invalid' }, 400);
+  if ('role' in body || 'status' in body || 'id' in body || 'account_type' in body)
+    return c.json({ error: 'forbidden', reason: 'privilege_fields_admin_only' }, 403);
+  const str = (v: unknown, max: number) => typeof v === 'string' && v.length <= max;
+  const arrOf = (v: unknown, max: number, itemOk: (x: unknown) => boolean) => Array.isArray(v) && v.length <= max && v.every(itemOk);
+  const sets: string[] = [];
+  const vals: (string | null)[] = [];
+  const setStr = (col: string, v: unknown, max: number) => {
+    if (v === undefined) return true;
+    if (!str(v, max)) return false;
+    sets.push(`${col} = ?`); vals.push((v as string).trim()); return true;
+  };
+  const setJson = (col: string, v: unknown, max: number, itemOk: (x: unknown) => boolean) => {
+    if (v === undefined) return true;
+    if (!arrOf(v, max, itemOk)) return false;
+    sets.push(`${col} = ?`); vals.push(JSON.stringify(v)); return true;
+  };
+  const linkOk = (x: unknown) => !!x && typeof x === 'object' && str((x as { label?: unknown }).label, 80) && str((x as { url?: unknown }).url, 500) && /^https?:\/\//i.test((x as { url: string }).url);
+  const expOk = (x: unknown) => !!x && typeof x === 'object' && Object.values(x as Record<string, unknown>).every((v) => typeof v === 'string' && v.length <= 200);
+  if (!setStr('full_name', body.full_name, 200)) return c.json({ error: 'invalid', reason: 'full_name' }, 400);
+  if (!setStr('headline', body.headline, 120)) return c.json({ error: 'invalid', reason: 'headline' }, 400);
+  if (!setStr('bio', body.bio, 2000)) return c.json({ error: 'invalid', reason: 'bio' }, 400);
+  if (!setStr('city', body.city, 200)) return c.json({ error: 'invalid', reason: 'city' }, 400);
+  if (!setStr('org_name', body.org_name, 200)) return c.json({ error: 'invalid', reason: 'org_name' }, 400);
+  if (body.course !== undefined) {
+    if (!['', 'CA', 'CMA', 'CS'].includes(body.course as string)) return c.json({ error: 'invalid', reason: 'course' }, 400);
+    sets.push('course = ?'); vals.push(body.course as string);
+  }
+  if (body.level !== undefined) {
+    if (!['', 'Foundation', 'Inter', 'Final'].includes(body.level as string)) return c.json({ error: 'invalid', reason: 'level' }, 400);
+    sets.push('level = ?'); vals.push(body.level as string);
+  }
+  if (body.avatar_path !== undefined) {
+    if (body.avatar_path !== null && !str(body.avatar_path, 500)) return c.json({ error: 'invalid', reason: 'avatar_path' }, 400);
+    sets.push('avatar_path = ?'); vals.push(body.avatar_path as string | null);
+  }
+  if (!setJson('links', body.links, 5, linkOk)) return c.json({ error: 'invalid', reason: 'links' }, 400);
+  if (!setJson('skills', body.skills, 15, (x) => typeof x === 'string' && x.length <= 40)) return c.json({ error: 'invalid', reason: 'skills' }, 400);
+  if (!setJson('experience', body.experience, 10, expOk)) return c.json({ error: 'invalid', reason: 'experience' }, 400);
+  if (!setJson('education', body.education, 10, expOk)) return c.json({ error: 'invalid', reason: 'education' }, 400);
+  if (!sets.length) return c.json({ error: 'invalid', reason: 'nothing_to_update' }, 400);
+  vals.push(id);
+  const r = await c.env.DB.prepare(`UPDATE profiles SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+  if (!r.meta.changes) return c.json({ error: 'not_found' }, 404);
+  return c.json({ ok: true });
+});
+
+// ---------------------------------------------------------------- groups
+// groups_read (0001): public.
+app.get('/api/groups/:id', async (c) => {
+  const g = await c.env.DB.prepare('SELECT id, name, purpose, description, kind, member_count, created_by, created_at FROM groups WHERE id = ?')
+    .bind(c.req.param('id')).first();
+  if (!g) return c.json({ error: 'not_found' }, 404);
+  return c.json({ group: g });
+});
+
+// members_read (0001, restated 0036): public.
+app.get('/api/groups/:id/members', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT gm.user_id, gm.role, COALESCE(p.full_name, '') AS full_name, p.avatar_path
+       FROM group_members gm LEFT JOIN profiles p ON p.id = gm.user_id
+      WHERE gm.group_id = ? ORDER BY gm.role = 'admin' DESC, p.full_name ASC LIMIT 1100`,
+  ).bind(c.req.param('id')).all();
+  return c.json({ members: results });
+});
+
+// Group thread get-or-create: read requires group membership (0043
+// threads_read); creation requires active member + group member (0043
+// threads_insert - group threads only, DM threads stay behind start_dm).
+app.get('/api/groups/:id/thread', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const gid = c.req.param('id');
+  if (!(await isGroupMember2(c.env.DB, gid, caller.cohortUserId))) return c.json({ error: 'forbidden', reason: 'not_group_member' }, 403);
+  const existing = await c.env.DB.prepare('SELECT id FROM threads WHERE group_id = ?').bind(gid).first<{ id: string }>();
+  if (existing) return c.json({ threadId: existing.id });
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (!isActiveMember(me)) return c.json({ error: 'forbidden', reason: 'not_active_member' }, 403);
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare('INSERT INTO threads (id, group_id) VALUES (?, ?)').bind(id, gid).run();
+  return c.json({ threadId: id });
+});
+
+// ---------------------------------------------------------------- posts
+// posts_read (0001): public.
+app.get('/api/posts/:id', async (c) => {
+  const p = await c.env.DB.prepare(
+    'SELECT id, author_id, author_name, author_role, kind, body, image_path, pinned, like_count, comment_count, created_at FROM posts WHERE id = ?',
+  ).bind(c.req.param('id')).first();
+  if (!p) return c.json({ error: 'not_found' }, 404);
+  return c.json({ post: p });
+});
+
+// posts_update (0001): owner or admin. Body re-checked against blocked terms
+// (0052), same as insert.
+app.patch('/api/posts/:id', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const p = await c.env.DB.prepare('SELECT id, author_id FROM posts WHERE id = ?').bind(c.req.param('id')).first<{ id: string; author_id: string }>();
+  if (!p) return c.json({ error: 'not_found' }, 404);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (p.author_id !== caller.cohortUserId && !isAdmin(me)) return c.json({ error: 'forbidden', reason: 'not_owner' }, 403);
+  const body = await c.req.json<{ body?: string }>().catch(() => null);
+  const text = body?.body?.trim();
+  if (!text || text.length > 4000) return c.json({ error: 'invalid', reason: 'body' }, 400);
+  if (!(await isClean(c.env.DB, text))) return c.json({ error: 'blocked', message: CLEAN_MSG }, 422);
+  await c.env.DB.prepare('UPDATE posts SET body = ? WHERE id = ?').bind(text, p.id).run();
+  return c.json({ ok: true });
+});
+
+// posts_delete (0001): owner or admin. FAIL CLOSED on byte cleanup: a post
+// with an image_path cannot be deleted until R2 byte cleanup lands (item 4) -
+// deleting the row now would orphan storage bytes silently. No-image posts
+// delete normally; likes/comments cascade.
+app.delete('/api/posts/:id', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const p = await c.env.DB.prepare('SELECT id, author_id, image_path FROM posts WHERE id = ?').bind(c.req.param('id'))
+    .first<{ id: string; author_id: string; image_path: string | null }>();
+  if (!p) return c.json({ error: 'not_found' }, 404);
+  const me = await getProfile(c.env.DB, caller.cohortUserId);
+  if (p.author_id !== caller.cohortUserId && !isAdmin(me)) return c.json({ error: 'forbidden', reason: 'not_owner' }, 403);
+  if (p.image_path) return c.json({ error: 'conflict', reason: 'byte_cleanup_deferred_item4' }, 409);
+  await c.env.DB.prepare('DELETE FROM post_likes WHERE post_id = ?').bind(p.id).run();
+  await c.env.DB.prepare('DELETE FROM comments WHERE post_id = ?').bind(p.id).run();
+  await c.env.DB.prepare('DELETE FROM posts WHERE id = ?').bind(p.id).run();
+  return c.json({ ok: true });
+});
+
+// comments_update_own (0013): owner ONLY - no admin override. Blocked-terms
+// re-check (0052), same as insert.
+app.patch('/api/comments/:id', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const cm = await c.env.DB.prepare('SELECT id, author_id FROM comments WHERE id = ?').bind(c.req.param('id')).first<{ id: string; author_id: string }>();
+  if (!cm) return c.json({ error: 'not_found' }, 404);
+  if (cm.author_id !== caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'not_owner' }, 403);
+  const body = await c.req.json<{ body?: string }>().catch(() => null);
+  const text = body?.body?.trim();
+  if (!text || text.length > 2000) return c.json({ error: 'invalid', reason: 'body' }, 400);
+  if (!(await isClean(c.env.DB, text))) return c.json({ error: 'blocked', message: CLEAN_MSG }, 422);
+  await c.env.DB.prepare('UPDATE comments SET body = ? WHERE id = ?').bind(text, cm.id).run();
+  return c.json({ ok: true });
+});
+
+// notifications_mark_read (0050): own rows only. Inserts stay trigger-side
+// (item 5) - there is still no client notification-insert route.
+app.post('/api/notifications/read-all', async (c) => {
+  const caller = await getCaller(c);
+  if (!caller) return c.json({ error: 'unauthorized' }, 401);
+  if (!caller.cohortUserId) return c.json({ error: 'forbidden', reason: 'no_mapped_user' }, 403);
+  const r = await c.env.DB.prepare("UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND read_at IS NULL")
+    .bind(caller.cohortUserId).run();
+  return c.json({ ok: true, updated: r.meta.changes ?? 0 });
+});
+
+// ---------------------------------------------------------------- search
+// Per-entity guards mirror the standalone routes: posts/resources/groups
+// public (using(true) policies), jobs mirror GET /api/jobs (open + own +
+// admin-all), people authenticated-only (0009) - unauthenticated callers get
+// no people results, exactly as RLS would return zero rows.
+app.get('/api/search', async (c) => {
+  const q = (c.req.query('q') ?? '').trim().replace(/[%_,().\\]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (q.length < 2) return c.json({ posts: [], resources: [], groups: [], jobs: [], people: [] });
+  const like = `%${q}%`;
+  const caller = await getCaller(c);
+  const [posts, resources, groups, jobs, people] = await Promise.all([
+    c.env.DB.prepare(
+      'SELECT id, author_id, author_name, author_role, kind, body, image_path, pinned, like_count, comment_count, created_at FROM posts WHERE body LIKE ? OR author_name LIKE ? ORDER BY created_at DESC LIMIT 20',
+    ).bind(like, like).all(),
+    c.env.DB.prepare('SELECT * FROM resources WHERE title LIKE ? OR uploaded_by LIKE ? OR course LIKE ? OR cat LIKE ? ORDER BY created_at DESC LIMIT 20').bind(like, like, like, like).all(),
+    c.env.DB.prepare("SELECT id, name, purpose, description, kind, member_count, created_by, created_at FROM groups WHERE kind = 'group' AND (name LIKE ? OR description LIKE ? OR purpose LIKE ?) LIMIT 20").bind(like, like, like).all(),
+    c.env.DB.prepare(
+      `SELECT j.*, COALESCE(p.full_name, '') AS posted_by_name FROM jobs j LEFT JOIN profiles p ON p.id = j.posted_by
+        WHERE (j.role LIKE ? OR j.firm LIKE ? OR j.loc LIKE ?) AND (j.status = 'open' ${caller?.cohortUserId ? 'OR j.posted_by = ?' : ''})
+        ORDER BY j.created_at DESC LIMIT 20`,
+    ).bind(...([like, like, like, ...(caller?.cohortUserId ? [caller.cohortUserId] : [])] as string[])).all(),
+    caller
+      ? c.env.DB.prepare(`SELECT ${PROFILE_COLS} FROM profiles WHERE full_name LIKE ? OR role LIKE ? LIMIT 20`).bind(like, like).all()
+      : Promise.resolve({ results: [] as Record<string, unknown>[] }),
+  ]);
+  return c.json({
+    posts: posts.results,
+    resources: resources.results,
+    groups: groups.results,
+    jobs: jobs.results,
+    people: (people.results as Record<string, unknown>[]).map(rowToProfile),
+  });
 });
 
 export default app;

@@ -28,16 +28,24 @@ data.ts hooks -> worker routes:
 - admin.tsx: verification review -> /api/admin/verification-requests*; reports -> /api/admin/reports*; members patch -> /api/admin/members/:id; trash -> /api/admin/trash*; blocked terms -> /api/admin/blocked-terms*; error logs -> /api/admin/error-logs*; activity -> /api/admin/activity-log
 - src/lib/errors.ts -> POST /api/error-logs
 
-## B. Worker endpoints to ADD (small, item-2 scope, D1-only)
-1. GET /api/profiles (list for members/search screens) and GET /api/profiles/:id - MISSING ENTIRELY (useProfiles/useProfile/useMyProfile, member screens).
-2. GET /api/groups/:id (single group) and GET /api/groups/:id/members (list w/ roles) - useGroup/useGroupMembers/useGroupMemberRows.
-3. GET /api/groups/:id/thread (get-or-create group thread) - getGroupThreadId/useGroupThread.
-4. PATCH /api/posts/:id (edit own post) - useEditOwnContent(posts).
-5. DELETE /api/posts/:id (delete own post, D1 rows only; image bytes deferred item 4) - useDeleteOwnContent(posts).
-6. DELETE /api/student-notes/:id (D1 row; file bytes deferred item 4) - useDeleteStudentNote.
-7. POST /api/notifications/read-all - useMarkAllNotificationsRead.
-8. GET /api/search?q= - combined posts/resources/groups/jobs/people search - useSearch.
-9. GET /api/posts/:id (single post) - usePost (currently feed-filter; cleaner as endpoint).
+## B. Worker endpoints ADDED in item 2 (IMPLEMENTED - worker version 78185749, 12 new routes)
+1. GET /api/profiles + GET /api/profiles/:id - 0009 authenticated-only; 0048 JSON columns parsed (migration 0005).
+2. PATCH /api/profiles/:id - owner (or admin) for ordinary fields; role/status/id/account_type rejected for everyone here (privilege changes stay on the admin route, 0015/0017); shape/length limits enforced (0048).
+3. GET /api/groups/:id + GET /api/groups/:id/members - public per groups_read/members_read.
+4. GET /api/groups/:id/thread - get-or-create; group member required (0043), active member to create.
+5. GET /api/posts/:id - public.
+6. PATCH /api/posts/:id - owner or admin (0001), blocked-terms recheck (0052).
+7. PATCH /api/comments/:id - owner ONLY (0013, no admin override), blocked-terms recheck.
+8. DELETE /api/posts/:id - owner or admin; FAILS CLOSED 409 byte_cleanup_deferred_item4 when image_path set.
+9. DELETE /api/student-notes/:id - pre-existing route hardened: FAILS CLOSED 409 when file_path set.
+10. POST /api/notifications/read-all - own rows only (0050).
+11. GET /api/search?q= - per-entity guards mirror standalone routes; people authenticated-only (anon gets zero people rows, same as RLS).
+12. CORS allowMethods now includes PATCH/PUT (preflight fix for existing routes too).
+
+Identity binding: getCaller keeps external_id (item-10 real path); otherwise PREVIEW-ONLY
+server-controlled TEST_SUB_ALLOWLIST binding (wrangler [vars]) requiring a same-id D1 profile
+row. No client-supplied ids, no auto-provision, no other fallback. Synthetic mapping:
+user_3LfjRoTDNbKKoIokRRE50PtERCb -> [SYNTHETIC] Preview Tester A profile row (seeded).
 
 ## C. Explicitly deferred (wired to a clear "unavailable in preview" state, never faked)
 - ALL supabase.storage.* (post-images, resumes, resources, student-notes, avatars): item 4, R2 billing gate. File pickers/uploads show unavailable; image renders fall back to placeholders.

@@ -24,3 +24,12 @@ INSERT OR REPLACE INTO resources (id, cat, course, subject, title, uploaded_by, 
   ('syn-res-0000-0000-4000-8000-000000000001','Notes','CA','Accounts','[SYNTHETIC] Seed resource note','Test User One','synthetic fixture','syn-00000000-0000-4000-8000-000000000001');
 INSERT OR REPLACE INTO jobs (id, cat, firm, role, loc, pay, tags, posted_by, description, status, openings) VALUES
   ('syn-job-0000-0000-4000-8000-000000000001','Jobs','Synthetic Firm LLP','Article Assistant','Hyderabad','10000','["synthetic"]','syn-00000000-0000-4000-8000-0000000000a1','[SYNTHETIC] preview fixture job posting.','open',2);
+
+-- Item-2 explicit dev binding: profile row keyed to the SYNTHETIC Clerk dev
+-- user used for preview sign-in. Only active because the sub is also on the
+-- worker's TEST_SUB_ALLOWLIST (server-controlled, wrangler [vars]). No real
+-- user, no production data, no Backend-API import (item 10 replaces this).
+INSERT OR REPLACE INTO profiles (id, full_name, role, status, course, level, city, headline, bio) VALUES
+  ('user_3LfjRoTDNbKKoIokRRE50PtERCb','[SYNTHETIC] Preview Tester A','user','active','CA','Inter','Hyderabad','[SYNTHETIC] preview tester','[SYNTHETIC] mapped dev identity for preview sign-in flows.');
+INSERT OR REPLACE INTO group_members (group_id, user_id, role) VALUES
+  ('syn-grp-0000-0000-4000-8000-000000000001','user_3LfjRoTDNbKKoIokRRE50PtERCb','member');
