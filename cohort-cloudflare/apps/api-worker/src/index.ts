@@ -563,6 +563,25 @@ app.get('/api/threads', async (c) => {
   return c.json({ threads });
 });
 
+// A single inbox query replaces per-thread body/profile fan-out. No admin
+// body override: only the caller's own DM participant rows qualify.
+app.get('/api/inbox', async (c) => {
+  const caller=await getCaller(c);
+  if(!caller)return c.json({error:'unauthorized'},401);
+  if(!caller.cohortUserId)return c.json({threads:[]});
+  const {results}=await c.env.DB.prepare(`
+    SELECT t.id, other.user_id AS otherUserId, COALESCE(p.full_name,'Member') AS otherName,
+      COALESCE((SELECT body FROM messages WHERE thread_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1),'') AS lastMessage,
+      COALESCE((SELECT created_at FROM messages WHERE thread_id=t.id ORDER BY created_at DESC,id DESC LIMIT 1),'') AS lastAt,
+      (SELECT count(*) FROM messages m WHERE m.thread_id=t.id AND m.sender_id<>? AND (mine.last_read_at IS NULL OR m.created_at>mine.last_read_at)) AS unread
+    FROM thread_participants mine JOIN threads t ON t.id=mine.thread_id AND t.group_id IS NULL
+    LEFT JOIN thread_participants other ON other.thread_id=t.id AND other.user_id<>mine.user_id
+    LEFT JOIN profiles p ON p.id=other.user_id
+    WHERE mine.user_id=? ORDER BY lastAt DESC,t.id DESC LIMIT 200
+  `).bind(caller.cohortUserId,caller.cohortUserId).all();
+  return c.json({threads:results});
+});
+
 // messages_read (0008): thread member or group-thread member. NO admin
 // override in the policy text - mirrored (admin can list a DM thread but
 // cannot read its bodies). Non-members (incl. missing threads) get 403, so
@@ -575,9 +594,9 @@ app.get('/api/threads/:id/messages', async (c) => {
   const ok = (await isThreadMember(c.env.DB, id, caller.cohortUserId)) || (await isGroupThreadMember(c.env.DB, id, caller.cohortUserId));
   if (!ok) return c.json({ error: 'forbidden', reason: 'not_member' }, 403);
   const { results } = await c.env.DB.prepare(
-    'SELECT id, thread_id, sender_id, body, created_at FROM messages WHERE thread_id = ? ORDER BY created_at ASC LIMIT 200',
+    'SELECT id, thread_id, sender_id, body, created_at FROM messages WHERE thread_id = ? ORDER BY created_at DESC,id DESC LIMIT 201',
   ).bind(id).all();
-  return c.json({ messages: results });
+  return c.json({ messages: results.slice(0,200).reverse(), has_older: results.length>200 });
 });
 
 // messages_insert (0045): sender = caller; active member; thread member OR

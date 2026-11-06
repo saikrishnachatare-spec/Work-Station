@@ -854,7 +854,7 @@ export default function AdminScreen() {
         const errs = (errorLogs.data ?? []).filter((e: { created_at: string }) => now - parseTs(e.created_at) < 3600000).length;
         return (
           <View style={{ gap: spacing.sm }}>
-            <Text style={styles.strong}>{liveConnected ? '● Live' : '○ Reconnecting (refreshing every 30s)'}</Text>
+            <Text style={styles.strong}>{CLERK_PREP_ENABLED ? 'Periodic updates (60s while visible)' : liveConnected ? '● Live' : '○ Reconnecting (refreshing every 30s)'}</Text>
             <Text style={styles.meta}>
               New events appear here as they are recorded: signups, sign-ins, content, hiring, group and moderation actions, and
               errors. Screen names appear only for members who accepted analytics. Message contents, passwords and typed input

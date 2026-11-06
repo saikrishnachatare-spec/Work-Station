@@ -1,3 +1,4 @@
+import { queryPollDelay, useForeground } from '@/lib/liveUpdates';
 import { CLERK_PREP_API_URL } from '@/lib/clerk';
 import { uploadPreviewFile } from '@/lib/api';
 /**
@@ -745,6 +746,7 @@ export function useActivityLog(enabled: boolean, limit = 200) {
  * refreshes the admin queries. A slow poll backs it up if the socket drops.
  */
 export function useLiveAdminFeed(enabled: boolean) {
+  const foreground=useForeground();
   const qc = useQueryClient();
   const [live, setLive] = useState(false);
   useEffect(() => {
@@ -762,7 +764,21 @@ export function useLiveAdminFeed(enabled: boolean) {
       }, 800);
     };
     if (CLERK_PREP_ENABLED) {
-      const poll = setInterval(refresh, 30000);
+      if (!foreground) return;
+      const guarded=()=>{
+        const states=keys.flatMap(key=>qc.getQueriesData({queryKey:[key]}).map(([queryKey])=>qc.getQueryState(queryKey)));
+        if(states.some(s=>[401,403].includes((s?.error as {status?:number}|null)?.status??0)))return;
+        refresh();
+      };
+      guarded();
+      let failures=0;
+      const poll = setInterval(()=>{
+        const states=keys.flatMap(key=>qc.getQueriesData({queryKey:[key]}).map(([queryKey])=>qc.getQueryState(queryKey)));
+        failures=states.some(s=>s?.error) ? Math.min(failures+1,4) : 0;
+        // At most one refresh per five minutes during server/network errors.
+        if(!failures || Date.now()-lastRefresh>=Math.min(60_000*2**failures,300_000)){guarded();lastRefresh=Date.now();}
+      }, 60_000);
+      let lastRefresh=Date.now();
       return () => { clearInterval(poll); if (timer) clearTimeout(timer); setLive(false); };
     }
     const channel = supabase
@@ -772,7 +788,7 @@ export function useLiveAdminFeed(enabled: boolean) {
       .subscribe((status) => setLive(status === 'SUBSCRIBED'));
     const poll = setInterval(refresh, 30000);
     return () => { clearInterval(poll); if (timer) clearTimeout(timer); supabase.removeChannel(channel); setLive(false); };
-  }, [enabled, qc]);
+  }, [enabled, foreground, qc]);
   return live;
 }
 
@@ -949,37 +965,16 @@ export type ThreadSummary = {
 
 /** Threads the signed-in user participates in, with the other person's name. */
 export function useThreads(userId: string | undefined) {
+  const foreground=useForeground();
+  const qc=useQueryClient();
+  useEffect(()=>{ if(CLERK_PREP_ENABLED && foreground && userId) void qc.invalidateQueries({queryKey:['threads',userId]}); },[foreground,userId,qc]);
   return useQuery({
-    enabled: !!userId,
+    ...(CLERK_PREP_ENABLED ? {retry:false,refetchIntervalInBackground:false,refetchInterval:(q:any)=>queryPollDelay(30_000,foreground,q)} : {}),
+    enabled: !!userId && (!CLERK_PREP_ENABLED || foreground),
     queryKey: ['threads', userId],
     queryFn: async (): Promise<ThreadSummary[]> => {
       if (CLERK_PREP_ENABLED) {
-        const r = await api<{ threads: { id: string; group_id: string | null; participants: string[]; my_last_read_at: string | null }[] }>(
-          '/api/threads', { auth: 'required' });
-        const dms = r.threads.filter((t) => t.group_id === null);
-        const out: ThreadSummary[] = [];
-        for (const t of dms) {
-          const other = t.participants.find((p) => p !== userId);
-          const [msgs, profile] = await Promise.all([
-            api<{ messages: Message[] }>(`/api/threads/${t.id}/messages`, { auth: 'required' }),
-            other
-              ? api<{ profile: Profile }>(`/api/profiles/${other}`, { auth: 'required' }).catch(() => null)
-              : Promise.resolve(null),
-          ]);
-          const last = msgs.messages[msgs.messages.length - 1];
-          const unread = msgs.messages.filter(
-            (m) => m.sender_id && m.sender_id !== userId && (!t.my_last_read_at || m.created_at > t.my_last_read_at),
-          ).length;
-          out.push({
-            id: t.id,
-            lastAt: last?.created_at ?? '',
-            lastMessage: last?.body ?? '',
-            otherName: profile?.profile.full_name ?? 'Member',
-            otherUserId: other,
-            unread,
-          });
-        }
-        return out;
+        return (await api<{threads:ThreadSummary[]}>('/api/inbox',{auth:'required'})).threads;
       }
       const { data: mine, error: e1 } = await supabase
         .from('thread_participants')
@@ -1041,10 +1036,11 @@ export function useMarkThreadRead(userId: string | undefined) {
   });
 }
 
-export function useThreadMessages(threadId: string | null) {
+export function useThreadMessages(threadId: string | null, userId?:string) {
+  const foreground=useForeground();
   const qc = useQueryClient();
   useEffect(() => {
-    if (!threadId || CLERK_PREP_ENABLED) return; // realtime replacement is item 6; the 5s poll below stays on
+    if (!threadId || CLERK_PREP_ENABLED) return;
     const channel = supabase.channel(`messages:${threadId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `thread_id=eq.${threadId}` }, () => {
         qc.invalidateQueries({ queryKey: ['messages', threadId] });
@@ -1052,13 +1048,15 @@ export function useThreadMessages(threadId: string | null) {
       }).subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [threadId, qc]);
+  useEffect(()=>{ if(CLERK_PREP_ENABLED && foreground && threadId) void qc.invalidateQueries({queryKey:['messages',threadId]}); },[foreground,threadId,qc]);
   return useQuery({
-    enabled: !!threadId,
-    queryKey: ['messages', threadId],
+    enabled: !!threadId && (!CLERK_PREP_ENABLED || (foreground && !!userId)),
+    queryKey: CLERK_PREP_ENABLED ? ['messages',threadId,userId] : ['messages',threadId],
+    ...(CLERK_PREP_ENABLED ? {retry:false,refetchIntervalInBackground:false} : {}),
     queryFn: async (): Promise<Message[]> => {
       if (CLERK_PREP_ENABLED) {
-        const r = await api<{ messages: Message[] }>(`/api/threads/${threadId}/messages`, { auth: 'required' });
-        return r.messages;
+        const r = await api<{ messages: Message[]; has_older:boolean }>(`/api/threads/${threadId}/messages`, { auth: 'required' });
+        return Object.assign(r.messages,{hasOlder:r.has_older});
       }
       const { data, error } = await supabase
         .from('messages')
@@ -1068,7 +1066,7 @@ export function useThreadMessages(threadId: string | null) {
       if (error) throw error;
       return data as Message[];
     },
-    refetchInterval: 5000,
+    refetchInterval: CLERK_PREP_ENABLED ? (q)=>queryPollDelay(15_000,foreground,q) : 5000,
   });
 }
 

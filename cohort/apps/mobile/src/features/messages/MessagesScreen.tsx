@@ -34,11 +34,11 @@ export function MessagesScreen() {
   const threads = useThreads(userId);
   const profiles = useProfiles();
   const connections = useMyConnections(userId);
-  const messages = useThreadMessages(openId);
-  const openMsgCount = (messages.data ?? []).length;
+  const messages = useThreadMessages(openId,userId);
+  const openMsgCount = messages.data?.at(-1)?.id;
   const markRead = useMarkThreadRead(userId);
   useEffect(() => {
-    if (openId && openMsgCount > 0) markRead.mutate(openId);
+    if (openId && !!openMsgCount) markRead.mutate(openId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openId, openMsgCount]);
   const startThread = useStartThread(userId);
@@ -112,7 +112,9 @@ export function MessagesScreen() {
         </Card>
         <ScrollView contentContainerStyle={styles.threadBody}>
           {messages.isLoading && <ListSkeleton count={1} />}
-          {(messages.data ?? []).map((m) => (
+          {(messages.data as (typeof messages.data & {hasOlder?:boolean}))?.hasOlder && <Text>Showing the latest 200 messages.</Text>}
+          {messages.isError && <Text>Messages could not refresh. Reopen the conversation to try again.</Text>}
+          {(messages.isError ? [] : messages.data ?? []).map((m) => (
             <Text key={m.id} style={[styles.bubble, m.sender_id === userId ? styles.you : styles.them]}>{m.body}</Text>
           ))}
         </ScrollView>

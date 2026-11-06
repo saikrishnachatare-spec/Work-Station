@@ -29,7 +29,7 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
 
   const thread = useGroupThread(groupId, userId);
   const threadId = thread.data ?? null;
-  const messages = useThreadMessages(threadId);
+  const messages = useThreadMessages(threadId,userId);
   const sendMessage = useSendMessage(userId);
   const profiles = useProfiles();
   const members = useGroupMembers(groupId);
@@ -45,9 +45,9 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
   const addMembers = useAddGroupMembers(userId);
   const leaveGroup = useLeaveGroup(userId);
   const markRead = useMarkThreadRead(userId);
-  const msgCount = (messages.data ?? []).length;
+  const msgCount = messages.data?.at(-1)?.id;
   useEffect(() => {
-    if (threadId && msgCount > 0) markRead.mutate(threadId);
+    if (threadId && !!msgCount) markRead.mutate(threadId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId, msgCount]);
 
@@ -269,6 +269,8 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
       {thread.isLoading && <ListSkeleton count={1} />}
       <ScrollView contentContainerStyle={styles.threadBody}>
         {messages.isLoading && <ListSkeleton count={1} />}
+          {(messages.data as (typeof messages.data & {hasOlder?:boolean}))?.hasOlder && <Text>Showing the latest 200 messages.</Text>}
+          {messages.isError && <Text>Messages could not refresh. Reopen the conversation to try again.</Text>}
         {!messages.isLoading && (messages.data ?? []).length === 0 && (
           <EmptyState
             body="Say hello to get the conversation going. Everyone in the group can read and reply."
@@ -276,7 +278,7 @@ export function GroupChatScreen({ groupId, groupName }: Props) {
             title="No messages yet"
           />
         )}
-        {(messages.data ?? []).map((m, i, arr) => {
+        {(messages.isError ? [] : messages.data ?? []).map((m, i, arr) => {
           const day = new Date(m.created_at).toDateString();
           const showDay = i === 0 || new Date(arr[i - 1].created_at).toDateString() !== day;
           const mine = m.sender_id === userId;
