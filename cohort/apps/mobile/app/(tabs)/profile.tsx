@@ -80,7 +80,7 @@ export default function ProfileScreen() {
   }
 
   const user = session.user;
-  const name = (user.user_metadata?.full_name as string) || user.email || 'Member';
+  const name = profile.data?.full_name || (user.user_metadata?.full_name as string) || user.email || 'Member';
   const verified = !!user.email_confirmed_at;
   const saveName = async () => {
     const next = nameDraft.trim();

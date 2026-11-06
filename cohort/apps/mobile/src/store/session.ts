@@ -116,6 +116,10 @@ function useClerkPrepAuth(): AuthState {
             // when unmapped (see `unmapped`) so member queries stay off.
             id: me.cohortUserId ?? '',
             user_metadata: { full_name: user?.fullName ?? '' },
+            // Screens read this Supabase-shaped field; map Clerk's
+            // verification status so the badge reflects the Clerk account.
+            email_confirmed_at:
+              user?.primaryEmailAddress?.verification?.status === 'verified' ? 'clerk-verified' : undefined,
           },
         } as unknown as Session)
       : null;
