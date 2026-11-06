@@ -16,6 +16,8 @@ import { HeaderButtons } from '@/components/HeaderButtons';
 import { SectionTitle } from '@/components/ScreenBits';
 import { Card } from '@/components/Card';
 import { ListSkeleton } from '@/components/Skeleton';
+import { api, previewUnavailable } from '@/lib/api';
+import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/Toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -54,7 +56,7 @@ export default function ProfileScreen() {
   const [websiteDraft, setWebsiteDraft] = useState('');
   const [expDraft, setExpDraft] = useState<ProfileExperience[]>([]);
   const [eduDraft, setEduDraft] = useState<ProfileEducation[]>([]);
-  useEffect(()=>{if(profile.data?.avatar_path) supabase.storage.from('resources').createSignedUrl(profile.data.avatar_path,3600).then(({data})=>{if(data)setPhotoPreview(data.signedUrl);});},[profile.data?.avatar_path]);
+  useEffect(()=>{if(CLERK_PREP_ENABLED) return; if(profile.data?.avatar_path) supabase.storage.from('resources').createSignedUrl(profile.data.avatar_path,3600).then(({data})=>{if(data)setPhotoPreview(data.signedUrl);});},[profile.data?.avatar_path]);
   const toast = useToast();
   const qc = useQueryClient();
 
@@ -91,6 +93,7 @@ export default function ProfileScreen() {
       let avatarPath = profile.data?.avatar_path || null;
       if(photo){
         if(!['image/png','image/jpeg','image/webp'].includes(photo.mimeType || '') || (photo.size || 0)>5*1024*1024) throw new Error('Choose PNG, JPEG or WebP up to 5 MB');
+        if (CLERK_PREP_ENABLED) throw previewUnavailable('Profile photo upload', 'item 4');
         avatarPath = `${user.id}/avatar-${Date.now()}`;
         const bytes=await (await fetch(photo.uri)).arrayBuffer();
         const {error}=await supabase.storage.from('resources').upload(avatarPath,bytes,{contentType:photo.mimeType});
@@ -117,14 +120,19 @@ export default function ProfileScreen() {
         .map((e) => ({ institute: e.institute.trim(), period: e.period.trim(), qualification: e.qualification.trim() }))
         .filter((e) => e.qualification || e.institute)
         .slice(0, 10);
-      const { data: saved, error: pErr } = await supabase.from('profiles').update({
+      const patchBody = {
         avatar_path: avatarPath, bio: bioDraft.trim().slice(0, 2000), city: cityDraft.trim(),
         course: courseDraft, education, experience, full_name: next,
         headline: headlineDraft.trim().slice(0, 120), level: levelDraft, links, skills,
-      }).eq('id', user.id).select('id').single();
-      if (pErr || !saved) throw pErr || new Error('Profile did not save');
-      const { error: uErr } = await supabase.auth.updateUser({ data: { full_name: next } });
-      if (uErr) throw uErr;
+      };
+      if (CLERK_PREP_ENABLED) {
+        await api(`/api/profiles/${user.id}`, { auth: 'required', body: patchBody, method: 'PATCH' });
+      } else {
+        const { data: saved, error: pErr } = await supabase.from('profiles').update(patchBody).eq('id', user.id).select('id').single();
+        if (pErr || !saved) throw pErr || new Error('Profile did not save');
+        const { error: uErr } = await supabase.auth.updateUser({ data: { full_name: next } });
+        if (uErr) throw uErr;
+      }
       await qc.invalidateQueries({ queryKey: ['profile', user.id] });
       await qc.invalidateQueries({ queryKey: ['profiles'] });
       toast.show('Profile updated', 'success');
@@ -143,6 +151,11 @@ export default function ProfileScreen() {
   };
 
   const doDelete = async () => {
+    if (CLERK_PREP_ENABLED) {
+      toast.show('Account deletion is not wired in this preview yet. It is part of a later checklist item.', 'info');
+      setConfirming(false);
+      return;
+    }
     setDeleting(true);
     const removeAvatar = async () => {
       const { data: files, error: listError } = await supabase.storage.from('resources').list(user.id);
@@ -180,6 +193,7 @@ export default function ProfileScreen() {
   };
 
   const openNote = async (filePath: string) => {
+    if (CLERK_PREP_ENABLED) { toast.show(previewUnavailable('File downloads', 'item 4').message, 'info'); return; }
     const { data, error } = await supabase.storage.from('student-notes').createSignedUrl(filePath, 300);
     if (error || !data) { toast.show('Could not open this file. Try again.', 'error'); return; }
     if (Platform.OS === 'web') window.location.assign(data.signedUrl);
@@ -187,6 +201,10 @@ export default function ProfileScreen() {
   };
 
   const exportMyData = async () => {
+    if (CLERK_PREP_ENABLED) {
+      toast.show('Data export is not wired in this preview yet. It depends on file storage, a later checklist item.', 'info');
+      return;
+    }
     setExporting(true);
     try {
       const uid = user.id;

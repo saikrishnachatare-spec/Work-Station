@@ -23,6 +23,8 @@ import {
   type ActivityRow, type TrashRow, useCreateResource,
   usePendingVerificationRequests, useReviewVerificationRequest,
 } from '@/lib/data';
+import { api, previewUnavailable } from '@/lib/api';
+import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
@@ -125,11 +127,18 @@ export default function AdminScreen() {
     return () => clearInterval(id);
   }, []);
   const analytics = useAdminAnalytics(!!isAdmin);
-  const reports = useQuery({queryKey:['reports'],enabled:!!isAdmin,queryFn:async()=>{const{data,error}=await supabase.from('content_reports').select('*').order('created_at',{ascending:false});if(error)throw error;return data||[];}});
+  const reports = useQuery({queryKey:['reports'],enabled:!!isAdmin,queryFn:async()=>{
+    if (CLERK_PREP_ENABLED) {
+      const res = await api<{ reports: Record<string, unknown>[] }>('/api/admin/reports', { auth: 'required' });
+      return res.reports || [];
+    }
+    const{data,error}=await supabase.from('content_reports').select('*').order('created_at',{ascending:false});if(error)throw error;return data||[];
+  }});
   const dbOverview = useQuery({
     queryKey: ['admin-db-overview'],
     enabled: !!isAdmin,
     queryFn: async (): Promise<{ table: string; rows: number }[]> => {
+      if (CLERK_PREP_ENABLED) throw previewUnavailable('The database browser', 'a later checklist item');
       const { data, error } = await supabase.rpc('admin_db_overview');
       if (error) throw error;
       return (data as { table: string; rows: number }[]) ?? [];
@@ -140,6 +149,7 @@ export default function AdminScreen() {
     queryKey: ['admin-db-recent', dbTable],
     enabled: !!isAdmin && !!dbTable,
     queryFn: async (): Promise<Record<string, unknown>[]> => {
+      if (CLERK_PREP_ENABLED) throw previewUnavailable('The database browser', 'a later checklist item');
       const { data, error } = await supabase.rpc('admin_db_recent', { p_table: dbTable });
       if (error) throw error;
       return (data as Record<string, unknown>[]) ?? [];
@@ -207,10 +217,20 @@ export default function AdminScreen() {
   const regularPosts = (posts.data ?? []).filter((p) => p.kind !== 'announcement');
 
   const setRole = async (id: string, role: 'user' | 'admin') => {
+    if (CLERK_PREP_ENABLED) {
+      await api(`/api/admin/members/${id}`, { auth: 'required', body: { role }, method: 'PATCH' });
+      refresh();
+      return;
+    }
     await supabase.from('profiles').update({ role }).eq('id', id);
     refresh();
   };
   const setStatus = async (id: string, status: 'active' | 'suspended') => {
+    if (CLERK_PREP_ENABLED) {
+      await api(`/api/admin/members/${id}`, { auth: 'required', body: { status }, method: 'PATCH' });
+      refresh();
+      return;
+    }
     await supabase.from('profiles').update({ status }).eq('id', id);
     refresh();
   };
@@ -220,27 +240,60 @@ export default function AdminScreen() {
       // it flips the request, sets the badge and notifies the member. Setting
       // verified_at directly would leave the request open and the member
       // waiting for a notification that never comes.
-      const { data: pending } = await supabase
-        .from('verification_requests')
-        .select('id')
-        .eq('user_id', id)
-        .eq('status', 'pending')
-        .maybeSingle();
+      let pending: { id: string } | null = null;
+      if (CLERK_PREP_ENABLED) {
+        const res = await api<{ verification_requests: { id: string; user_id: string; status: string }[] }>('/api/admin/verification-requests', { auth: 'required' });
+        pending = (res.verification_requests || []).find((r) => r.user_id === id && r.status === 'pending') ?? null;
+      } else {
+        const { data } = await supabase
+          .from('verification_requests')
+          .select('id')
+          .eq('user_id', id)
+          .eq('status', 'pending')
+          .maybeSingle();
+        pending = data;
+      }
       if (pending) {
-        const { error } = await supabase.rpc('review_verification_request', { p_approve: true, p_id: pending.id });
-        if (error) {
-          toast.show('Could not verify. Try again.', 'error');
-          return;
+        if (CLERK_PREP_ENABLED) {
+          try {
+            await api(`/api/admin/verification-requests/${pending.id}/review`, { auth: 'required', body: { approve: true }, method: 'POST' });
+          } catch {
+            toast.show('Could not verify. Try again.', 'error');
+            return;
+          }
+        } else {
+          const { error } = await supabase.rpc('review_verification_request', { p_approve: true, p_id: pending.id });
+          if (error) {
+            toast.show('Could not verify. Try again.', 'error');
+            return;
+          }
         }
         toast.show('Verified.', 'success');
         refresh();
         return;
       }
     }
+    if (CLERK_PREP_ENABLED) {
+      toast.show(verified
+        ? 'No pending verification request for this member. Direct badge changes are not available in this preview.'
+        : 'Removing a verification badge is not available in this preview.', 'info');
+      return;
+    }
     await supabase.from('profiles').update({ verified_at: verified ? new Date().toISOString() : null }).eq('id', id);
     refresh();
   };
   const remove = async (table: 'posts' | 'groups' | 'jobs' | 'resources', id: string) => {
+    if (CLERK_PREP_ENABLED) {
+      try {
+        if (table === 'groups') await api(`/api/groups/${id}`, { auth: 'required', method: 'DELETE' });
+        else await api('/api/admin/trash', { auth: 'required', body: { id, table }, method: 'POST' });
+      } catch {
+        toast.show('Could not move to trash. Try again.', 'error');
+        return;
+      }
+      refresh();
+      return;
+    }
     if (table === 'groups') {
       await supabase.from('groups').delete().eq('id', id);
     } else {
@@ -253,12 +306,36 @@ export default function AdminScreen() {
     refresh();
   };
   const restoreItem = async (trashId: string) => {
+    if (CLERK_PREP_ENABLED) {
+      try {
+        await api(`/api/admin/trash/${trashId}/restore`, { auth: 'required', method: 'POST' });
+      } catch {
+        toast.show('Could not restore. Try again.', 'error');
+        return;
+      }
+      toast.show('Restored.', 'success');
+      refresh();
+      return;
+    }
     const { error } = await supabase.rpc('admin_restore', { p_trash_id: trashId });
     if (error) { toast.show('Could not restore. Try again.', 'error'); return; }
     toast.show('Restored.', 'success');
     refresh();
   };
   const purgeItem = async (t: TrashRow) => {
+    if (CLERK_PREP_ENABLED) {
+      try {
+        await api(`/api/admin/trash/${t.id}/purge`, { auth: 'required', method: 'POST' });
+      } catch (err) {
+        toast.show(err instanceof Error && err.message.includes('storage_cleanup_required')
+          ? 'This item has a stored file. File cleanup is part of a later checklist item, so it stays in trash for now.'
+          : 'Could not delete permanently. Try again.', 'error');
+        return;
+      }
+      toast.show('Deleted permanently.', 'success');
+      refresh();
+      return;
+    }
     if (t.entity_table === 'resources' && t.payload?.file_path) {
       await supabase.storage.from('resources').remove([t.payload.file_path]);
     }
@@ -298,6 +375,11 @@ export default function AdminScreen() {
     posts_purged: 'permanently deleted a post', jobs_purged: 'permanently deleted an opening', resources_purged: 'permanently deleted a resource',
   };
   const publishAnnouncement = async (text: string) => {
+    if (CLERK_PREP_ENABLED) {
+      await api('/api/posts', { auth: 'required', body: { body: text, kind: 'announcement', pinned: true }, method: 'POST' });
+      refresh();
+      return;
+    }
     await supabase.from('posts').insert({
       author_id: userId,
       author_name: me?.full_name || 'Cohort team',
@@ -711,7 +793,7 @@ export default function AdminScreen() {
         </View>
       )}
 
-      {section === 'Reports' && <View style={{gap:12}}>{reports.isError?<Text>Could not load reports.</Text>:reports.data?.length===0?<Text>No reports.</Text>:reports.data?.map(r=><Card key={r.id}><Text>{r.target_type}: {r.target_id}</Text><Text>{r.reason}</Text><Text>{r.status}</Text>{r.status==='open'&&<ActionBtn label="Mark reviewed" onPress={async()=>{const{error}=await supabase.from('content_reports').update({status:'reviewed'}).eq('id',r.id);if(!error)qc.invalidateQueries({queryKey:['reports']});}}/>}</Card>)}</View>}
+      {section === 'Reports' && <View style={{gap:12}}>{reports.isError?<Text>Could not load reports.</Text>:reports.data?.length===0?<Text>No reports.</Text>:reports.data?.map(r=><Card key={r.id}><Text>{r.target_type}: {r.target_id}</Text><Text>{r.reason}</Text><Text>{r.status}</Text>{r.status==='open'&&<ActionBtn label="Mark reviewed" onPress={async()=>{if(CLERK_PREP_ENABLED){try{await api(`/api/admin/reports/${r.id}`,{auth:'required',body:{status:'reviewed'},method:'PATCH'});qc.invalidateQueries({queryKey:['reports']});}catch{}}else{const{error}=await supabase.from('content_reports').update({status:'reviewed'}).eq('id',r.id);if(!error)qc.invalidateQueries({queryKey:['reports']});}}}/>}</Card>)}</View>}
       {section === 'Errors' && (() => {
         const rows = errorLogs.data ?? [];
         const groups = new Map<string, { key: string; message: string; url: string; count: number; first: string; last: string; stack: string | null; agents: Set<string>; ids: string[] }>();
@@ -747,7 +829,13 @@ export default function AdminScreen() {
                     <Text style={styles.meta}>{[...g.agents].join(', ')}</Text>
                   </View>
                   <ActionBtn label={g.count > 1 ? `Clear ${g.count}` : 'Clear'} onPress={async () => {
-                    await supabase.from('error_logs').delete().in('id', g.ids);
+                    if (CLERK_PREP_ENABLED) {
+                      for (const logId of g.ids as string[]) {
+                        await api(`/api/admin/error-logs/${logId}`, { auth: 'required', method: 'DELETE' });
+                      }
+                    } else {
+                      await supabase.from('error_logs').delete().in('id', g.ids);
+                    }
                     refresh();
                   }} />
                 </View>

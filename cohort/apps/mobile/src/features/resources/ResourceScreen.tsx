@@ -10,6 +10,8 @@ import { useToast } from '@/components/Toast';
 import { useResource } from '@/lib/data';
 import { itemShareUrl, shareItemLink } from '@/lib/share';
 import { colors, spacing, type as typeScale } from '@/theme';
+import { previewUnavailable } from '@/lib/api';
+import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 
 /** Public read-only page for one shared resource (opened from a share link). */
 export function ResourceScreen({ id }: { id: string }) {
@@ -32,6 +34,7 @@ export function ResourceScreen({ id }: { id: string }) {
 
   const download = async () => {
     if (!r.file_path) return;
+    if (CLERK_PREP_ENABLED) { toast.show(previewUnavailable('File downloads', 'item 4').message, 'info'); return; }
     const { data, error } = await supabase.storage.from('resources').createSignedUrl(r.file_path, 300);
     if (error || !data) {
       toast.show('Could not open this file. Try again.', 'error');

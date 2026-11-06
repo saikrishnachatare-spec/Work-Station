@@ -25,6 +25,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/store/session';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
+import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 
 export function MemberScreen({ id }: { id: string }) {
   const router = useRouter();
@@ -47,7 +48,7 @@ export function MemberScreen({ id }: { id: string }) {
 
   const avatarPath = profile.data?.avatar_path;
   useEffect(() => {
-    if (!avatarPath) return;
+    if (!avatarPath || CLERK_PREP_ENABLED) return;
     let alive = true;
     supabase.storage.from('resources').createSignedUrl(avatarPath, 3600).then(({ data }) => {
       if (alive && data) setSignedAvatar({ path: avatarPath, url: data.signedUrl });

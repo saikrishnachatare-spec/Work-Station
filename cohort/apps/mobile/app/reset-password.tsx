@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { Card } from '@/components/Card';
 import { supabase } from '@/lib/supabase';
 import { colors, radius, spacing, type as typeScale } from '@/theme';
+import { CLERK_PREP_ENABLED } from '@/lib/clerk';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -23,6 +24,10 @@ export default function ResetPasswordScreen() {
     }
     if (password !== confirm) {
       setError('The two passwords do not match.');
+      return;
+    }
+    if (CLERK_PREP_ENABLED) {
+      setError('Password reset is part of the sign-up checklist item and is not available in this preview yet.');
       return;
     }
     setBusy(true);
