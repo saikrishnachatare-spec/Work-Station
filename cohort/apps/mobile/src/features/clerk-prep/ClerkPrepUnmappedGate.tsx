@@ -38,7 +38,9 @@ export function ClerkPrepUnmappedGate() {
     setState('working');
     setReason('');
     try {
-      await api('/api/me/bootstrap', {
+      // 201 body carries the created identity; only reload into the app once
+      // the mapping is actually confirmed - never on a bare status code.
+      const created = await api<{ cohortUserId?: string }>('/api/me/bootstrap', {
         auth: 'required',
         body: {
           full_name: pending.full_name,
@@ -49,15 +51,32 @@ export function ClerkPrepUnmappedGate() {
           phone: pending.phone,
         },
       });
+      if (!created.cohortUserId) {
+        setState('error');
+        setReason('Server accepted onboarding but returned no identity binding.');
+        return;
+      }
       clearPendingBootstrap();
       if (Platform.OS === 'web' && typeof window !== 'undefined') window.location.reload();
     } catch (e) {
       const err = e as ApiError;
       if (err.status === 409) {
-        // A previous attempt committed but its response never arrived; the
-        // binding exists now. Not a duplicate - finish as success.
-        clearPendingBootstrap();
-        if (Platform.OS === 'web' && typeof window !== 'undefined') window.location.reload();
+        // Conflict means the sub is already bound - probably a previous
+        // attempt whose response never arrived. A conflict alone is NOT
+        // completion proof: confirm /api/me resolves the mapped identity
+        // before clearing the payload and reloading.
+        try {
+          const me = await api<{ cohortUserId?: string }>('/api/me', { auth: 'required' });
+          if (me.cohortUserId) {
+            clearPendingBootstrap();
+            if (Platform.OS === 'web' && typeof window !== 'undefined') window.location.reload();
+            return;
+          }
+        } catch {
+          // fall through to error state below
+        }
+        setState('error');
+        setReason('Server reports this identity is already bound, but the binding could not be confirmed. Retry.');
         return;
       }
       if (err.status === 403) setState('allowlist-pending');
