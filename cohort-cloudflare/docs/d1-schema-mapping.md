@@ -125,8 +125,16 @@ not complete behavior parity: Postgres error codes/messages, trigger
 side-effects (admin activity logging 0032, notifications 0050), realtime
 broadcasts, and multi-instance concurrency are NOT ported/tested.
 
-NOT covered by tests: multi-instance concurrency, real Clerk tokens against
-these endpoints (verified earlier against /api/me only; real-token run gated
-on user approval for sandbox use of the saved test-user login), and
-external_id-bearing imported-user tokens (untestable until the import stage
-by design - external_id is Backend-API-only).
+NOT covered by tests: multi-instance concurrency, and real Clerk tokens
+against these endpoints. Real-token attempt (2026-11-06, local only, user-
+approved sandbox use of the saved test-user login, password never printed,
+files deleted after): Clerk FAPI password first factor VERIFIED, then the
+device-trust email-code step requires the dev-instance browser handshake
+cookie (__clerk_db_jwt), which non-browser clients cannot bootstrap (405 on
+/v1/dev_browser both hosts). So no fresh real token could be minted without a
+browser run. Already proven: a REAL Clerk dev token verifies through this
+worker's verifyToken path (Nov 5 interactive end-to-end, HTTP 200 /api/me via
+the /clerk-prep route) - and every new endpoint uses that same verification
+helper. Still open by design: external_id-bearing imported-user tokens
+(untestable until the scoped import rehearsal; external_id is
+Backend-API-only).
