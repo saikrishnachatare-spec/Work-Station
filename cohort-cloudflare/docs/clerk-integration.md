@@ -139,3 +139,23 @@ Test-route options assessed (to stop per-run approval churn):
    preview build can be configured per-branch - to explore, needs his OK.
 4. Keep browser sign-in only for milestone checks; run synthetic-issuer suites
    (no browser, no approval) for routine iteration. Already the case.
+
+## Real-token endpoint probe attempt (2026-11-06, continuation run)
+
+Environment fully rebuilt and verified up to the sign-in step: flag-on web
+export served via temporary tunnel (clean-URL resolution needed - the route
+guard redirects /clerk-prep.html to /login), api-worker local with the real
+dev-instance public key (fetched live from the instance JWKS endpoint),
+authorized-party pin set to the web tunnel origin, D1 seeded (public feed 200
+through the API tunnel), cloud browser parked on the clerk-prep sign-in form
+with the portal session already live (no password needed at accounts.dev).
+
+NOT completed: the app-form password fill on the random quick-tunnel hostname
+requires a one-time vault site approval (the saved test login is site-limited);
+the approval was requested and relayed but not decided within the run window,
+so no fresh real token was minted and the four-table endpoint probes with a
+real Clerk token remain UNRUN. Status of the gap is unchanged from slice 2:
+real dev tokens verify through the shared verifyToken helper (proven Nov 5 on
+/api/me); endpoint-level real-token coverage remains synthetic-issuer only;
+external_id-bearing imported-user tokens stay untestable until the scoped
+import rehearsal. All tunnels, servers, and the browser lease were torn down.
